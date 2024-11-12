@@ -331,6 +331,7 @@
 @ extern ??_7bad_typeid@std@@6B@ bad_typeid_vtable
 @ extern ??_7exception@@6B@ exception_old_vtable
 @ extern ??_7exception@std@@6B@ exception_vtable
+@ extern ??_7type_info@@6B@ type_info_vtable
 @ cdecl -arch=arm ??_F?$_SpinWait@$00@details@Concurrency@@QAAXXZ(ptr) SpinWait_dtor
 @ thiscall -arch=i386 ??_F?$_SpinWait@$00@details@Concurrency@@QAEXXZ(ptr) SpinWait_dtor
 @ cdecl -arch=win64 ??_F?$_SpinWait@$00@details@Concurrency@@QEAAXXZ(ptr) SpinWait_dtor

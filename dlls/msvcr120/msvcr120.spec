@@ -371,6 +371,7 @@
 @ extern ??_7bad_cast@std@@6B@ bad_cast_vtable
 @ extern ??_7bad_typeid@std@@6B@ bad_typeid_vtable
 @ extern ??_7exception@std@@6B@ exception_vtable
+@ extern ??_7type_info@@6B@ type_info_vtable
 @ cdecl -arch=arm ??_F?$_SpinWait@$00@details@Concurrency@@QAAXXZ(ptr) SpinWait_dtor
 @ thiscall -arch=i386 ??_F?$_SpinWait@$00@details@Concurrency@@QAEXXZ(ptr) SpinWait_dtor
 @ cdecl -arch=win64 ??_F?$_SpinWait@$00@details@Concurrency@@QEAAXXZ(ptr) SpinWait_dtor
@@ -685,8 +686,8 @@
 @ cdecl -arch=win64 ?__ExceptionPtrDestroy@@YAXPEAX@Z(ptr) __ExceptionPtrDestroy
 @ cdecl -arch=win32 ?__ExceptionPtrRethrow@@YAXPBX@Z(ptr) __ExceptionPtrRethrow
 @ cdecl -arch=win64 ?__ExceptionPtrRethrow@@YAXPEBX@Z(ptr) __ExceptionPtrRethrow
-@ stub -arch=win32 ?__ExceptionPtrSwap@@YAXPAX0@Z
-@ stub -arch=win64 ?__ExceptionPtrSwap@@YAXPEAX0@Z
+@ cdecl -arch=win32 ?__ExceptionPtrSwap@@YAXPAX0@Z(ptr ptr) __ExceptionPtrSwap
+@ cdecl -arch=win64 ?__ExceptionPtrSwap@@YAXPEAX0@Z(ptr ptr) __ExceptionPtrSwap
 @ cdecl -arch=win32 ?__ExceptionPtrToBool@@YA_NPBX@Z(ptr) __ExceptionPtrToBool
 @ cdecl -arch=win64 ?__ExceptionPtrToBool@@YA_NPEBX@Z(ptr) __ExceptionPtrToBool
 @ cdecl __uncaught_exception()

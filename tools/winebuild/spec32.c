@@ -448,7 +448,7 @@ void output_exports( DLLSPEC *spec )
                     odp->name ? odp->name : strmake( "_noname%u", i ),
                     symbol, i,
                     odp->name ? "" : ",NONAME",
-                    odp->type == TYPE_EXTERN ? ",DATA" : "" );
+                    "" );
         }
         return;
     }
@@ -1459,7 +1459,6 @@ void output_def_file( DLLSPEC *spec, struct exports *exports, int import_only )
         }
         output( " @%d", odp->ordinal );
         if (!odp->name || (odp->flags & FLAG_ORDINAL)) output( " NONAME" );
-        if (is_data) output( " DATA" );
         if (is_private) output( " PRIVATE" );
         output( "\n" );
     }

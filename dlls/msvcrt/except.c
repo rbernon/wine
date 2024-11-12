@@ -34,6 +34,7 @@
 #include "msvcrt.h"
 #include "excpt.h"
 #include "wincon.h"
+#include "vcruntime_exception.h"
 #include "wine/exception.h"
 #include "wine/debug.h"
 
@@ -1005,11 +1006,6 @@ void CDECL __CxxUnregisterExceptionObject(cxx_frame_info *frame_info, BOOL in_us
     data->exc_record = frame_info->rec;
     data->ctx_record = frame_info->context;
 }
-
-struct __std_exception_data {
-    char *what;
-    char dofree;
-};
 
 #if _MSVCR_VER>=140
 

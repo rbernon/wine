@@ -1705,8 +1705,8 @@
 @ cdecl -arch=win64 ?__ExceptionPtrDestroy@@YAXPEAX@Z(ptr) msvcp140.?__ExceptionPtrDestroy@@YAXPEAX@Z
 @ cdecl -arch=win32 ?__ExceptionPtrRethrow@@YAXPBX@Z(ptr) msvcp140.?__ExceptionPtrRethrow@@YAXPBX@Z
 @ cdecl -arch=win64 ?__ExceptionPtrRethrow@@YAXPEBX@Z(ptr) msvcp140.?__ExceptionPtrRethrow@@YAXPEBX@Z
-@ stub -arch=win32 ?__ExceptionPtrSwap@@YAXPAX0@Z
-@ stub -arch=win64 ?__ExceptionPtrSwap@@YAXPEAX0@Z
+@ cdecl -arch=win32 ?__ExceptionPtrSwap@@YAXPAX0@Z(ptr ptr) msvcp140.?__ExceptionPtrSwap@@YAXPAX0@Z
+@ cdecl -arch=win64 ?__ExceptionPtrSwap@@YAXPEAX0@Z(ptr ptr) msvcp140.?__ExceptionPtrSwap@@YAXPEAX0@Z
 @ cdecl -arch=win32 ?__ExceptionPtrToBool@@YA_NPBX@Z(ptr) msvcp140.?__ExceptionPtrToBool@@YA_NPBX@Z
 @ cdecl -arch=win64 ?__ExceptionPtrToBool@@YA_NPEBX@Z(ptr) msvcp140.?__ExceptionPtrToBool@@YA_NPEBX@Z
 @ cdecl -arch=arm ?always_noconv@codecvt_base@std@@QBA_NXZ(ptr) msvcp140.?always_noconv@codecvt_base@std@@QBA_NXZ
