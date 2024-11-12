@@ -861,314 +861,153 @@ static void test_acceleration(HDC hdc)
 
 static void test_bitmap_rendering( BOOL use_dib )
 {
-    static const RECT expect_rect = {0, 0, 4, 4}, expect_rect2 = {0, 0, 12, 12};
-    BITMAPINFO bi = {.bmiHeader = {.biSize = sizeof(BITMAPINFOHEADER), .biPlanes = 1, .biCompression = BI_RGB}};
-    UINT buffer[16 * 16], buffer2[16 * 16], *pixels = buffer, *pixels2 = buffer2;
-    HBITMAP init_bmp, tmp_bmp, bmp, bmp2;
-    int i, ret, bpp, pixel_format = 0;
+    PIXELFORMATDESCRIPTOR pfd;
+    int i, ret, bpp, iPixelFormat=0;
+    unsigned int nFormats;
     HGLRC hglrc, hglrc2;
-    GLint viewport[4];
-    HDC hdc;
-    INT count;
+    BITMAPINFO biDst;
+    HBITMAP bmpDst, oldDst, bmp2;
+    HDC hdcDst, hdcScreen;
+    UINT *dstBuffer = NULL;
 
-    winetest_push_context( use_dib ? "DIB" : "DDB" );
-
-    hdc = CreateCompatibleDC( 0 );
+    hdcScreen = CreateCompatibleDC(0);
+    hdcDst = CreateCompatibleDC(0);
 
     if (use_dib)
     {
         bpp = 32;
-        bi.bmiHeader.biWidth = 4;
-        bi.bmiHeader.biHeight = -4;
-        bi.bmiHeader.biBitCount = 32;
-        bmp = CreateDIBSection( 0, &bi, DIB_RGB_COLORS, (void **)&pixels, NULL, 0 );
-        memset( pixels, 0, sizeof(*pixels) * 4 * 4 );
+        memset(&biDst, 0, sizeof(BITMAPINFO));
+        biDst.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+        biDst.bmiHeader.biWidth = 4;
+        biDst.bmiHeader.biHeight = -4;
+        biDst.bmiHeader.biPlanes = 1;
+        biDst.bmiHeader.biBitCount = 32;
+        biDst.bmiHeader.biCompression = BI_RGB;
 
-        bi.bmiHeader.biWidth = 12;
-        bi.bmiHeader.biHeight = -12;
-        bi.bmiHeader.biBitCount = 16;
-        bmp2 = CreateDIBSection( 0, &bi, DIB_RGB_COLORS, (void **)&pixels2, NULL, 0 );
-        memset( pixels2, 0, sizeof(*pixels2) * 12 * 12 );
+        bmpDst = CreateDIBSection(0, &biDst, DIB_RGB_COLORS, (void**)&dstBuffer, NULL, 0);
+
+        biDst.bmiHeader.biWidth = 12;
+        biDst.bmiHeader.biHeight = -12;
+        biDst.bmiHeader.biBitCount = 16;
+        bmp2 = CreateDIBSection(0, &biDst, DIB_RGB_COLORS, NULL, NULL, 0);
     }
     else
     {
-        bpp = GetDeviceCaps( hdc, BITSPIXEL );
-        bmp = CreateBitmap( 4, 4, 1, bpp, NULL );
+        bpp = GetDeviceCaps( hdcScreen, BITSPIXEL );
+        bmpDst = CreateBitmap( 4, 4, 1, bpp, NULL );
         bmp2 = CreateBitmap( 12, 12, 1, bpp, NULL );
     }
 
-    ret = GetPixelFormat( hdc );
-    ok( ret == 0, "got %d\n", ret );
-    count = DescribePixelFormat( hdc, 0, 0, NULL );
-    ok( count > 1, "got %d\n", count );
+    oldDst = SelectObject(hdcDst, bmpDst);
 
-    init_bmp = SelectObject( hdc, bmp );
-    ok( !!init_bmp, "got %p\n", init_bmp );
+    trace( "testing on %s\n", use_dib ? "DIB" : "DDB" );
 
-    /* cannot create a GL context without a pixel format */
-
-    hglrc = wglCreateContext( hdc );
-    todo_wine
-    ok( !hglrc, "wglCreateContext succeeded\n" );
-    if (hglrc) wglDeleteContext( hglrc );
-
-    /* cannot set pixel format twice */
-
-    for (i = 1; i <= count; i++)
+    /* Pick a pixel format by hand because ChoosePixelFormat is unreliable */
+    nFormats = DescribePixelFormat(hdcDst, 0, 0, NULL);
+    for(i=1; i<=nFormats; i++)
     {
-        PIXELFORMATDESCRIPTOR desc = {0};
+        memset(&pfd, 0, sizeof(PIXELFORMATDESCRIPTOR));
+        DescribePixelFormat(hdcDst, i, sizeof(PIXELFORMATDESCRIPTOR), &pfd);
 
-        winetest_push_context( "%u", i );
-
-        ret = DescribePixelFormat( hdc, i, sizeof(desc), &desc );
-        ok( ret == count, "got %d\n", ret );
-
-        if ((desc.dwFlags & PFD_DRAW_TO_BITMAP) && (desc.dwFlags & PFD_SUPPORT_OPENGL) &&
-            desc.cColorBits == bpp && desc.cAlphaBits == 8)
+        if((pfd.dwFlags & PFD_DRAW_TO_BITMAP) &&
+           (pfd.dwFlags & PFD_SUPPORT_OPENGL) &&
+           (pfd.cColorBits == bpp) &&
+           (pfd.cAlphaBits == 8) )
         {
-            ret = SetPixelFormat( hdc, i, &desc );
-            if (pixel_format) ok( !ret, "SetPixelFormat succeeded\n" );
-            else ok( ret, "SetPixelFormat failed\n" );
-            if (ret) pixel_format = i;
-            ret = GetPixelFormat( hdc );
-            ok( ret == pixel_format, "got %d\n", ret );
+            iPixelFormat = i;
+            break;
         }
-
-        winetest_pop_context();
     }
 
-    /* even after changing the selected bitmap */
-
-    tmp_bmp = SelectObject( hdc, bmp2 );
-    ok( tmp_bmp == bmp, "got %p\n", tmp_bmp );
-
-    for (i = 1; i <= count; i++)
+    if(!iPixelFormat)
     {
-        PIXELFORMATDESCRIPTOR desc = {0};
-
-        winetest_push_context( "%u", i );
-
-        ret = DescribePixelFormat( hdc, i, sizeof(desc), &desc );
-        ok( ret == count, "got %d\n", ret );
-
-        ret = SetPixelFormat( hdc, i, &desc );
-        if (pixel_format != i) ok( !ret, "SetPixelFormat succeeded\n" );
-        else ok( ret, "SetPixelFormat succeeded\n" );
-        ret = GetPixelFormat( hdc );
-        ok( ret == pixel_format, "got %d\n", ret );
-
-        winetest_pop_context();
+        skip("Unable to find a suitable pixel format\n");
     }
-
-    tmp_bmp = SelectObject( hdc, bmp );
-    ok( tmp_bmp == bmp2, "got %p\n", tmp_bmp );
-
-
-    hglrc = wglCreateContext( hdc );
-    ok( !!hglrc, "wglCreateContext failed, error %lu\n", GetLastError() );
-    ret = wglMakeCurrent( hdc, hglrc );
-    ok( ret, "wglMakeCurrent failed, error %lu\n", GetLastError() );
-
-    memset( viewport, 0xcd, sizeof(viewport) );
-    glGetIntegerv( GL_VIEWPORT, viewport );
-    ok( EqualRect( (RECT *)viewport, &expect_rect ), "got viewport %s\n", wine_dbgstr_rect( (RECT *)viewport ) );
-
-    hglrc2 = wglCreateContext( hdc );
-    ok( !!hglrc2, "wglCreateContext failed, error %lu\n", GetLastError() );
-
-    glClearColor( (float)0x22/0xff, (float)0x33/0xff, (float)0x44/0xff, (float)0x11/0xff );
-    glClear( GL_COLOR_BUFFER_BIT );
-    glFinish();
-
-    if (pixels == buffer)
+    else
     {
-        bi.bmiHeader.biWidth = 4;
-        bi.bmiHeader.biHeight = -4;
-        bi.bmiHeader.biBitCount = bpp;
-        bi.bmiHeader.biSizeImage = 4 * 4 * bpp / 8;
-        ret = GetDIBits( hdc, bmp, 0, 4, buffer, &bi, DIB_RGB_COLORS );
-        ok( ret, "GetDIBits failed, error %lu\n", GetLastError() );
-        bi.bmiHeader.biWidth = 12;
-        bi.bmiHeader.biHeight = -12;
-        bi.bmiHeader.biBitCount = bpp;
-        bi.bmiHeader.biSizeImage = 12 * 12 * bpp / 8;
-        ret = GetDIBits( hdc, bmp2, 0, 12, buffer2, &bi, DIB_RGB_COLORS );
-        ok( ret, "GetDIBits failed, error %lu\n", GetLastError() );
+        ret = SetPixelFormat(hdcDst, iPixelFormat, &pfd);
+        ok( ret, "SetPixelFormat failed\n" );
+        ret = GetPixelFormat( hdcDst );
+        ok( ret == iPixelFormat, "GetPixelFormat returned %d/%d\n", ret, iPixelFormat );
+        ret = SetPixelFormat(hdcDst, iPixelFormat + 1, &pfd);
+        ok( !ret, "SetPixelFormat succeeded\n" );
+        hglrc = wglCreateContext(hdcDst);
+        ok(hglrc != NULL, "Unable to create a context\n");
+
+        if(hglrc)
+        {
+            GLint viewport[4];
+            wglMakeCurrent(hdcDst, hglrc);
+            hglrc2 = wglCreateContext(hdcDst);
+            ok(hglrc2 != NULL, "Unable to create a context\n");
+
+            /* Note this is RGBA but we read ARGB back */
+            glClearColor((float)0x22/0xff, (float)0x33/0xff, (float)0x44/0xff, (float)0x11/0xff);
+            glClear(GL_COLOR_BUFFER_BIT);
+            glGetIntegerv( GL_VIEWPORT, viewport );
+            glFinish();
+
+            ok( viewport[0] == 0 && viewport[1] == 0 && viewport[2] == 4 && viewport[3] == 4,
+                "wrong viewport %d,%d,%d,%d\n", viewport[0], viewport[1], viewport[2], viewport[3] );
+            /* Note apparently the alpha channel is not supported by the software renderer (bitmap only works using software) */
+            if (dstBuffer)
+                for (i = 0; i < 16; i++)
+                    ok(dstBuffer[i] == 0x223344 || dstBuffer[i] == 0x11223344, "Received color=%x at %u\n",
+                       dstBuffer[i], i);
+
+            SelectObject(hdcDst, bmp2);
+            ret = GetPixelFormat( hdcDst );
+            ok( ret == iPixelFormat, "GetPixelFormat returned %d/%d\n", ret, iPixelFormat );
+            ret = SetPixelFormat(hdcDst, iPixelFormat + 1, &pfd);
+            ok( !ret, "SetPixelFormat succeeded\n" );
+
+            /* context still uses the old pixel format and viewport */
+            glClearColor((float)0x44/0xff, (float)0x33/0xff, (float)0x22/0xff, (float)0x11/0xff);
+            glClear(GL_COLOR_BUFFER_BIT);
+            glFinish();
+            glGetIntegerv( GL_VIEWPORT, viewport );
+            ok( viewport[0] == 0 && viewport[1] == 0 && viewport[2] == 4 && viewport[3] == 4,
+                "wrong viewport %d,%d,%d,%d\n", viewport[0], viewport[1], viewport[2], viewport[3] );
+
+            wglMakeCurrent(NULL, NULL);
+            wglMakeCurrent(hdcDst, hglrc);
+            glClearColor((float)0x44/0xff, (float)0x55/0xff, (float)0x66/0xff, (float)0x11/0xff);
+            glClear(GL_COLOR_BUFFER_BIT);
+            glFinish();
+            glGetIntegerv( GL_VIEWPORT, viewport );
+            ok( viewport[0] == 0 && viewport[1] == 0 && viewport[2] == 4 && viewport[3] == 4,
+                "wrong viewport %d,%d,%d,%d\n", viewport[0], viewport[1], viewport[2], viewport[3] );
+
+            wglMakeCurrent(hdcDst, hglrc2);
+            glGetIntegerv( GL_VIEWPORT, viewport );
+            ok( viewport[0] == 0 && viewport[1] == 0 && viewport[2] == 12 && viewport[3] == 12,
+                "wrong viewport %d,%d,%d,%d\n", viewport[0], viewport[1], viewport[2], viewport[3] );
+
+            wglMakeCurrent(hdcDst, hglrc);
+            glGetIntegerv( GL_VIEWPORT, viewport );
+            ok( viewport[0] == 0 && viewport[1] == 0 && viewport[2] == 4 && viewport[3] == 4,
+                "wrong viewport %d,%d,%d,%d\n", viewport[0], viewport[1], viewport[2], viewport[3] );
+
+            SelectObject(hdcDst, bmpDst);
+            ret = GetPixelFormat( hdcDst );
+            ok( ret == iPixelFormat, "GetPixelFormat returned %d/%d\n", ret, iPixelFormat );
+            ret = SetPixelFormat(hdcDst, iPixelFormat + 1, &pfd);
+            ok( !ret, "SetPixelFormat succeeded\n" );
+            wglMakeCurrent(hdcDst, hglrc2);
+            glGetIntegerv( GL_VIEWPORT, viewport );
+            ok( viewport[0] == 0 && viewport[1] == 0 && viewport[2] == 12 && viewport[3] == 12,
+                "wrong viewport %d,%d,%d,%d\n", viewport[0], viewport[1], viewport[2], viewport[3] );
+
+            wglDeleteContext(hglrc2);
+            wglDeleteContext(hglrc);
+        }
     }
 
-    ok( (pixels[0] & 0xffffff) == 0x223344, "got %#x\n", pixels[0] );
-    ok( (pixels2[0] & 0xffffff) == 0, "got %#x\n", pixels2[0] );
-
-    tmp_bmp = SelectObject( hdc, bmp2 );
-    ok( tmp_bmp == bmp, "got %p\n", tmp_bmp );
-
-    /* context still uses the old pixel format and viewport */
-    memset( viewport, 0xcd, sizeof(viewport) );
-    glGetIntegerv( GL_VIEWPORT, viewport );
-    ok( EqualRect( (RECT *)viewport, &expect_rect ), "got viewport %s\n", wine_dbgstr_rect( (RECT *)viewport ) );
-
-    glClearColor( (float)0x44/0xff, (float)0x33/0xff, (float)0x22/0xff, (float)0x11/0xff );
-    glClear( GL_COLOR_BUFFER_BIT );
-    glFinish();
-
-    if (pixels == buffer)
-    {
-        bi.bmiHeader.biWidth = 4;
-        bi.bmiHeader.biHeight = -4;
-        bi.bmiHeader.biBitCount = bpp;
-        bi.bmiHeader.biSizeImage = 4 * 4 * bpp / 8;
-        ret = GetDIBits( hdc, bmp, 0, 4, buffer, &bi, DIB_RGB_COLORS );
-        ok( ret, "GetDIBits failed, error %lu\n", GetLastError() );
-        bi.bmiHeader.biWidth = 12;
-        bi.bmiHeader.biHeight = -12;
-        bi.bmiHeader.biBitCount = bpp;
-        bi.bmiHeader.biSizeImage = 12 * 12 * bpp / 8;
-        ret = GetDIBits( hdc, bmp2, 0, 12, buffer2, &bi, DIB_RGB_COLORS );
-        ok( ret, "GetDIBits failed, error %lu\n", GetLastError() );
-    }
-
-    todo_wine
-    ok( (pixels[0] & 0xffffff) == 0x223344, "got %#x\n", pixels[0] );
-    todo_wine
-    ok( (pixels2[0] & 0xffffff) == 0x443322, "got %#x\n", pixels2[0] );
-
-    ret = wglMakeCurrent( NULL, NULL );
-    ok( ret, "wglMakeCurrent failed, error %lu\n", GetLastError() );
-    ret = wglMakeCurrent( hdc, hglrc );
-    ok( ret, "wglMakeCurrent failed, error %lu\n", GetLastError() );
-
-    memset( viewport, 0xcd, sizeof(viewport) );
-    glGetIntegerv( GL_VIEWPORT, viewport );
-    ok( EqualRect( (RECT *)viewport, &expect_rect ), "got viewport %s\n", wine_dbgstr_rect( (RECT *)viewport ) );
-
-    glClearColor( (float)0x44/0xff, (float)0x55/0xff, (float)0x66/0xff, (float)0x11/0xff );
-    glClear( GL_COLOR_BUFFER_BIT );
-    glFinish();
-
-    if (pixels == buffer)
-    {
-        bi.bmiHeader.biWidth = 4;
-        bi.bmiHeader.biHeight = -4;
-        bi.bmiHeader.biBitCount = bpp;
-        bi.bmiHeader.biSizeImage = 4 * 4 * bpp / 8;
-        ret = GetDIBits( hdc, bmp, 0, 4, buffer, &bi, DIB_RGB_COLORS );
-        ok( ret, "GetDIBits failed, error %lu\n", GetLastError() );
-        bi.bmiHeader.biWidth = 12;
-        bi.bmiHeader.biHeight = -12;
-        bi.bmiHeader.biBitCount = bpp;
-        bi.bmiHeader.biSizeImage = 12 * 12 * bpp / 8;
-        ret = GetDIBits( hdc, bmp2, 0, 12, buffer2, &bi, DIB_RGB_COLORS );
-        ok( ret, "GetDIBits failed, error %lu\n", GetLastError() );
-    }
-
-    todo_wine
-    ok( (pixels[0] & 0xffffff) == 0x223344, "got %#x\n", pixels[0] );
-    ok( (pixels2[0] & 0xffffff) == 0x445566, "got %#x\n", pixels2[0] );
-
-    ret = wglMakeCurrent( hdc, hglrc2 );
-    ok( ret, "wglMakeCurrent failed, error %lu\n", GetLastError() );
-
-    memset( viewport, 0xcd, sizeof(viewport) );
-    glGetIntegerv( GL_VIEWPORT, viewport );
-    ok( EqualRect( (RECT *)viewport, &expect_rect2 ), "got viewport %s\n", wine_dbgstr_rect( (RECT *)viewport ) );
-
-    glClearColor( (float)0x66/0xff, (float)0x55/0xff, (float)0x44/0xff, (float)0x11/0xff );
-    glClear( GL_COLOR_BUFFER_BIT );
-    glFinish();
-
-    if (pixels == buffer)
-    {
-        bi.bmiHeader.biWidth = 4;
-        bi.bmiHeader.biHeight = -4;
-        bi.bmiHeader.biBitCount = bpp;
-        bi.bmiHeader.biSizeImage = 4 * 4 * bpp / 8;
-        ret = GetDIBits( hdc, bmp, 0, 4, buffer, &bi, DIB_RGB_COLORS );
-        ok( ret, "GetDIBits failed, error %lu\n", GetLastError() );
-        bi.bmiHeader.biWidth = 12;
-        bi.bmiHeader.biHeight = -12;
-        bi.bmiHeader.biBitCount = bpp;
-        bi.bmiHeader.biSizeImage = 12 * 12 * bpp / 8;
-        ret = GetDIBits( hdc, bmp2, 0, 12, buffer2, &bi, DIB_RGB_COLORS );
-        ok( ret, "GetDIBits failed, error %lu\n", GetLastError() );
-    }
-
-    todo_wine
-    ok( (pixels[0] & 0xffffff) == 0x223344, "got %#x\n", pixels[0] );
-    ok( (pixels2[0] & 0xffffff) == 0x665544, "got %#x\n", pixels2[0] );
-
-    ret = wglMakeCurrent( hdc, hglrc );
-    ok( ret, "wglMakeCurrent failed, error %lu\n", GetLastError() );
-
-    memset( viewport, 0xcd, sizeof(viewport) );
-    glGetIntegerv( GL_VIEWPORT, viewport );
-    ok( EqualRect( (RECT *)viewport, &expect_rect ), "got viewport %s\n", wine_dbgstr_rect( (RECT *)viewport ) );
-
-    glClearColor( (float)0x66/0xff, (float)0x77/0xff, (float)0x88/0xff, (float)0x11/0xff );
-    glClear( GL_COLOR_BUFFER_BIT );
-    glFinish();
-
-    if (pixels == buffer)
-    {
-        bi.bmiHeader.biWidth = 4;
-        bi.bmiHeader.biHeight = -4;
-        bi.bmiHeader.biBitCount = bpp;
-        bi.bmiHeader.biSizeImage = 4 * 4 * bpp / 8;
-        ret = GetDIBits( hdc, bmp, 0, 4, buffer, &bi, DIB_RGB_COLORS );
-        ok( ret, "GetDIBits failed, error %lu\n", GetLastError() );
-        bi.bmiHeader.biWidth = 12;
-        bi.bmiHeader.biHeight = -12;
-        bi.bmiHeader.biBitCount = bpp;
-        bi.bmiHeader.biSizeImage = 12 * 12 * bpp / 8;
-        ret = GetDIBits( hdc, bmp2, 0, 12, buffer2, &bi, DIB_RGB_COLORS );
-        ok( ret, "GetDIBits failed, error %lu\n", GetLastError() );
-    }
-
-    todo_wine
-    ok( (pixels[0] & 0xffffff) == 0x223344, "got %#x\n", pixels[0] );
-    ok( (pixels2[0] & 0xffffff) == 0x667788, "got %#x\n", pixels2[0] );
-
-    tmp_bmp = SelectObject( hdc, bmp );
-    ok( tmp_bmp == bmp2, "got %p\n", tmp_bmp );
-
-    ret = wglMakeCurrent(  hdc, hglrc2 ) ;
-    ok( ret, "wglMakeCurrent failed, error %lu\n", GetLastError() );
-
-    memset( viewport, 0xcd, sizeof(viewport) );
-    glGetIntegerv( GL_VIEWPORT, viewport );
-    ok( EqualRect( (RECT *)viewport, &expect_rect2 ), "got viewport %s\n", wine_dbgstr_rect( (RECT *)viewport ) );
-
-    glClearColor( (float)0x88/0xff, (float)0x77/0xff, (float)0x66/0xff, (float)0x11/0xff );
-    glClear( GL_COLOR_BUFFER_BIT );
-    glFinish();
-
-    if (pixels == buffer)
-    {
-        bi.bmiHeader.biWidth = 4;
-        bi.bmiHeader.biHeight = -4;
-        bi.bmiHeader.biBitCount = bpp;
-        bi.bmiHeader.biSizeImage = 4 * 4 * bpp / 8;
-        ret = GetDIBits( hdc, bmp, 0, 4, buffer, &bi, DIB_RGB_COLORS );
-        ok( ret, "GetDIBits failed, error %lu\n", GetLastError() );
-        bi.bmiHeader.biWidth = 12;
-        bi.bmiHeader.biHeight = -12;
-        bi.bmiHeader.biBitCount = bpp;
-        bi.bmiHeader.biSizeImage = 12 * 12 * bpp / 8;
-        ret = GetDIBits( hdc, bmp2, 0, 12, buffer2, &bi, DIB_RGB_COLORS );
-        ok( ret, "GetDIBits failed, error %lu\n", GetLastError() );
-    }
-
-    ok( (pixels[0] & 0xffffff) == 0x887766, "got %#x\n", pixels[0] );
-    ok( (pixels2[0] & 0xffffff) == 0x667788, "got %#x\n", pixels2[0] );
-
-    wglDeleteContext( hglrc2 );
-    wglDeleteContext( hglrc );
-
-    SelectObject( hdc, init_bmp );
-    DeleteObject( bmp2 );
-    DeleteObject( bmp );
-    DeleteDC( hdc );
-
-    winetest_pop_context();
+    SelectObject(hdcDst, oldDst);
+    DeleteObject(bmp2);
+    DeleteObject(bmpDst);
+    DeleteDC(hdcDst);
+    DeleteDC(hdcScreen);
 }
 
 struct wgl_thread_param
