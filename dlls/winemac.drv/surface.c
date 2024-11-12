@@ -136,9 +136,9 @@ static void macdrv_surface_destroy(struct window_surface *window_surface)
 
 static const struct window_surface_funcs macdrv_surface_funcs =
 {
-    .set_clip = macdrv_surface_set_clip,
-    .flush = macdrv_surface_flush,
-    .destroy = macdrv_surface_destroy,
+    macdrv_surface_set_clip,
+    macdrv_surface_flush,
+    macdrv_surface_destroy,
 };
 
 static struct macdrv_window_surface *get_mac_surface(struct window_surface *surface)
