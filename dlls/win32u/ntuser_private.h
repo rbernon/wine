@@ -26,8 +26,6 @@
 #include "shellapi.h"
 #include "shlobj.h"
 #include "wine/list.h"
-
-#define WINE_VK_HOST
 #include "wine/vulkan.h"
 
 
@@ -246,10 +244,8 @@ extern int peek_message( MSG *msg, const struct peek_message_filter *filter );
 extern LRESULT system_tray_call( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, void *data );
 
 /* vulkan.c */
-#define DECL_FUNCPTR(f) extern typeof(f) * p_##f
-DECL_FUNCPTR( vkGetDeviceProcAddr );
-DECL_FUNCPTR( vkGetInstanceProcAddr );
-#undef DECL_FUNCPTR
+extern void *(*p_vkGetDeviceProcAddr)(VkDevice, const char *);
+extern void *(*p_vkGetInstanceProcAddr)(VkInstance, const char *);
 
 extern BOOL vulkan_init(void);
 extern void vulkan_detach_surfaces( struct list *surfaces );

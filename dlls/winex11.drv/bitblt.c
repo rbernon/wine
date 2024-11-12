@@ -1950,93 +1950,6 @@ static struct window_surface *create_surface( HWND hwnd, Window window, const XV
     return window_surface;
 }
 
-struct x11drv_scaled_surface
-{
-    struct window_surface header;
-    Window window;
-    float scale;
-    HDC hdc;
-};
-
-static struct x11drv_scaled_surface *get_x11drv_scaled_surface( struct window_surface *surface )
-{
-    return (struct x11drv_scaled_surface *)surface;
-}
-
-static void x11drv_scaled_surface_set_clip( struct window_surface *window_surface, const RECT *rects, UINT count )
-{
-}
-
-static BOOL x11drv_scaled_surface_flush( struct window_surface *window_surface, const RECT *rect, const RECT *dirty,
-                                         const BITMAPINFO *color_info, const void *color_bits, BOOL shape_changed,
-                                         const BITMAPINFO *shape_info, const void *shape_bits )
-{
-    struct x11drv_scaled_surface *surface = get_x11drv_scaled_surface( window_surface );
-    struct x11drv_win_data *data;
-    RECT rect_tmp, rect_dst;
-    HDC hdc_src;
-
-    if (!(data = get_win_data( window_surface->hwnd ))) return FALSE;
-    rect_dst = data->rects.visible;
-    release_win_data( data );
-
-    OffsetRect( &rect_dst, -rect_dst.left, -rect_dst.top );
-    if (get_dc_drawable( surface->hdc, &rect_tmp ) != surface->window || !EqualRect( &rect_tmp, &rect_dst ))
-        set_dc_drawable( surface->hdc, surface->window, &rect_dst, ClipByChildren );
-
-    hdc_src = NtGdiCreateCompatibleDC( 0 );
-    NtGdiSelectBitmap( hdc_src, window_surface->color_bitmap );
-
-    NtGdiStretchBlt( surface->hdc, rect->left * surface->scale, rect->top * surface->scale,
-                     rect->right * surface->scale, rect->bottom * surface->scale,
-                     hdc_src, 0, 0, rect->right, rect->bottom, SRCCOPY, 0 );
-
-    NtGdiDeleteObjectApp( hdc_src );
-    return TRUE;
-}
-
-static void x11drv_scaled_surface_destroy( struct window_surface *window_surface )
-{
-    struct x11drv_scaled_surface *surface = get_x11drv_scaled_surface( window_surface );
-    NtGdiDeleteObjectApp( surface->hdc );
-}
-
-static const struct window_surface_funcs x11drv_scaled_surface_funcs =
-{
-    x11drv_scaled_surface_set_clip,
-    x11drv_scaled_surface_flush,
-    x11drv_scaled_surface_destroy,
-};
-
-static struct window_surface *create_scaled_surface( HWND hwnd, Window window, const RECT *surface_rect, float scale )
-{
-    char buffer[FIELD_OFFSET( BITMAPINFO, bmiColors[256] )];
-    BITMAPINFO *info = (BITMAPINFO *)buffer;
-    struct window_surface *window_surface;
-    struct x11drv_scaled_surface *surface;
-
-    memset( info, 0, sizeof(*info) );
-    info->bmiHeader.biSize        = sizeof(info->bmiHeader);
-    info->bmiHeader.biWidth       = surface_rect->right;
-    info->bmiHeader.biHeight      = -surface_rect->bottom; /* top-down */
-    info->bmiHeader.biPlanes      = 1;
-    info->bmiHeader.biBitCount    = 32;
-    info->bmiHeader.biSizeImage   = get_dib_image_size( info );
-    info->bmiHeader.biCompression = BI_RGB;
-
-    if ((window_surface = window_surface_create( sizeof(*surface), &x11drv_scaled_surface_funcs, hwnd, surface_rect, info, 0 )))
-    {
-        static const WCHAR displayW[] = {'D','I','S','P','L','A','Y'};
-        UNICODE_STRING device_str = RTL_CONSTANT_STRING(displayW);
-
-        surface = get_x11drv_scaled_surface( window_surface );
-        surface->window = window;
-        surface->scale = scale;
-        surface->hdc = NtGdiOpenDCW( &device_str, NULL, NULL, 0, TRUE, NULL, NULL, NULL );
-    }
-
-    return window_surface;
-}
 
 static BOOL enable_direct_drawing( struct x11drv_win_data *data, BOOL layered )
 {
@@ -2051,30 +1964,20 @@ static BOOL enable_direct_drawing( struct x11drv_win_data *data, BOOL layered )
 /***********************************************************************
  *      CreateWindowSurface   (X11DRV.@)
  */
-BOOL X11DRV_CreateWindowSurface( HWND hwnd, BOOL layered, float scale, const RECT *surface_rect,
-                                 struct window_surface **surface )
+BOOL X11DRV_CreateWindowSurface( HWND hwnd, BOOL layered, const RECT *surface_rect, struct window_surface **surface )
 {
     struct window_surface *previous;
     struct x11drv_win_data *data;
 
     TRACE( "hwnd %p, layered %u, surface_rect %s, surface %p\n", hwnd, layered, wine_dbgstr_rect( surface_rect ), surface );
 
-    if (scale != 1.0 && layered) return FALSE; /* FIXME: XRender doesn't seem to like alpha much */
-
     if (!(data = get_win_data( hwnd ))) return TRUE; /* use default surface */
-    if ((previous = *surface) && scale == 1.0 && previous->funcs == &x11drv_surface_funcs)
+    if ((previous = *surface) && previous->funcs == &x11drv_surface_funcs)
     {
         Window window = get_x11_surface(previous)->window;
         if (data->whole_window == window && !enable_direct_drawing( data, layered )) goto done; /* use default surface */
         /* re-create window surface is window has changed, which can happen when changing visual */
         TRACE( "re-creating hwnd %p surface with new window %lx\n", data->hwnd, data->whole_window );
-    }
-    else if (previous && scale != 1.0 && previous->funcs == &x11drv_scaled_surface_funcs)
-    {
-        struct x11drv_scaled_surface *scaled_surface = get_x11drv_scaled_surface(previous);
-        scaled_surface->window = data->whole_window;
-        scaled_surface->scale = scale;
-        if (!enable_direct_drawing( data, layered )) goto done; /* use default surface */
     }
     if (previous) window_surface_release( previous );
 
@@ -2089,11 +1992,8 @@ BOOL X11DRV_CreateWindowSurface( HWND hwnd, BOOL layered, float scale, const REC
         goto done; /* draw directly to the window */
     }
 
-    if (scale == 1.0)
-        *surface = create_surface( data->hwnd, data->whole_window, &data->vis, surface_rect,
-                                   layered ? data->use_alpha : FALSE );
-    else
-        *surface = create_scaled_surface( data->hwnd, data->whole_window, surface_rect, scale );
+    *surface = create_surface( data->hwnd, data->whole_window, &data->vis, surface_rect,
+                               layered ? data->use_alpha : FALSE );
 
 done:
     release_win_data( data );
