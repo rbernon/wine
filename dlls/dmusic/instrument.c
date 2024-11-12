@@ -43,84 +43,6 @@ struct articulation
 
 C_ASSERT(sizeof(struct articulation) == offsetof(struct articulation, connections[0]));
 
-static const char *debugstr_conn_src(UINT src)
-{
-    switch (src)
-    {
-    case CONN_SRC_NONE: return "SRC_NONE";
-    case CONN_SRC_LFO: return "SRC_LFO";
-    case CONN_SRC_KEYONVELOCITY: return "SRC_KEYONVELOCITY";
-    case CONN_SRC_KEYNUMBER: return "SRC_KEYNUMBER";
-    case CONN_SRC_EG1: return "SRC_EG1";
-    case CONN_SRC_EG2: return "SRC_EG2";
-    case CONN_SRC_PITCHWHEEL: return "SRC_PITCHWHEEL";
-    case CONN_SRC_CC1: return "SRC_CC1";
-    case CONN_SRC_CC7: return "SRC_CC7";
-    case CONN_SRC_CC10: return "SRC_CC10";
-    case CONN_SRC_CC11: return "SRC_CC11";
-    case CONN_SRC_POLYPRESSURE: return "SRC_POLYPRESSURE";
-    case CONN_SRC_CHANNELPRESSURE: return "SRC_CHANNELPRESSURE";
-    case CONN_SRC_VIBRATO: return "SRC_VIBRATO";
-    case CONN_SRC_MONOPRESSURE: return "SRC_MONOPRESSURE";
-    case CONN_SRC_CC91: return "SRC_CC91";
-    case CONN_SRC_CC93: return "SRC_CC93";
-
-    case CONN_SRC_CC2: return "SRC_CC2";
-    case CONN_SRC_RPN0: return "SRC_RPN0";
-    }
-
-    return wine_dbg_sprintf("%#x", src);
-}
-
-static const char *debugstr_conn_dst(UINT dst)
-{
-    switch (dst)
-    {
-    case CONN_DST_NONE: return "DST_NONE";
-    /* case CONN_DST_ATTENUATION: return "DST_ATTENUATION"; Same as CONN_DST_GAIN */
-    case CONN_DST_PITCH: return "DST_PITCH";
-    case CONN_DST_PAN: return "DST_PAN";
-    case CONN_DST_LFO_FREQUENCY: return "DST_LFO_FREQUENCY";
-    case CONN_DST_LFO_STARTDELAY: return "DST_LFO_STARTDELAY";
-    case CONN_DST_EG1_ATTACKTIME: return "DST_EG1_ATTACKTIME";
-    case CONN_DST_EG1_DECAYTIME: return "DST_EG1_DECAYTIME";
-    case CONN_DST_EG1_RELEASETIME: return "DST_EG1_RELEASETIME";
-    case CONN_DST_EG1_SUSTAINLEVEL: return "DST_EG1_SUSTAINLEVEL";
-    case CONN_DST_EG2_ATTACKTIME: return "DST_EG2_ATTACKTIME";
-    case CONN_DST_EG2_DECAYTIME: return "DST_EG2_DECAYTIME";
-    case CONN_DST_EG2_RELEASETIME: return "DST_EG2_RELEASETIME";
-    case CONN_DST_EG2_SUSTAINLEVEL: return "DST_EG2_SUSTAINLEVEL";
-    case CONN_DST_GAIN: return "DST_GAIN";
-    case CONN_DST_KEYNUMBER: return "DST_KEYNUMBER";
-    case CONN_DST_LEFT: return "DST_LEFT";
-    case CONN_DST_RIGHT: return "DST_RIGHT";
-    case CONN_DST_CENTER: return "DST_CENTER";
-    case CONN_DST_LEFTREAR: return "DST_LEFTREAR";
-    case CONN_DST_RIGHTREAR: return "DST_RIGHTREAR";
-    case CONN_DST_LFE_CHANNEL: return "DST_LFE_CHANNEL";
-    case CONN_DST_CHORUS: return "DST_CHORUS";
-    case CONN_DST_REVERB: return "DST_REVERB";
-    case CONN_DST_VIB_FREQUENCY: return "DST_VIB_FREQUENCY";
-    case CONN_DST_VIB_STARTDELAY: return "DST_VIB_STARTDELAY";
-    case CONN_DST_EG1_DELAYTIME: return "DST_EG1_DELAYTIME";
-    case CONN_DST_EG1_HOLDTIME: return "DST_EG1_HOLDTIME";
-    case CONN_DST_EG1_SHUTDOWNTIME: return "DST_EG1_SHUTDOWNTIME";
-    case CONN_DST_EG2_DELAYTIME: return "DST_EG2_DELAYTIME";
-    case CONN_DST_EG2_HOLDTIME: return "DST_EG2_HOLDTIME";
-    case CONN_DST_FILTER_CUTOFF: return "DST_FILTER_CUTOFF";
-    case CONN_DST_FILTER_Q: return "DST_FILTER_Q";
-    }
-
-    return wine_dbg_sprintf("%#x", dst);
-}
-
-static const char *debugstr_connection(const CONNECTION *conn)
-{
-    return wine_dbg_sprintf("%s (%#x) x %s (%#x) -> %s (%#x): %ld", debugstr_conn_src(conn->usSource),
-            (conn->usTransform >> 10) & 0x3f, debugstr_conn_src(conn->usControl), (conn->usTransform >> 4) & 0x3f,
-            debugstr_conn_dst(conn->usDestination), (conn->usTransform & 0xf), conn->lScale);
-}
-
 struct region
 {
     struct list entry;
@@ -323,52 +245,6 @@ static HRESULT instrument_create(struct collection *collection, IDirectMusicInst
     return S_OK;
 }
 
-static HRESULT append_articparams_articulation(struct list *articulations, DMUS_ARTICPARAMS *params)
-{
-    struct articulation *articulation;
-    CONNECTION *conn;
-
-    UINT size = offsetof(struct articulation, connections[20]);
-    if (!(articulation = malloc(size))) return E_OUTOFMEMORY;
-    articulation->list.cbSize = sizeof(articulation->list);
-    articulation->list.cConnections = 20;
-    conn = articulation->connections;
-
-#define ADD_CONNECTION(conn, src, dst, value) \
-    (conn)->usSource = (src); \
-    (conn)->usDestination = (dst); \
-    (conn)->lScale = (value); \
-    (conn)++; \
-
-    ADD_CONNECTION(conn, CONN_SRC_NONE, CONN_DST_LFO_FREQUENCY, params->LFO.pcFrequency);
-    ADD_CONNECTION(conn, CONN_SRC_NONE, CONN_DST_LFO_STARTDELAY, params->LFO.tcDelay);
-    ADD_CONNECTION(conn, CONN_SRC_NONE, CONN_DST_GAIN, params->LFO.gcVolumeScale); /* FIXME: is this right? */
-    ADD_CONNECTION(conn, CONN_SRC_VIBRATO, CONN_DST_PITCH, params->LFO.pcPitchScale);
-    ADD_CONNECTION(conn, CONN_SRC_LFO, CONN_DST_PITCH, params->LFO.pcMWToPitch);
-    ADD_CONNECTION(conn, CONN_SRC_LFO, CONN_DST_GAIN, params->LFO.gcMWToVolume);
-
-    ADD_CONNECTION(conn, CONN_SRC_NONE, CONN_DST_EG1_ATTACKTIME, params->VolEG.tcAttack);
-    ADD_CONNECTION(conn, CONN_SRC_NONE, CONN_DST_EG1_DECAYTIME, params->VolEG.tcDecay);
-    ADD_CONNECTION(conn, CONN_SRC_NONE, CONN_DST_EG1_SUSTAINLEVEL, params->VolEG.ptSustain);
-    ADD_CONNECTION(conn, CONN_SRC_NONE, CONN_DST_EG1_RELEASETIME, params->VolEG.tcRelease);
-    ADD_CONNECTION(conn, CONN_SRC_KEYONVELOCITY, CONN_DST_EG1_ATTACKTIME, params->PitchEG.tcVel2Attack);
-    ADD_CONNECTION(conn, CONN_SRC_KEYNUMBER, CONN_DST_EG1_DECAYTIME, params->PitchEG.tcKey2Decay);
-
-    ADD_CONNECTION(conn, CONN_SRC_NONE, CONN_DST_EG2_ATTACKTIME, params->PitchEG.tcAttack);
-    ADD_CONNECTION(conn, CONN_SRC_NONE, CONN_DST_EG2_DECAYTIME, params->PitchEG.tcDecay);
-    ADD_CONNECTION(conn, CONN_SRC_NONE, CONN_DST_EG2_SUSTAINLEVEL, params->PitchEG.ptSustain);
-    ADD_CONNECTION(conn, CONN_SRC_NONE, CONN_DST_EG2_RELEASETIME, params->PitchEG.tcRelease);
-    ADD_CONNECTION(conn, CONN_SRC_KEYONVELOCITY, CONN_DST_EG2_ATTACKTIME, params->PitchEG.tcVel2Attack);
-    ADD_CONNECTION(conn, CONN_SRC_KEYNUMBER, CONN_DST_EG2_DECAYTIME, params->PitchEG.tcKey2Decay);
-    ADD_CONNECTION(conn, CONN_SRC_EG2, CONN_DST_PITCH, params->PitchEG.pcRange);
-
-    ADD_CONNECTION(conn, CONN_SRC_NONE, CONN_DST_PAN, params->Misc.ptDefaultPan);
-#undef APPEND_CONNECTION
-
-    list_add_tail(articulations, &articulation->entry);
-    return S_OK;
-}
-
 static HRESULT parse_art1_chunk(struct instrument *This, IStream *stream, struct chunk_entry *chunk,
         struct list *articulations)
 {
@@ -498,6 +374,10 @@ static HRESULT parse_ins_chunk(struct instrument *This, IStream *stream, struct 
     struct chunk_entry chunk = {.parent = parent};
     HRESULT hr;
 
+    if (FAILED(hr = dmobj_parsedescriptor(stream, parent, desc, DMUS_OBJ_NAME_INFO|DMUS_OBJ_GUID_DLID))
+            || FAILED(hr = stream_reset_chunk_data(stream, parent)))
+        return hr;
+
     while ((hr = stream_next_chunk(stream, &chunk)) == S_OK)
     {
         switch (MAKE_IDTYPE(chunk.id, chunk.type))
@@ -508,7 +388,7 @@ static HRESULT parse_ins_chunk(struct instrument *This, IStream *stream, struct 
 
         case FOURCC_DLID:
         case MAKE_IDTYPE(FOURCC_LIST, DMUS_FOURCC_INFO_LIST):
-            hr = stream_chunk_parse_desc(stream, &chunk, desc);
+            /* already parsed by dmobj_parsedescriptor */
             break;
 
         case MAKE_IDTYPE(FOURCC_LIST, FOURCC_LRGN):
@@ -668,441 +548,8 @@ static BOOL parse_soundfont_generators(struct soundfont *soundfont, UINT index,
     return TRUE;
 }
 
-static const union
-{
-    struct articulation articulation;
-    struct
-    {
-        struct list entry;
-        CONNECTIONLIST list;
-        CONNECTION connections[10];
-    };
-} SF_DEFAULT_MODULATORS =
-{
-    .list = {.cbSize = sizeof(CONNECTIONLIST), .cConnections = ARRAY_SIZE(SF_DEFAULT_MODULATORS.connections)},
-    .connections =
-    {
-        {
-            .usSource = CONN_SRC_KEYONVELOCITY,
-            .usDestination = CONN_DST_ATTENUATION,
-            .usTransform = CONN_TRANSFORM(CONN_TRN_INVERT | CONN_TRN_CONCAVE, CONN_TRN_NONE, CONN_TRN_NONE),
-            .lScale = 960,
-        },
-        {
-            .usSource = CONN_SRC_KEYONVELOCITY,
-            .usDestination = CONN_DST_FILTER_CUTOFF,
-            .usTransform = CONN_TRANSFORM(CONN_TRN_INVERT, CONN_TRN_NONE, CONN_TRN_NONE),
-            .lScale = -2400,
-        },
-        {
-            .usSource = CONN_SRC_VIBRATO,
-            .usControl = CONN_SRC_CHANNELPRESSURE,
-            .usDestination = CONN_DST_PITCH,
-            .lScale = 50,
-        },
-        {
-            .usSource = CONN_SRC_VIBRATO,
-            .usControl = CONN_SRC_CC1,
-            .usDestination = CONN_DST_PITCH,
-            .lScale = 50,
-        },
-        {
-            .usSource = CONN_SRC_CC2,
-            .usDestination = CONN_DST_ATTENUATION,
-            .usTransform = CONN_TRANSFORM(CONN_TRN_INVERT | CONN_TRN_CONCAVE, CONN_TRN_NONE, CONN_TRN_NONE),
-            .lScale = 960,
-        },
-        {
-            .usSource = CONN_SRC_CC10,
-            .usDestination = CONN_DST_ATTENUATION,
-            .usTransform = CONN_TRANSFORM(CONN_TRN_BIPOLAR, CONN_TRN_NONE, CONN_TRN_NONE),
-            .lScale = 1000,
-        },
-        {
-            .usSource = CONN_SRC_CC11,
-            .usDestination = CONN_DST_ATTENUATION,
-            .usTransform = CONN_TRANSFORM(CONN_TRN_INVERT | CONN_TRN_CONCAVE, CONN_TRN_NONE, CONN_TRN_NONE),
-            .lScale = 960,
-        },
-        {
-            .usSource = CONN_SRC_CC91,
-            .usDestination = CONN_DST_REVERB,
-            .lScale = 200,
-        },
-        {
-            .usSource = CONN_SRC_CC93,
-            .usDestination = CONN_DST_CHORUS,
-            .lScale = 200,
-        },
-        {
-            .usSource = CONN_SRC_PITCHWHEEL,
-            .usDestination = CONN_DST_PITCH,
-            .usControl = CONN_SRC_RPN0,
-            .usTransform = CONN_TRANSFORM(CONN_TRN_BIPOLAR, CONN_TRN_NONE, CONN_TRN_NONE),
-            .lScale = 12700,
-        },
-    },
-};
-
-static int connection_cmp(const void *a, const void *b)
-{
-    const CONNECTION *ac = a, *bc = b;
-    int ret;
-
-    if ((ret = (ac->usSource - bc->usSource))) return ret;
-    if ((ret = (ac->usControl - bc->usControl))) return ret;
-    if ((ret = (ac->usDestination - bc->usDestination))) return ret;
-    if ((ret = (ac->usTransform - bc->usTransform))) return ret;
-
-    return 0;
-}
-
-static BOOL sf_modulator_to_source_transform(sf_modulator mod, USHORT *source, USHORT *transform)
-{
-    UINT trn = 0;
-
-    if (mod & SF_MOD_CTRL_MIDI) *source = mod & 0x8f;
-    else switch (mod & 0x7f)
-    {
-    case SF_MOD_CTRL_GEN_NONE: *source = CONN_SRC_NONE; break;
-    case SF_MOD_CTRL_GEN_VELOCITY: *source = CONN_SRC_KEYONVELOCITY; break;
-    case SF_MOD_CTRL_GEN_KEY: *source = CONN_SRC_KEYNUMBER; break;
-    case SF_MOD_CTRL_GEN_POLY_PRESSURE: *source = CONN_SRC_POLYPRESSURE; break;
-    case SF_MOD_CTRL_GEN_CHAN_PRESSURE: *source = CONN_SRC_CHANNELPRESSURE; break;
-    case SF_MOD_CTRL_GEN_PITCH_WHEEL: *source = CONN_SRC_PITCHWHEEL; break;
-    case SF_MOD_CTRL_GEN_PITCH_WHEEL_SENSITIVITY: *source = CONN_SRC_RPN0; break;
-    case SF_MOD_CTRL_GEN_LINK: FIXME("Unsupported linked modulator\n"); return FALSE;
-    }
-
-    if (mod & SF_MOD_DIR_DECREASING) trn |= CONN_TRN_INVERT;
-    if (mod & SF_MOD_POL_BIPOLAR) trn |= CONN_TRN_BIPOLAR;
-    switch (mod & SF_MOD_SRC_SWITCH)
-    {
-    case SF_MOD_SRC_LINEAR: trn |= CONN_TRN_NONE;
-    case SF_MOD_SRC_CONCAVE: trn |= CONN_TRN_CONCAVE;
-    case SF_MOD_SRC_CONVEX: trn |= CONN_TRN_CONVEX;
-    case SF_MOD_SRC_SWITCH: trn |= CONN_TRN_SWITCH;
-    }
-
-    *transform = trn;
-    return TRUE;
-}
-
-static BOOL connection_from_modulator(CONNECTION *conn, struct sf_mod *mod)
-{
-    USHORT src_trn = 0, ctrl_trn = 0;
-
-    memset(conn, 0, sizeof(*conn));
-
-    switch (mod->dest_gen)
-    {
-    case SF_GEN_MOD_LFO_TO_FILTER_FC:
-    case SF_GEN_MOD_LFO_TO_VOLUME:
-    case SF_GEN_MOD_LFO_TO_PITCH:
-        conn->usSource = CONN_SRC_LFO;
-        break;
-    case SF_GEN_VIB_LFO_TO_PITCH:
-        conn->usSource = CONN_SRC_VIBRATO;
-        break;
-    case SF_GEN_MOD_ENV_TO_PITCH:
-    case SF_GEN_MOD_ENV_TO_FILTER_FC:
-        conn->usSource = CONN_SRC_EG2;
-        break;
-    case SF_GEN_KEYNUM_TO_MOD_ENV_HOLD:
-    case SF_GEN_KEYNUM_TO_MOD_ENV_DECAY:
-    case SF_GEN_KEYNUM_TO_VOL_ENV_HOLD:
-    case SF_GEN_KEYNUM_TO_VOL_ENV_DECAY:
-        conn->usSource = CONN_SRC_KEYNUMBER;
-        break;
-    default:
-        if (!sf_modulator_to_source_transform(mod->src_mod, &conn->usSource, &src_trn))
-        {
-            FIXME("Unsupported modulator %s\n", debugstr_sf_mod(mod));
-            return FALSE;
-        }
-        break;
-    }
-
-    switch (mod->dest_gen)
-    {
-    case SF_GEN_MOD_LFO_TO_FILTER_FC:
-    case SF_GEN_MOD_LFO_TO_VOLUME:
-    case SF_GEN_MOD_LFO_TO_PITCH:
-    case SF_GEN_VIB_LFO_TO_PITCH:
-        if (mod->src_mod == (SF_MOD_CTRL_MIDI | 1))
-            conn->usControl = CONN_SRC_CC1;
-        else if (mod->src_mod == SF_MOD_CTRL_GEN_CHAN_PRESSURE)
-            conn->usControl = CONN_SRC_CHANNELPRESSURE;
-        else
-        {
-            FIXME("Unsupported modulator source %s\n", debugstr_sf_mod(mod));
-            return FALSE;
-        }
-        break;
-    default:
-        if (!sf_modulator_to_source_transform(mod->amount_src_mod, &conn->usControl, &ctrl_trn))
-        {
-            FIXME("Unsupported modulator %s\n", debugstr_sf_mod(mod));
-            return FALSE;
-        }
-        break;
-    }
-
-    switch (mod->dest_gen)
-    {
-    case SF_GEN_MOD_LFO_TO_FILTER_FC: conn->usDestination = CONN_DST_FILTER_CUTOFF; break;
-    case SF_GEN_MOD_LFO_TO_VOLUME: conn->usDestination = CONN_DST_GAIN; break;
-    case SF_GEN_MOD_LFO_TO_PITCH: conn->usDestination = CONN_DST_PITCH; break;
-    case SF_GEN_VIB_LFO_TO_PITCH: conn->usDestination = CONN_DST_PITCH; break;
-    case SF_GEN_MOD_ENV_TO_PITCH: conn->usDestination = CONN_DST_PITCH; break;
-    case SF_GEN_MOD_ENV_TO_FILTER_FC: conn->usDestination = CONN_DST_FILTER_CUTOFF; break;
-    case SF_GEN_KEYNUM_TO_MOD_ENV_HOLD: conn->usDestination = CONN_DST_EG2_HOLDTIME; break;
-    case SF_GEN_KEYNUM_TO_MOD_ENV_DECAY: conn->usDestination = CONN_DST_EG2_DECAYTIME; break;
-    case SF_GEN_KEYNUM_TO_VOL_ENV_HOLD: conn->usDestination = CONN_DST_EG1_HOLDTIME; break;
-    case SF_GEN_KEYNUM_TO_VOL_ENV_DECAY: conn->usDestination = CONN_DST_EG1_DECAYTIME; break;
-    case SF_GEN_INITIAL_FILTER_FC: conn->usDestination = CONN_DST_FILTER_CUTOFF; break;
-    case SF_GEN_INITIAL_FILTER_Q: conn->usDestination = CONN_DST_FILTER_CUTOFF; break;
-    case SF_GEN_CHORUS_EFFECTS_SEND: conn->usDestination = CONN_DST_CHORUS; break;
-    case SF_GEN_REVERB_EFFECTS_SEND: conn->usDestination = CONN_DST_REVERB; break;
-    case SF_GEN_PAN: conn->usDestination = CONN_DST_PAN; break;
-    case SF_GEN_DELAY_MOD_LFO: conn->usDestination = CONN_DST_LFO_STARTDELAY; break;
-    case SF_GEN_FREQ_MOD_LFO: conn->usDestination = CONN_DST_LFO_FREQUENCY; break;
-    case SF_GEN_DELAY_VIB_LFO: conn->usDestination = CONN_DST_VIB_STARTDELAY; break;
-    case SF_GEN_FREQ_VIB_LFO: conn->usDestination = CONN_DST_VIB_FREQUENCY; break;
-    case SF_GEN_DELAY_MOD_ENV: conn->usDestination = CONN_DST_EG2_DELAYTIME; break;
-    case SF_GEN_ATTACK_MOD_ENV: conn->usDestination = CONN_DST_EG2_ATTACKTIME; break;
-    case SF_GEN_HOLD_MOD_ENV: conn->usDestination = CONN_DST_EG2_HOLDTIME; break;
-    case SF_GEN_DECAY_MOD_ENV: conn->usDestination = CONN_DST_EG2_DECAYTIME; break;
-    case SF_GEN_SUSTAIN_MOD_ENV: conn->usDestination = CONN_DST_EG2_SUSTAINLEVEL; break;
-    case SF_GEN_RELEASE_MOD_ENV: conn->usDestination = CONN_DST_EG2_RELEASETIME; break;
-    case SF_GEN_DELAY_VOL_ENV: conn->usDestination = CONN_DST_EG1_DELAYTIME; break;
-    case SF_GEN_ATTACK_VOL_ENV: conn->usDestination = CONN_DST_EG1_ATTACKTIME; break;
-    case SF_GEN_HOLD_VOL_ENV: conn->usDestination = CONN_DST_EG1_HOLDTIME; break;
-    case SF_GEN_DECAY_VOL_ENV: conn->usDestination = CONN_DST_EG1_DECAYTIME; break;
-    case SF_GEN_SUSTAIN_VOL_ENV: conn->usDestination = CONN_DST_EG1_SUSTAINLEVEL; break;
-    case SF_GEN_RELEASE_VOL_ENV: conn->usDestination = CONN_DST_EG1_RELEASETIME; break;
-    case SF_GEN_INITIAL_ATTENUATION: conn->usDestination = CONN_DST_ATTENUATION; break;
-    default:
-        FIXME("Unsupported modulator: %s\n", debugstr_sf_mod(mod));
-        return FALSE;
-    }
-
-    if (mod->transform == SF_TRAN_ABSOLUTE) FIXME("Unsupported SF_TRAN_ABSOLUTE\n");
-    conn->usTransform = CONN_TRANSFORM(src_trn, ctrl_trn, 0);
-
-    conn->lScale = mod->amount;
-    TRACE("modulator %s to %s\n", debugstr_sf_mod(mod), debugstr_connection(conn));
-    return TRUE;
-}
-
-static BOOL connection_from_generator(CONNECTION *conn, sf_generator gen, union sf_amount amount)
-{
-    memset(conn, 0, sizeof(*conn));
-
-    switch (gen)
-    {
-    case SF_GEN_MOD_LFO_TO_PITCH:
-    case SF_GEN_MOD_LFO_TO_FILTER_FC:
-    case SF_GEN_MOD_LFO_TO_VOLUME:
-        conn->usSource = CONN_SRC_LFO;
-        break;
-    case SF_GEN_VIB_LFO_TO_PITCH:
-        conn->usSource = CONN_SRC_VIBRATO;
-        break;
-    case SF_GEN_MOD_ENV_TO_PITCH:
-    case SF_GEN_MOD_ENV_TO_FILTER_FC:
-        conn->usSource = CONN_SRC_EG2;
-        break;
-    case SF_GEN_KEYNUM_TO_MOD_ENV_HOLD:
-    case SF_GEN_KEYNUM_TO_MOD_ENV_DECAY:
-    case SF_GEN_KEYNUM_TO_VOL_ENV_HOLD:
-    case SF_GEN_KEYNUM_TO_VOL_ENV_DECAY:
-        conn->usSource = CONN_SRC_KEYNUMBER;
-        break;
-    case SF_GEN_SCALE_TUNING:
-        conn->usSource = CONN_SRC_KEYNUMBER;
-        break;
-    }
-
-    switch (gen)
-    {
-    case SF_GEN_INITIAL_FILTER_FC: conn->usDestination = CONN_DST_FILTER_CUTOFF; break;
-    case SF_GEN_INITIAL_FILTER_Q: conn->usDestination = CONN_DST_FILTER_CUTOFF; break;
-    case SF_GEN_CHORUS_EFFECTS_SEND: conn->usDestination = CONN_DST_CHORUS; break;
-    case SF_GEN_REVERB_EFFECTS_SEND: conn->usDestination = CONN_DST_REVERB; break;
-    case SF_GEN_PAN: conn->usDestination = CONN_DST_PAN; break;
-    case SF_GEN_DELAY_MOD_LFO: conn->usDestination = CONN_DST_LFO_STARTDELAY; break;
-    case SF_GEN_FREQ_MOD_LFO: conn->usDestination = CONN_DST_LFO_FREQUENCY; break;
-    case SF_GEN_DELAY_VIB_LFO: conn->usDestination = CONN_DST_VIB_STARTDELAY; break;
-    case SF_GEN_FREQ_VIB_LFO: conn->usDestination = CONN_DST_VIB_FREQUENCY; break;
-    case SF_GEN_DELAY_MOD_ENV: conn->usDestination = CONN_DST_EG2_DELAYTIME; break;
-    case SF_GEN_ATTACK_MOD_ENV: conn->usDestination = CONN_DST_EG2_ATTACKTIME; break;
-    case SF_GEN_HOLD_MOD_ENV: conn->usDestination = CONN_DST_EG2_HOLDTIME; break;
-    case SF_GEN_DECAY_MOD_ENV: conn->usDestination = CONN_DST_EG2_DECAYTIME; break;
-    case SF_GEN_SUSTAIN_MOD_ENV: conn->usDestination = CONN_DST_EG2_SUSTAINLEVEL; break;
-    case SF_GEN_RELEASE_MOD_ENV: conn->usDestination = CONN_DST_EG2_RELEASETIME; break;
-    case SF_GEN_DELAY_VOL_ENV: conn->usDestination = CONN_DST_EG1_DELAYTIME; break;
-    case SF_GEN_ATTACK_VOL_ENV: conn->usDestination = CONN_DST_EG1_ATTACKTIME; break;
-    case SF_GEN_HOLD_VOL_ENV: conn->usDestination = CONN_DST_EG1_HOLDTIME; break;
-    case SF_GEN_DECAY_VOL_ENV: conn->usDestination = CONN_DST_EG1_DECAYTIME; break;
-    case SF_GEN_SUSTAIN_VOL_ENV: conn->usDestination = CONN_DST_EG1_SUSTAINLEVEL; break;
-    case SF_GEN_RELEASE_VOL_ENV: conn->usDestination = CONN_DST_EG1_RELEASETIME; break;
-    case SF_GEN_INITIAL_ATTENUATION: conn->usDestination = CONN_DST_ATTENUATION; break;
-    case SF_GEN_MOD_LFO_TO_VOLUME: conn->usDestination = CONN_DST_GAIN; break;
-    case SF_GEN_KEYNUM_TO_MOD_ENV_HOLD: conn->usDestination = CONN_DST_EG2_HOLDTIME; break;
-    case SF_GEN_KEYNUM_TO_MOD_ENV_DECAY: conn->usDestination = CONN_DST_EG2_DECAYTIME; break;
-    case SF_GEN_KEYNUM_TO_VOL_ENV_HOLD: conn->usDestination = CONN_DST_EG1_HOLDTIME; break;
-    case SF_GEN_KEYNUM_TO_VOL_ENV_DECAY: conn->usDestination = CONN_DST_EG1_DECAYTIME; break;
-
-    case SF_GEN_MOD_LFO_TO_PITCH:
-    case SF_GEN_VIB_LFO_TO_PITCH:
-    case SF_GEN_MOD_ENV_TO_PITCH:
-    case SF_GEN_SCALE_TUNING:
-        conn->usDestination = CONN_DST_PITCH;
-        break;
-    case SF_GEN_MOD_LFO_TO_FILTER_FC:
-    case SF_GEN_MOD_ENV_TO_FILTER_FC:
-        conn->usDestination = CONN_DST_FILTER_CUTOFF;
-        break;
-
-    default:
-        FIXME("Unsupported generator %s\n", debugstr_sf_generator(gen));
-    case SF_GEN_KEYNUM:
-    case SF_GEN_VELOCITY:
-    case SF_GEN_INSTRUMENT:
-    case SF_GEN_SAMPLE_ID:
-    case SF_GEN_KEY_RANGE:
-    case SF_GEN_VEL_RANGE:
-    case SF_GEN_FINE_TUNE:
-    case SF_GEN_COARSE_TUNE:
-    case SF_GEN_EXCLUSIVE_CLASS:
-    case SF_GEN_OVERRIDING_ROOT_KEY:
-    case SF_GEN_START_ADDRS_OFFSET:
-    case SF_GEN_END_ADDRS_OFFSET:
-    case SF_GEN_STARTLOOP_ADDRS_OFFSET:
-    case SF_GEN_ENDLOOP_ADDRS_OFFSET:
-    case SF_GEN_START_ADDRS_COARSE_OFFSET:
-    case SF_GEN_END_ADDRS_COARSE_OFFSET:
-    case SF_GEN_STARTLOOP_ADDRS_COARSE_OFFSET:
-    case SF_GEN_ENDLOOP_ADDRS_COARSE_OFFSET:
-    case SF_GEN_SAMPLE_MODES:
-        return FALSE;
-    }
-
-    conn->lScale = (short)amount.value;
-    TRACE("generator %s to %s\n", debugstr_sf_generator(gen), debugstr_connection(conn));
-    return TRUE;
-}
-
-static HRESULT parse_soundfont_instrument_modulators(struct soundfont *soundfont, UINT index,
-        struct sf_generators *generators, const struct articulation *global_mods,
-        struct articulation *preset_mods, struct articulation **ret)
-{
-    struct sf_bag *bag = soundfont->ibag + index;
-    CONNECTIONLIST list = {.cbSize = sizeof(list)};
-    struct articulation *articulation;
-    CONNECTION *connection, *other;
-    UINT i, size;
-
-    list.cConnections += global_mods->list.cConnections;
-    for (i = 0; generators && i < ARRAY_SIZE(generators->amount); i++)
-        if (generators->amount[i].value) list.cConnections++;
-    list.cConnections += (bag + 1)->mod_ndx - bag->mod_ndx;
-    if (preset_mods) list.cConnections += preset_mods->list.cConnections;
-
-    *ret = NULL;
-    if (list.cConnections == 0) return S_OK;
-    size = offsetof(struct articulation, connections[list.cConnections]);
-    if (!(articulation = malloc(size))) return E_OUTOFMEMORY;
-    articulation->list = list;
-    connection = articulation->connections;
-
-    for (i = 0; i < global_mods->list.cConnections; i++)
-        *connection++ = global_mods->connections[i];
-
-    for (i = 0; generators && i < ARRAY_SIZE(generators->amount); i++)
-    {
-        if (!generators->amount[i].value) continue;
-        if (!connection_from_generator(connection, i, generators->amount[i])) continue;
-
-        /* replace any identical default value with the instrument level mod */
-        for (other = articulation->connections; other < connection; other++)
-            if (!connection_cmp(other, connection)) break;
-        if (other != connection) *other = *connection;
-        else connection++;
-    }
-
-    for (index = bag->mod_ndx; index < (bag + 1)->mod_ndx; index++)
-    {
-        struct sf_mod *mod = soundfont->imod + index;
-        if (!connection_from_modulator(connection, mod)) continue;
-
-        /* replace any identical default value with the instrument level mod */
-        for (other = articulation->connections; other < connection; other++)
-            if (!connection_cmp(other, connection)) break;
-        if (other != connection) *other = *connection;
-        else connection++;
-    }
-
-    for (i = 0; preset_mods && i < preset_mods->list.cConnections; i++)
-    {
-        CONNECTION *preset = preset_mods->connections + i;
-
-        /* add any identical preset mod value to the instrument level mod */
-        for (other = articulation->connections; other < connection; other++)
-            if (!connection_cmp(other, preset)) break;
-        if (other != connection) other->lScale += preset->lScale;
-        else *connection++ = *preset;
-    }
-
-    articulation->list.cConnections = connection - articulation->connections;
-
-    *ret = articulation;
-    return S_OK;
-}
-
-static HRESULT parse_soundfont_preset_modulators(struct soundfont *soundfont, UINT index,
-        struct articulation *global_mods, struct articulation **ret)
-{
-    struct sf_bag *bag = soundfont->pbag + index;
-    CONNECTIONLIST list = {.cbSize = sizeof(list)};
-    struct articulation *articulation;
-    CONNECTION *connection, *other;
-    UINT i, size;
-
-    list.cConnections = (bag + 1)->mod_ndx - bag->mod_ndx;
-    if (global_mods) list.cConnections += global_mods->list.cConnections;
-
-    *ret = NULL;
-    if (list.cConnections == 0) return S_OK;
-    size = offsetof(struct articulation, connections[list.cConnections]);
-    if (!(articulation = malloc(size))) return E_OUTOFMEMORY;
-    articulation->list = list;
-    connection = articulation->connections;
-
-    for (i = 0; global_mods && i < global_mods->list.cConnections; i++, connection++)
-        *connection = global_mods->connections[i];
-
-    for (index = bag->mod_ndx; index < (bag + 1)->mod_ndx; index++)
-    {
-        struct sf_mod *mod = soundfont->pmod + index;
-        if (!connection_from_modulator(connection, mod)) continue;
-
-        /* replace any identical global value with the preset level mod */
-        for (other = articulation->connections; other < connection; other++)
-            if (!connection_cmp(other, connection)) break;
-        if (other != connection) *other = *connection;
-        else connection++;
-    }
-
-    articulation->list.cConnections = connection - articulation->connections;
-
-    *ret = articulation;
-    return S_OK;
-}
-
 static HRESULT instrument_add_soundfont_region(struct instrument *This, struct soundfont *soundfont,
-        struct sf_generators *generators, struct articulation *modulators)
+        struct sf_generators *generators)
 {
     UINT start_loop, end_loop, unity_note, sample_index = generators->amount[SF_GEN_SAMPLE_ID].value;
     struct sf_sample *sample = soundfont->shdr + sample_index;
@@ -1110,7 +557,6 @@ static HRESULT instrument_add_soundfont_region(struct instrument *This, struct s
 
     if (!(region = calloc(1, sizeof(*region)))) return E_OUTOFMEMORY;
     list_init(&region->articulations);
-    if (modulators) list_add_tail(&region->articulations, &modulators->entry);
 
     region->header.RangeKey.usLow = generators->amount[SF_GEN_KEY_RANGE].range.low;
     region->header.RangeKey.usHigh = generators->amount[SF_GEN_KEY_RANGE].range.high;
@@ -1141,39 +587,29 @@ static HRESULT instrument_add_soundfont_region(struct instrument *This, struct s
 }
 
 static HRESULT instrument_add_soundfont_instrument(struct instrument *This, struct soundfont *soundfont,
-        UINT index, struct sf_generators *preset_generators, struct articulation *preset_modulators)
+        UINT index, struct sf_generators *preset_generators)
 {
     struct sf_generators global_generators = SF_DEFAULT_GENERATORS;
     struct sf_instrument *instrument = soundfont->inst + index;
-    struct articulation *global_modulators = NULL;
     UINT i = instrument->bag_ndx;
     HRESULT hr = S_OK;
 
     for (i = instrument->bag_ndx; SUCCEEDED(hr) && i < (instrument + 1)->bag_ndx; i++)
     {
         struct sf_generators generators = global_generators;
-        struct articulation *modulators = NULL;
 
         if (parse_soundfont_generators(soundfont, i, preset_generators, &generators))
         {
             if (i > instrument->bag_ndx)
                 WARN("Ignoring instrument zone without a sample id\n");
-            else if (SUCCEEDED(hr = parse_soundfont_instrument_modulators(soundfont, i, NULL,
-                    &SF_DEFAULT_MODULATORS.articulation, preset_modulators, &global_modulators)))
+            else
                 global_generators = generators;
             continue;
         }
 
-        if (SUCCEEDED(hr = parse_soundfont_instrument_modulators(soundfont, i, &generators,
-                global_modulators ? global_modulators : &SF_DEFAULT_MODULATORS.articulation,
-                preset_modulators, &modulators)))
-        {
-            hr = instrument_add_soundfont_region(This, soundfont, &generators, modulators);
-            if (FAILED(hr)) free(modulators);
-        }
+        hr = instrument_add_soundfont_region(This, soundfont, &generators);
     }
 
-    free(global_modulators);
     return hr;
 }
 
@@ -1181,7 +617,6 @@ HRESULT instrument_create_from_soundfont(struct soundfont *soundfont, UINT index
         struct collection *collection, DMUS_OBJECTDESC *desc, IDirectMusicInstrument **ret_iface)
 {
     struct sf_preset *preset = soundfont->phdr + index;
-    struct articulation *global_modulators = NULL;
     struct sf_generators global_generators = {0};
     IDirectMusicInstrument *iface;
     struct instrument *This;
@@ -1201,26 +636,20 @@ HRESULT instrument_create_from_soundfont(struct soundfont *soundfont, UINT index
     for (i = preset->bag_ndx; SUCCEEDED(hr) && i < (preset + 1)->bag_ndx; i++)
     {
         struct sf_generators generators = global_generators;
-        struct articulation *modulators = NULL;
+        UINT instrument;
 
         if (parse_soundfont_generators(soundfont, i, NULL, &generators))
         {
             if (i > preset->bag_ndx)
                 WARN("Ignoring preset zone without an instrument\n");
-            else if (SUCCEEDED(hr = parse_soundfont_preset_modulators(soundfont, i, NULL, &global_modulators)))
+            else
                 global_generators = generators;
             continue;
         }
 
-        if (SUCCEEDED(hr = parse_soundfont_preset_modulators(soundfont, i, global_modulators, &modulators)))
-        {
-            UINT instrument = generators.amount[SF_GEN_INSTRUMENT].value;
-            hr = instrument_add_soundfont_instrument(This, soundfont, instrument, &generators, modulators);
-        }
-
-        free(modulators);
+        instrument = generators.amount[SF_GEN_INSTRUMENT].value;
+        hr = instrument_add_soundfont_instrument(This, soundfont, instrument, &generators);
     }
-    free(global_modulators);
 
     if (FAILED(hr))
     {
@@ -1230,7 +659,6 @@ HRESULT instrument_create_from_soundfont(struct soundfont *soundfont, UINT index
 
     if (TRACE_ON(dmusic))
     {
-        struct articulation *articulation;
         struct region *region;
         UINT i;
 
@@ -1262,25 +690,6 @@ HRESULT instrument_create_from_soundfont(struct soundfont *soundfont, UINT index
                 TRACE("     - wave_loop[%u]: {size: %lu, type: %lu, start: %lu, length: %lu}\n", i,
                         region->wave_loop.cbSize, region->wave_loop.ulType,
                         region->wave_loop.ulStart, region->wave_loop.ulLength);
-            TRACE("     - articulations:\n");
-            LIST_FOR_EACH_ENTRY(articulation, &region->articulations, struct articulation, entry)
-            {
-                for (i = 0; i < articulation->list.cConnections; i++)
-                {
-                    CONNECTION *conn = articulation->connections + i;
-                    TRACE("         - connection[%u]: %s\n", i, debugstr_connection(conn));
-                }
-            }
-        }
-
-        TRACE(" - articulations:\n");
-        LIST_FOR_EACH_ENTRY(articulation, &This->articulations, struct articulation, entry)
-        {
-            for (i = 0; i < articulation->list.cConnections; i++)
-            {
-                CONNECTION *conn = articulation->connections + i;
-                TRACE("     - connection[%u]: %s\n", i, debugstr_connection(conn));
-            }
         }
     }
 

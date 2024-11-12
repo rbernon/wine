@@ -44,6 +44,9 @@ typedef struct {
         IClassFactory IClassFactory_iface;
 } IClassFactoryImpl;
 
+/******************************************************************
+ *		DirectMusicWave ClassFactory
+ */
 static HRESULT WINAPI WaveCF_QueryInterface(IClassFactory * iface, REFIID riid, void **ppv)
 {
         if (ppv == NULL)
@@ -108,6 +111,8 @@ static IClassFactoryImpl Wave_CF = {{&WaveCF_Vtbl}};
 
 /******************************************************************
  *		DllGetClassObject (DSWAVE.@)
+ *
+ *
  */
 HRESULT WINAPI DllGetClassObject(REFCLSID rclsid, REFIID riid, LPVOID *ppv)
 {
