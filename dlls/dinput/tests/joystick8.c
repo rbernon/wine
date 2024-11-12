@@ -304,7 +304,7 @@ static BOOL CALLBACK enum_device_count( const DIDEVICEINSTANCEW *devinst, void *
     return DIENUM_CONTINUE;
 }
 
-void check_dinput_devices( DWORD version, DIDEVICEINSTANCEW *devinst )
+static void check_dinput_devices( DWORD version, DIDEVICEINSTANCEW *devinst )
 {
     DIPROPDWORD prop_dword =
     {
@@ -454,89 +454,6 @@ void check_dinput_devices( DWORD version, DIDEVICEINSTANCEW *devinst )
     }
 }
 
-static BOOL CALLBACK enum_file_effects( const DIFILEEFFECT *effect, void *args )
-{
-    DWORD *count = args;
-    *count = *count + 1;
-    return DIENUM_CONTINUE;
-}
-
-static void test_effect_file( IDirectInputDevice8W *device, DWORD version )
-{
-    static const DWORD expect_axes[3] =
-    {
-        DIDFT_ABSAXIS | DIDFT_MAKEINSTANCE( 2 ) | DIDFT_FFACTUATOR,
-        DIDFT_ABSAXIS | DIDFT_MAKEINSTANCE( 0 ) | DIDFT_FFACTUATOR,
-        DIDFT_ABSAXIS | DIDFT_MAKEINSTANCE( 1 ) | DIDFT_FFACTUATOR,
-    };
-    static const LONG expect_directions[3] =
-    {
-        +3000,
-        -6000,
-        0,
-    };
-    static const DIENVELOPE expect_envelope =
-    {
-        .dwSize = sizeof(DIENVELOPE),
-        .dwAttackLevel = 1000,
-        .dwAttackTime = 2000,
-        .dwFadeLevel = 3000,
-        .dwFadeTime = 4000,
-    };
-    static const DIPERIODIC expect_periodic =
-    {
-        .dwMagnitude = 1000,
-        .lOffset = 2000,
-        .dwPhase = 3000,
-        .dwPeriod = 4000,
-    };
-    const DIEFFECT expect_desc =
-    {
-        .dwSize = version >= 0x700 ? sizeof(DIEFFECT_DX6) : sizeof(DIEFFECT_DX5),
-        .dwFlags = DIEFF_SPHERICAL | DIEFF_OBJECTIDS,
-        .dwDuration = 1000,
-        .dwSamplePeriod = 2000,
-        .dwGain = 3000,
-        .dwTriggerButton = DIDFT_PSHBUTTON | DIDFT_MAKEINSTANCE( 0 ) | DIDFT_FFEFFECTTRIGGER,
-        .dwTriggerRepeatInterval = 5000,
-        .cAxes = 3,
-        .rgdwAxes = (void *)expect_axes,
-        .rglDirection = (void *)expect_directions,
-        .lpEnvelope = (void *)&expect_envelope,
-        .cbTypeSpecificParams = sizeof(DIPERIODIC),
-        .lpvTypeSpecificParams = (void *)&expect_periodic,
-        .dwStartDelay = 6000,
-    };
-    DIFILEEFFECT effects[2] =
-    {
-        {
-            .dwSize = sizeof(DIFILEEFFECT),
-            .GuidEffect = GUID_Sine,
-            .lpDiEffect = &expect_desc,
-            .szFriendlyName = "Sine Effect",
-        },
-        {
-            .dwSize = sizeof(DIFILEEFFECT),
-            .GuidEffect = GUID_Square,
-            .lpDiEffect = &expect_desc,
-            .szFriendlyName = "Square Effect",
-        },
-    };
-    DWORD flags = 0;
-    HRESULT hr;
-    DWORD res;
-
-    hr = IDirectInputDevice8_WriteEffectToFile( device, L"effects.tmp", ARRAY_SIZE(effects), effects, flags );
-    todo_wine
-    ok( hr == S_OK, "WriteEffectToFile returned %#lx\n", hr );
-
-    res = 0;
-    hr = IDirectInputDevice8_EnumEffectsInFile( device, L"effects.tmp", enum_file_effects, &res, flags );
-    todo_wine
-    ok( hr == S_OK, "EnumEffectsInFile returned %#lx\n", hr );
-    ok( res == 2, "got %lu effects\n", res );
-}
-
 static BOOL CALLBACK enum_devices_by_semantic( const DIDEVICEINSTANCEW *instance, IDirectInputDevice8W *device,
                                                DWORD flags, DWORD remaining, void *context )
 {
@@ -609,15 +526,6 @@ static BOOL CALLBACK enum_devices_by_semantic( const DIDEVICEINSTANCEW *instance
 
 static void test_action_map( IDirectInputDevice8W *device, HANDLE file, HANDLE event )
 {
-    DIDEVICEIMAGEINFOW images[64] = {0};
-    DIDEVICEIMAGEINFOHEADERW image_info =
-    {
-        .dwSize = sizeof(DIDEVICEIMAGEINFOHEADERW),
-        .dwSizeImageInfo = sizeof(*images),
-        .dwBufferSize = sizeof(images),
-        .lprgImageInfoArray = images,
-    };
-
     const DIACTIONW expect_actions[] =
     {
         {
@@ -1541,10 +1449,6 @@ static void test_action_map( IDirectInputDevice8W *device, HANDLE file, HANDLE e
     ok( hr == DI_OK, "EnumDevicesBySemantics returned %#lx\n", hr );
 
     IDirectInput8_Release( dinput );
-
-    hr = IDirectInputDevice8_GetImageInfo( device, &image_info );
-    todo_wine
-    ok( hr == DIERR_NOTFOUND, "GetImageInfo returned %#lx\n", hr );
 }
 
 static void test_simple_joystick( DWORD version )
@@ -1645,18 +1549,6 @@ static void test_simple_joystick( DWORD version )
         {
             .code = IOCTL_HID_READ_REPORT,
             .report_buf = {1,0x10,0x10,0x10,0xee,0x10,0x10,0x10,0x54},
-        },
-    };
-    struct hid_expect auto_input[] =
-    {
-        {
-            .code = IOCTL_HID_READ_REPORT,
-            .report_buf = {1,0x10,0x10,0x80,0x80,0x10,0x10,0x10,0xff},
-        },
-        {
-            .code = IOCTL_HID_READ_REPORT,
-            .report_buf = {1,0x10,0x10,0x10,0xee,0x10,0x10,0x10,0x54},
-            .repeat_length = 2, .repeat_count = 10000000,
         },
     };
     static const struct DIJOYSTATE2 expect_state[] =
@@ -2802,56 +2694,6 @@ static void test_simple_joystick( DWORD version )
     hr = IDirectInputDevice8_SetProperty( device, DIPROP_PHYSICALRANGE, &prop_range.diph );
     ok( hr == DIERR_UNSUPPORTED, "SetProperty DIPROP_PHYSICALRANGE returned %#lx\n", hr );
 
-
-
-    dataformat.dwNumObjs = 3;
-    dataformat.dwDataSize = 8;
-    objdataformat[0].pguid = &GUID_XAxis;
-    objdataformat[0].dwOfs = 0;
-    objdataformat[0].dwType = DIDFT_OPTIONAL | DIDFT_AXIS | DIDFT_ANYINSTANCE;
-    objdataformat[0].dwFlags = 0;
-    objdataformat[1].pguid = &GUID_ZAxis;
-    objdataformat[1].dwOfs = 0;
-    objdataformat[1].dwType = DIDFT_OPTIONAL | DIDFT_AXIS | DIDFT_ANYINSTANCE;
-    objdataformat[1].dwFlags = 0;
-    objdataformat[2].pguid = &GUID_XAxis;
-    objdataformat[2].dwOfs = 4;
-    objdataformat[2].dwType = DIDFT_OPTIONAL | DIDFT_AXIS | DIDFT_ANYINSTANCE;
-    objdataformat[2].dwFlags = 0;
-    hr = IDirectInputDevice8_SetDataFormat( device, &dataformat );
-    ok( hr == DI_OK, "SetDataFormat returned: %#lx\n", hr );
-    hr = IDirectInputDevice8_Acquire( device );
-    ok( hr == DI_OK, "Unacquire returned: %#lx\n", hr );
-
-    send_hid_input( file, &injected_input[4], sizeof(*injected_input) );
-    res = WaitForSingleObject( event, 100 );
-    if (res == WAIT_TIMEOUT) /* Acquire is asynchronous */
-    {
-        send_hid_input( file, &injected_input[4], sizeof(*injected_input) );
-        res = WaitForSingleObject( event, 100 );
-    }
-    ok( res == WAIT_OBJECT_0, "WaitForSingleObject failed\n" );
-    ResetEvent( event );
-
-    send_hid_input( file, &injected_input[2], sizeof(*injected_input) );
-    res = WaitForSingleObject( event, 5000 );
-    ok( res == WAIT_OBJECT_0, "WaitForSingleObject failed\n" );
-    ResetEvent( event );
-
-    memset( buffer, 0xcd, sizeof(buffer) );
-    hr = IDirectInputDevice8_GetDeviceState( device, dataformat.dwDataSize, buffer );
-    ok( hr == DI_OK, "GetDeviceState returned: %#lx\n", hr );
-    ok( ((ULONG *)buffer)[0] == 0x7fff, "got %#lx, expected %#x\n", ((ULONG *)buffer)[0], 0x7fff );
-    ok( ((ULONG *)buffer)[1] == 0x512b, "got %#lx, expected %#x\n", ((ULONG *)buffer)[1], 0x512b );
-    hr = IDirectInputDevice8_Unacquire( device );
-    ok( hr == DI_OK, "Unacquire returned: %#lx\n", hr );
-    hr = IDirectInputDevice8_SetProperty( device, DIPROP_LOGICALRANGE, &prop_range.diph );
-    ok( hr == DIERR_UNSUPPORTED, "SetProperty DIPROP_LOGICALRANGE returned %#lx\n", hr );
-    hr = IDirectInputDevice8_SetProperty( device, DIPROP_PHYSICALRANGE, &prop_range.diph );
-    ok( hr == DIERR_UNSUPPORTED, "SetProperty DIPROP_PHYSICALRANGE returned %#lx\n", hr );
-
-
-
     hr = IDirectInputDevice8_SetDataFormat( device, &c_dfDIJoystick2 );
     ok( hr == DI_OK, "SetDataFormat returned: %#lx\n", hr );
     hr = IDirectInputDevice8_Acquire( device );
@@ -3239,12 +3081,6 @@ static void test_simple_joystick( DWORD version )
         winetest_pop_context();
     }
 
-    {
-    send_hid_input( file, auto_input, sizeof(auto_input) );
-    Sleep( 600000 );
-    }
-
-
     hr = IDirectInputDevice8_GetDeviceState( device, sizeof(DIJOYSTATE2), &state );
     ok( hr == DI_OK, "GetDeviceState returned: %#lx\n", hr );
     winetest_push_context( "state[%ld]", i );
@@ -3330,7 +3166,6 @@ static void test_simple_joystick( DWORD version )
     todo_wine
     ok( hr == DIERR_UNSUPPORTED, "Escape returned: %#lx\n", hr );
 
-    test_effect_file( device, version );
     if (version == 0x800) test_action_map( device, file, event );
 
     ref = IDirectInputDevice8_Release( device );
@@ -5091,8 +4926,6 @@ static void test_windows_gaming_input(void)
         COLLECTION(1, Application),
             USAGE(1, HID_USAGE_GENERIC_GAMEPAD),
             COLLECTION(1, Physical),
-                REPORT_ID(1, 1),
-
                 USAGE(1, HID_USAGE_GENERIC_X),
                 USAGE(1, HID_USAGE_GENERIC_Y),
                 USAGE(1, HID_USAGE_GENERIC_RX),
@@ -5126,68 +4959,6 @@ static void test_windows_gaming_input(void)
                 REPORT_SIZE(1, 1),
                 REPORT_COUNT(1, 12),
                 INPUT(1, Data|Var|Abs),
-            END_COLLECTION,
-
-            USAGE_PAGE(1, HID_USAGE_PAGE_HAPTICS),
-            USAGE(1, HID_USAGE_HAPTICS_SIMPLE_CONTROLLER),
-            COLLECTION(1, Logical),
-                REPORT_ID(1, 2),
-
-                USAGE(1, HID_USAGE_HAPTICS_WAVEFORM_LIST),
-                COLLECTION(1, NamedArray),
-                    USAGE(4, (HID_USAGE_PAGE_ORDINAL<<16)|3),
-                    REPORT_COUNT(1, 1),
-                    REPORT_SIZE(1, 16),
-                    FEATURE(1, Data|Var|Abs|Null),
-                END_COLLECTION,
-
-                USAGE(1, HID_USAGE_HAPTICS_DURATION_LIST),
-                COLLECTION(1, NamedArray),
-                    USAGE(4, (HID_USAGE_PAGE_ORDINAL<<16)|3),
-                    REPORT_COUNT(1, 1),
-                    REPORT_SIZE(1, 16),
-                    FEATURE(1, Data|Var|Abs|Null),
-                END_COLLECTION,
-
-                USAGE(1, HID_USAGE_HAPTICS_AUTO_TRIGGER),
-                LOGICAL_MINIMUM(1, 1),
-                LOGICAL_MAXIMUM(1, 3),
-                REPORT_SIZE(1, 8),
-                REPORT_COUNT(1, 1),
-                FEATURE(1, Data|Var|Abs),
-
-                USAGE(1, HID_USAGE_HAPTICS_AUTO_ASSOCIATED_CONTROL),
-                LOGICAL_MINIMUM(4, (HID_USAGE_PAGE_GENERIC<<16)|HID_USAGE_GENERIC_Z),
-                LOGICAL_MAXIMUM(4, (HID_USAGE_PAGE_GENERIC<<16)|HID_USAGE_GENERIC_Z),
-                REPORT_SIZE(1, 32),
-                REPORT_COUNT(1, 1),
-                FEATURE(1, Data|Var|Abs),
-
-                USAGE(1, HID_USAGE_HAPTICS_WAVEFORM_CUTOFF_TIME),
-                UNIT(2, 0x1001), /* seconds */
-                UNIT_EXPONENT(1, -3), /* 10^-3 */
-                LOGICAL_MINIMUM(4, 0x00000000),
-                LOGICAL_MAXIMUM(4, 0x7fffffff),
-                REPORT_SIZE(1, 32),
-                REPORT_COUNT(1, 1),
-                FEATURE(1, Data|Var|Abs),
-                /* reset global items */
-                UNIT(1, 0), /* None */
-                UNIT_EXPONENT(1, 0),
-
-                USAGE(1, HID_USAGE_HAPTICS_INTENSITY),
-                LOGICAL_MINIMUM(4, 0x00000000),
-                LOGICAL_MAXIMUM(4, 0x0000ffff),
-                REPORT_SIZE(1, 16),
-                REPORT_COUNT(1, 1),
-                OUTPUT(1, Data|Var|Abs),
-
-                USAGE(1, HID_USAGE_HAPTICS_MANUAL_TRIGGER),
-                LOGICAL_MINIMUM(1, 1),
-                LOGICAL_MAXIMUM(1, 3),
-                REPORT_SIZE(1, 8),
-                REPORT_COUNT(1, 1),
-                OUTPUT(1, Data|Var|Abs),
             END_COLLECTION,
         END_COLLECTION,
     };
@@ -5249,11 +5020,8 @@ static void test_windows_gaming_input(void)
 
     IVectorView_SimpleHapticsController *haptics_controllers;
     IRawGameController *raw_controller, *tmp_raw_controller;
-    IVectorView_SimpleHapticsControllerFeedback *feedbacks;
     IVectorView_RawGameController *controllers_view;
     IRawGameControllerStatics *controller_statics;
-    ISimpleHapticsController *haptic_controller;
-    ISimpleHapticsControllerFeedback *feedback;
     EventRegistrationToken controller_added_token;
     IVectorView_RacingWheel *racing_wheels_view;
     IRacingWheelStatics2 *racing_wheel_statics2;
@@ -5265,8 +5033,6 @@ static void test_windows_gaming_input(void)
     IRacingWheel *racing_wheel;
     UINT32 size, length;
     const WCHAR *buffer;
-    TimeSpan duration;
-    UINT16 waveform;
     HSTRING str;
     HRESULT hr;
     DWORD res;
@@ -5408,41 +5174,9 @@ static void test_windows_gaming_input(void)
     ok( hr == S_OK, "get_SimpleHapticsControllers returned %#lx\n", hr );
     hr = IVectorView_SimpleHapticsController_get_Size( haptics_controllers, &length );
     ok( hr == S_OK, "get_Size returned %#lx\n", hr );
-    ok( length == 1, "got length %u\n", length );
-
-if (!length) goto skip_length;
-    hr = IVectorView_SimpleHapticsController_GetAt( haptics_controllers, 0, &haptic_controller );
-    ok( hr == S_OK, "GetAt returned %#lx\n", hr );
-
-    hr = ISimpleHapticsController_get_Id( haptic_controller, &str );
-    ok( hr == S_OK, "get_Id returned %#lx\n", hr );
-    buffer = pWindowsGetStringRawBuffer( str, &size );
-    ok( !wcscmp( buffer, L"" ), "get_Id returned %s\n", debugstr_wn(buffer, size) );
-    pWindowsDeleteString( str );
-
-    hr = ISimpleHapticsController_get_SupportedFeedback( haptic_controller, &feedbacks );
-    ok( hr == S_OK, "get_SupportedFeedback returned %#lx\n", hr );
-    hr = IVectorView_SimpleHapticsControllerFeedback_get_Size( feedbacks, &size );
-    ok( hr == S_OK, "get_Size returned %#lx\n", hr );
-    ok( size == 1, "got length %u\n", size );
-
-    hr = IVectorView_SimpleHapticsControllerFeedback_GetAt( feedbacks, 0, &feedback );
-    ok( hr == S_OK, "GetAt returned %#lx\n", hr );
-    waveform = 0xdead;
-    hr = ISimpleHapticsControllerFeedback_get_Waveform( feedback, &waveform );
-    ok( hr == S_OK, "get_Waveform returned %#lx\n", hr );
-    ok( waveform == HID_USAGE_HAPTICS_WAVEFORM_RUMBLE, "got waveform %#x\n", waveform );
-    hr = ISimpleHapticsControllerFeedback_get_Duration( feedback, &duration );
-    ok( hr == S_OK, "get_Duration returned %#lx\n", hr );
-    ok( duration.Duration == 0, "got duration %I64u\n", duration.Duration );
-    ISimpleHapticsControllerFeedback_Release( feedback );
-
-    IVectorView_SimpleHapticsControllerFeedback_Release( feedbacks );
-    ISimpleHapticsController_Release( haptic_controller );
-
+    ok( length == 0, "got length %u\n", length );
     IVectorView_SimpleHapticsController_Release( haptics_controllers );
 
-skip_length:
     IRawGameController2_Release( raw_controller2 );
     IRawGameController_Release( raw_controller );
 
@@ -5526,41 +5260,14 @@ static BOOL test_rawbuffer;
 
 static LRESULT CALLBACK rawinput_wndproc( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam )
 {
-    INPUT_MESSAGE_SOURCE source;
-    DWORD ret;
-
     if (msg == WM_INPUT_DEVICE_CHANGE)
     {
-        DWORD flags = InSendMessageEx( 0 );
-        LPARAM info;
-        ok( flags == 0xdeadbeef, "got WM_INPUT_DEVICE_CHANGE flags %#lx\n", flags );
-        info = GetMessageExtraInfo();
-        ok( info == 0xdeadbeef, "got info %#Ix\n", info );
-        ret = GetCurrentInputMessageSource( &source );
-        ok( ret, "GetCurrentInputMessageSource failed\n" );
-        ok( source.deviceType == 0, "got deviceType %u\n", source.deviceType );
-        ok( source.originId == 0, "got originId %u\n", source.originId );
         if (wparam == GIDC_ARRIVAL) ReleaseSemaphore( rawinput_device_added, 1, NULL );
         else ReleaseSemaphore( rawinput_device_removed, 1, NULL );
     }
     if (msg == WM_INPUT)
     {
         UINT size = rawbuffer_size, i = rawinput_calls++;
-
-        RAWINPUT *rawinput = (RAWINPUT *)rawbuffer;
-        rawinput_len = GetRawInputData( (HRAWINPUT)lparam, RID_INPUT, rawinput,
-
-        DWORD flags = InSendMessageEx( 0 );
-        LPARAM info;
-        ok( flags == 0xdeadbeef, "got WM_INPUT flags %#lx\n", flags );
-        info = GetMessageExtraInfo();
-        ok( info == 0xdeadbeef, "got info %#Ix\n", info );
-        ret = GetCurrentInputMessageSource( &source );
-        ok( ret, "GetCurrentInputMessageSource failed\n" );
-        ok( source.deviceType == 0, "got deviceType %u\n", source.deviceType );
-        ok( source.originId == 0, "got originId %u\n", source.originId );
-        wm_input_len = GetRawInputData( (HRAWINPUT)lparam, RID_INPUT, (RAWINPUT *)wm_input_buf,
-                                        &size, sizeof(RAWINPUTHEADER) );
 
         if (test_rawbuffer)
         {

@@ -270,8 +270,6 @@ static VOID NOTEPAD_LoadSettingFromRegistry(void)
             if(type == REG_SZ)
                 lstrcpyW(Globals.szFooter, data_helper);
         RegCloseKey(hkey);
-
-        lstrcpyW(Globals.lfFont.lfFaceName, L"Courrier New");
     }
 }
 

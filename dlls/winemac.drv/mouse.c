@@ -683,6 +683,25 @@ BOOL macdrv_ClipCursor(const RECT *clip, BOOL reset)
 
 
 /***********************************************************************
+ *              GetCursorPos (MACDRV.@)
+ */
+BOOL macdrv_GetCursorPos(LPPOINT pos)
+{
+    CGPoint pt;
+    BOOL ret;
+
+    ret = macdrv_get_cursor_position(&pt);
+    if (ret)
+    {
+        TRACE("pointer at (%g,%g) server pos %d,%d\n", pt.x, pt.y, (int)pos->x, (int)pos->y);
+        pos->x = floor(pt.x);
+        pos->y = floor(pt.y);
+    }
+    return ret;
+}
+
+
+/***********************************************************************
  *              SetCapture (MACDRV.@)
  */
  void macdrv_SetCapture(HWND hwnd, UINT flags)
