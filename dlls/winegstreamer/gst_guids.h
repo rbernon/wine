@@ -1,5 +1,8 @@
 /*
- * Copyright 2024 Rémi Bernon for CodeWeavers
+ * GStreamer Guids
+ *
+ * Copyright 2010 Maarten Lankhorst for CodeWeavers
+ * Copyright 2010 Aric Stewart for CodeWeavers
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,25 +19,6 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#include "config.h"
-
-#include <stddef.h>
-#include <stdarg.h>
-
-struct decoder;
-struct decoder_ops
-{
-    int (*destroy)(struct decoder *iface);
-    int (*process_input)(struct decoder *iface, AVPacket *packet);
-    int (*process_output)(struct decoder *iface, AVFrame *frame);
-    int (*flush)(struct decoder *iface);
-};
-
-struct decoder
-{
-    const struct decoder_ops *ops;
-    AVCodecContext *context;
-    AVPacket *input_packet;
-    unsigned draining : 1;
-    unsigned flushing : 1;
-};
+DEFINE_GUID(CLSID_decodebin_parser, 0xf9d8d64e, 0xa144, 0x47dc, 0x8e, 0xe0, 0xf5, 0x34, 0x98, 0x37, 0x2c, 0x29);
+DEFINE_GUID(CLSID_mpeg_layer3_decoder, 0x38be3000, 0xdbf4, 0x11d0, 0x86, 0x0e, 0x00, 0xa0, 0x24, 0xcf, 0xef, 0x6d);
+DEFINE_GUID(WINESUBTYPE_Gstreamer, 0xffffffff, 0x128f, 0x4dd1, 0xad, 0x22, 0xbe, 0xcf, 0xa6, 0x6c, 0xe7, 0xaa);
