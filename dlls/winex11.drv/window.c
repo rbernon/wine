@@ -1615,14 +1615,19 @@ static UINT window_update_client_config( struct x11drv_win_data *data )
     if (data->net_wm_state_serial) return 0; /* another _NET_WM_STATE update is pending, wait for it to complete */
     if (data->configure_serial) return 0; /* another config update is pending, wait for it to complete */
 
+    new_style = old_style & ~(WS_VISIBLE | WS_MINIMIZE | WS_MAXIMIZE);
+    if (data->current_state.wm_state == IconicState) new_style |= WS_MINIMIZE;
+    if (data->current_state.wm_state != WithdrawnState) new_style |= WS_VISIBLE;
+    if (data->current_state.net_wm_state & (1 << NET_WM_STATE_MAXIMIZED)) new_style |= WS_MAXIMIZE;
+
     if ((old_style & WS_CAPTION) == WS_CAPTION || !data->is_fullscreen)
     {
-        if ((data->current_state.net_wm_state & (1 << NET_WM_STATE_MAXIMIZED)) && !(old_style & WS_MAXIMIZE))
+        if ((new_style & WS_MAXIMIZE) && !(old_style & WS_MAXIMIZE))
         {
             ERR( "window %p/%lx is maximized\n", data->hwnd, data->whole_window );
             return SC_MAXIMIZE;
         }
-        if (!(data->current_state.net_wm_state & (1 << NET_WM_STATE_MAXIMIZED)) && (old_style & WS_MAXIMIZE))
+        if (!(new_style & WS_MAXIMIZE) && (old_style & WS_MAXIMIZE))
         {
             ERR( "window %p/%lx is no longer maximized\n", data->hwnd, data->whole_window );
             return SC_RESTORE;
