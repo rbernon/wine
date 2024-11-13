@@ -1163,13 +1163,13 @@ static void update_desktop_fullscreen( Display *display )
 
 /* Update _NET_WM_FULLSCREEN_MONITORS when _NET_WM_STATE_FULLSCREEN is set to support fullscreen
  * windows spanning multiple monitors */
-static void update_net_wm_fullscreen_monitors( struct x11drv_win_data *data )
+static void update_net_wm_fullscreen_monitors( struct x11drv_win_data *data, UINT style )
 {
     long monitors[4];
     XEvent xev;
 
-    if (!(data->pending_state.net_wm_state & (1 << NET_WM_STATE_FULLSCREEN)) || is_virtual_desktop()
-        || NtUserGetWindowLongW( data->hwnd, GWL_STYLE ) & WS_MINIMIZE)
+    if (!(data->pending_state.net_wm_state & (1 << NET_WM_STATE_FULLSCREEN)) ||
+        is_virtual_desktop() || (style & WS_MINIMIZE))
         return;
 
     /* If the current display device handler cannot detect dynamic device changes, do not use
@@ -1399,7 +1399,7 @@ static void update_net_wm_states( struct x11drv_win_data *data )
     }
 
     window_set_net_wm_state( data, new_state );
-    update_net_wm_fullscreen_monitors( data );
+    update_net_wm_fullscreen_monitors( data, style );
 }
 
 /***********************************************************************
