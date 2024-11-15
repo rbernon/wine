@@ -1285,12 +1285,12 @@ static Window get_net_active_window( Display *display )
 
 static void handle_net_active_window( XPropertyEvent *event )
 {
-    HWND hwnd;
+    Window window = 0;
+    HWND hwnd = 0;
 
-    if (event->state != PropertyNewValue) hwnd = NtUserGetDesktopWindow();
-    else
+    if (event->state == PropertyNewValue)
     {
-        Window window = get_net_active_window( event->display );
+        window = get_net_active_window( event->display );
         if (XFindContext( event->display, window, winContext, (char **)&hwnd ))
         {
             /* FIXME: focus is on a different process */
@@ -1298,7 +1298,7 @@ static void handle_net_active_window( XPropertyEvent *event )
         }
     }
 
-    ERR( "_NET_ACTIVE_WINDOW changed to %p\n", hwnd );
+    ERR( "_NET_ACTIVE_WINDOW changed to %p/%lx\n", hwnd, window );
 }
 
 /***********************************************************************
