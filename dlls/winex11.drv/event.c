@@ -1265,6 +1265,42 @@ static void handle_net_supported_notify( XPropertyEvent *event )
     if (event->state == PropertyNewValue) net_supported_init( data );
 }
 
+static Window get_net_active_window( Display *display )
+{
+    unsigned long count, remaining;
+    Window window = None, *value;
+    int format;
+    Atom type;
+
+    if (!XGetWindowProperty( display, DefaultRootWindow( display ), x11drv_atom(_NET_ACTIVE_WINDOW), 0,
+                             65536/sizeof(Window), False, XA_WINDOW, &type, &format, &count,
+                             &remaining, (unsigned char **)&value ))
+    {
+        if (type == XA_WINDOW || format == 32) window = *value;
+        XFree( value );
+    }
+
+    return window;
+}
+
+static void handle_net_active_window( XPropertyEvent *event )
+{
+    HWND hwnd;
+
+    if (event->state != PropertyNewValue) hwnd = NtUserGetDesktopWindow();
+    else
+    {
+        Window window = get_net_active_window( event->display );
+        if (XFindContext( event->display, window, winContext, (char **)&hwnd ))
+        {
+            /* FIXME: focus is on a different process */
+            hwnd = 0;
+        }
+    }
+
+    ERR( "_NET_ACTIVE_WINDOW changed to %p\n", hwnd );
+}
+
 /***********************************************************************
  *           X11DRV_PropertyNotify
  */
@@ -1272,6 +1308,7 @@ static BOOL X11DRV_PropertyNotify( HWND hwnd, XEvent *xev )
 {
     XPropertyEvent *event = &xev->xproperty;
 
+    if (event->atom == x11drv_atom(_NET_ACTIVE_WINDOW)) handle_net_active_window( event );
     if (!hwnd) return FALSE;
     if (event->atom == x11drv_atom(WM_STATE)) handle_wm_state_notify( hwnd, event );
     if (event->atom == x11drv_atom(_XEMBED_INFO)) handle_xembed_info_notify( hwnd, event );
