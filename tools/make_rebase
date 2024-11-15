@@ -1,0 +1,6 @@
+#!/bin/bash
+
+git log --right-only --pretty=tformat:'s` %h (.*)` %h \1 (%an) # %(trailers:unfold=true,separator= ) %N`;t;' --abbrev-commit "$@" | tr -d '\n' > rebase-meta
+git log --decorate --decorate-refs='refs/heads/proton-*' --reverse --oneline --cherry "$@" | sed -rf rebase-meta | sed -re 's/^\+/pick/; s/^=/drop/' | \
+  sed -re 's`^(\w+ \w+) \(([^\)]+)\)(.*)`\1\3\nupdate-ref refs/heads/\2\n`'
+rm rebase-meta
