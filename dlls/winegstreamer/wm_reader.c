@@ -26,21 +26,17 @@ WINE_DEFAULT_DEBUG_CHANNEL(wmvcore);
 struct wm_stream
 {
     struct wm_reader *reader;
-
+    wg_parser_stream_t wg_stream;
     WMT_STREAM_SELECTION selection;
-    AM_MEDIA_TYPE mt;
     WORD index;
-
-    enum
-    {
-        STREAM_STARTING,
-        STREAM_RUNNING,
-        STREAM_ENDED,
-    } state;
+    bool eos;
     bool read_compressed;
 
+    struct wg_parser_buffer current_buffer;
+    DWORD current_buffer_offset;
+
+    AM_MEDIA_TYPE mt;
     IMediaObject *decoder;
-    struct list compressed_samples;
     IWMReaderAllocatorEx *output_allocator;
     IWMReaderAllocatorEx *stream_allocator;
 };
@@ -62,16 +58,16 @@ struct wm_reader
     CRITICAL_SECTION shutdown_cs;
     QWORD start_time;
     QWORD file_size;
-    INT64 duration;
 
-    IStream *stream;
+    WCHAR *filename;
+    IStream *source_stream;
     HANDLE file;
-
-    struct winedmo_stream winedmo_stream;
-    struct winedmo_demuxer winedmo_demuxer;
+    HANDLE read_thread;
+    bool read_thread_shutdown;
+    wg_parser_t wg_parser;
 
     struct wm_stream *streams;
-    UINT32 stream_count;
+    WORD stream_count;
 };
 
 static HRESULT copy_wm_media_type(WM_MEDIA_TYPE *dst, DWORD *size, const AM_MEDIA_TYPE *src)
@@ -97,14 +93,6 @@ static struct wm_stream *get_stream_by_output_number(struct wm_reader *reader, D
     if (output < reader->stream_count)
         return &reader->streams[output];
     WARN("Invalid output number %lu.\n", output);
-    return NULL;
-}
-
-static struct wm_stream *wm_reader_get_stream_by_stream_number(struct wm_reader *reader, WORD stream_number)
-{
-    if (stream_number && stream_number <= reader->stream_count)
-        return &reader->streams[stream_number - 1];
-    WARN("Invalid stream number %u.\n", stream_number);
     return NULL;
 }
 
@@ -246,178 +234,13 @@ static HRESULT output_props_create(const AM_MEDIA_TYPE *mt, IWMOutputMediaProps 
     return S_OK;
 }
 
-struct media_buffer
-{
-    IMediaBuffer IMediaBuffer_iface;
-    LONG refcount;
-    INSSBuffer *sample;
-};
-
-static struct media_buffer *impl_from_IMediaBuffer(IMediaBuffer *iface)
-{
-    return CONTAINING_RECORD(iface, struct media_buffer, IMediaBuffer_iface);
-}
-
-static HRESULT WINAPI media_buffer_QueryInterface(IMediaBuffer *iface, REFIID iid, void **out)
-{
-    struct media_buffer *buffer = impl_from_IMediaBuffer(iface);
-
-    TRACE("buffer %p, iid %s, out %p.\n", buffer, debugstr_guid(iid), out);
-
-    if (IsEqualGUID(iid, &IID_IUnknown) || IsEqualGUID(iid, &IID_IMediaBuffer))
-    {
-        IMediaBuffer_AddRef(&buffer->IMediaBuffer_iface);
-        *out = &buffer->IMediaBuffer_iface;
-        return S_OK;
-    }
-
-    *out = NULL;
-    WARN("%s not implemented, returning E_NOINTERFACE.\n", debugstr_guid(iid));
-    return E_NOINTERFACE;
-}
-
-static ULONG WINAPI media_buffer_AddRef(IMediaBuffer *iface)
-{
-    struct media_buffer *buffer = impl_from_IMediaBuffer(iface);
-    ULONG refcount = InterlockedIncrement(&buffer->refcount);
-    TRACE("buffer %p increasing refcount to %lu.\n", buffer, refcount);
-    return refcount;
-}
-
-static ULONG WINAPI media_buffer_Release(IMediaBuffer *iface)
-{
-    struct media_buffer *buffer = impl_from_IMediaBuffer(iface);
-    ULONG refcount = InterlockedDecrement(&buffer->refcount);
-
-    TRACE("buffer %p decreasing refcount to %lu.\n", buffer, refcount);
-
-    if (!refcount)
-    {
-        INSSBuffer_Release(buffer->sample);
-        free(buffer);
-    }
-
-    return refcount;
-}
-
-static HRESULT WINAPI media_buffer_SetLength(IMediaBuffer *iface, DWORD length)
-{
-    struct media_buffer *buffer = impl_from_IMediaBuffer(iface);
-    return INSSBuffer_SetLength(buffer->sample, length);
-}
-
-static HRESULT WINAPI media_buffer_GetMaxLength(IMediaBuffer *iface, DWORD *max_length)
-{
-    struct media_buffer *buffer = impl_from_IMediaBuffer(iface);
-    return INSSBuffer_GetMaxLength(buffer->sample, max_length);
-}
-
-static HRESULT WINAPI media_buffer_GetBufferAndLength(IMediaBuffer *iface, BYTE **data, DWORD *length)
-{
-    struct media_buffer *buffer = impl_from_IMediaBuffer(iface);
-    return INSSBuffer_GetBufferAndLength(buffer->sample, data, length);
-}
-
-static const IMediaBufferVtbl media_buffer_vtbl =
-{
-    media_buffer_QueryInterface,
-    media_buffer_AddRef,
-    media_buffer_Release,
-    media_buffer_SetLength,
-    media_buffer_GetMaxLength,
-    media_buffer_GetBufferAndLength,
-};
-
-static HRESULT media_buffer_create( INSSBuffer *sample, IMediaBuffer **out )
-{
-    struct media_buffer *buffer;
-
-    if (!(buffer = calloc(1, sizeof(*buffer))))
-        return E_OUTOFMEMORY;
-    buffer->IMediaBuffer_iface.lpVtbl = &media_buffer_vtbl;
-    buffer->refcount = 1;
-
-    INSSBuffer_AddRef((buffer->sample = sample));
-    TRACE("created %p\n", buffer);
-
-    *out = &buffer->IMediaBuffer_iface;
-    return S_OK;
-}
-
-static HRESULT media_type_from_mf_video_format( const MFVIDEOFORMAT *format, WM_MEDIA_TYPE *mt, DWORD *size )
-{
-    UINT capacity = *size;
-    VIDEOINFOHEADER *vih;
-
-    *size = sizeof(*mt) + sizeof(*vih) + format->dwSize - sizeof(*format);
-    if (!mt || capacity < *size)
-        return mt ? ASF_E_BUFFERTOOSMALL : S_OK;
-
-    memset(mt, 0, *size);
-    mt->majortype = MEDIATYPE_Video;
-    mt->subtype = format->guidFormat;
-    mt->bTemporalCompression = TRUE;
-    mt->formattype = FORMAT_VideoInfo;
-    mt->pbFormat = (BYTE *)(mt + 1);
-    mt->cbFormat = *size - sizeof(*mt);
-
-    vih = (VIDEOINFOHEADER *)mt + 1;
-    vih->bmiHeader.biSize = sizeof(vih->bmiHeader);
-    vih->bmiHeader.biWidth = format->videoInfo.dwWidth;
-    vih->bmiHeader.biHeight = format->videoInfo.dwHeight;
-    vih->bmiHeader.biPlanes = 1;
-    vih->bmiHeader.biBitCount = 24;
-    vih->bmiHeader.biCompression = format->guidFormat.Data1;
-    SetRect(&vih->rcSource, 0, 0, vih->bmiHeader.biWidth, vih->bmiHeader.biHeight);
-    SetRect(&vih->rcTarget, 0, 0, vih->bmiHeader.biWidth, vih->bmiHeader.biHeight);
-    memcpy(vih + 1, format + 1, format->dwSize - sizeof(*format));
-
-    return S_OK;
-}
-
-static HRESULT media_type_from_wave_format_ex( const WAVEFORMATEX *format, WM_MEDIA_TYPE *mt, DWORD *size )
-{
-    UINT capacity = *size;
-
-    *size = sizeof(*mt) + sizeof(*format) + format->cbSize;
-    if (!mt || capacity < *size)
-        return mt ? ASF_E_BUFFERTOOSMALL : S_OK;
-
-    memset(mt, 0, *size);
-    mt->majortype = MEDIATYPE_Audio;
-    if (format->wFormatTag == WAVE_FORMAT_EXTENSIBLE)
-    {
-        WAVEFORMATEXTENSIBLE *wfxext = (WAVEFORMATEXTENSIBLE *)format;
-        mt->subtype = wfxext->SubFormat;
-    }
-    else
-    {
-        mt->subtype = MEDIASUBTYPE_PCM;
-        mt->subtype.Data1 = format->wFormatTag;
-    }
-    mt->bFixedSizeSamples = TRUE;
-    mt->lSampleSize = format->nBlockAlign;
-    mt->formattype = FORMAT_WaveFormatEx;
-    mt->pbFormat = (BYTE *)(mt + 1);
-    mt->cbFormat = *size - sizeof(*mt);
-    memcpy(mt->pbFormat, format, sizeof(*format) + format->cbSize);
-
-    return S_OK;
-}
-
 struct sample
 {
     INSSBuffer INSSBuffer_iface;
     LONG refcount;
 
-    DWORD flags;
-    REFERENCE_TIME time;
-    REFERENCE_TIME duration;
-    struct list entry;
-
-    UINT capacity;
-    UINT size;
-    BYTE data[];
+    DWORD size, capacity;
+    BYTE data[1];
 };
 
 static struct sample *impl_from_INSSBuffer(INSSBuffer *iface)
@@ -429,18 +252,19 @@ static HRESULT WINAPI sample_QueryInterface(INSSBuffer *iface, REFIID iid, void 
 {
     struct sample *sample = impl_from_INSSBuffer(iface);
 
-    TRACE("sample %p, iid %s, out %p.\n", sample, debugstr_guid(iid), out);
+    TRACE("buffer %p, iid %s, out %p.\n", iface, debugstr_guid(iid), out);
 
     if (IsEqualGUID(iid, &IID_IUnknown) || IsEqualGUID(iid, &IID_INSSBuffer))
-    {
-        INSSBuffer_AddRef(&sample->INSSBuffer_iface);
         *out = &sample->INSSBuffer_iface;
-        return S_OK;
+    else
+    {
+        *out = NULL;
+        WARN("%s not implemented, returning E_NOINTERFACE.\n", debugstr_guid(iid));
+        return E_NOINTERFACE;
     }
 
-    *out = NULL;
-    WARN("%s not implemented, returning E_NOINTERFACE.\n", debugstr_guid(iid));
-    return E_NOINTERFACE;
+    IUnknown_AddRef((IUnknown *)*out);
+    return S_OK;
 }
 
 static ULONG WINAPI sample_AddRef(INSSBuffer *iface)
@@ -468,10 +292,8 @@ static ULONG WINAPI sample_Release(INSSBuffer *iface)
 
 static HRESULT WINAPI sample_GetLength(INSSBuffer *iface, DWORD *size)
 {
-    struct sample *sample = impl_from_INSSBuffer(iface);
     FIXME("iface %p, size %p, stub!\n", iface, size);
-    *size = sample->size;
-    return S_OK;
+    return E_NOTIMPL;
 }
 
 static HRESULT WINAPI sample_SetLength(INSSBuffer *iface, DWORD size)
@@ -530,29 +352,13 @@ static const INSSBufferVtbl sample_vtbl =
     sample_GetBufferAndLength,
 };
 
-static HRESULT sample_create(UINT size, INSSBuffer **out)
-{
-    struct sample *sample;
-
-    if (!(sample = calloc(1, offsetof(struct sample, data[size]))))
-        return E_OUTOFMEMORY;
-    sample->INSSBuffer_iface.lpVtbl = &sample_vtbl;
-    sample->refcount = 1;
-
-    sample->capacity = size;
-    TRACE("created %p\n", sample);
-
-    *out = &sample->INSSBuffer_iface;
-    return S_OK;
-}
-
 struct stream_config
 {
     IWMStreamConfig IWMStreamConfig_iface;
     IWMMediaProps IWMMediaProps_iface;
     LONG refcount;
 
-    UINT index;
+    UINT stream_index;
     AM_MEDIA_TYPE mt;
 };
 
@@ -611,7 +417,9 @@ static ULONG WINAPI stream_config_Release(IWMStreamConfig *iface)
 static HRESULT WINAPI stream_config_GetStreamType(IWMStreamConfig *iface, GUID *type)
 {
     struct stream_config *config = impl_from_IWMStreamConfig(iface);
+
     TRACE("config %p, type %p.\n", config, type);
+
     *type = config->mt.majortype;
     return S_OK;
 }
@@ -619,8 +427,10 @@ static HRESULT WINAPI stream_config_GetStreamType(IWMStreamConfig *iface, GUID *
 static HRESULT WINAPI stream_config_GetStreamNumber(IWMStreamConfig *iface, WORD *number)
 {
     struct stream_config *config = impl_from_IWMStreamConfig(iface);
+
     TRACE("config %p, number %p.\n", config, number);
-    *number = config->index + 1;
+
+    *number = config->stream_index + 1;
     return S_OK;
 }
 
@@ -719,25 +529,27 @@ static ULONG WINAPI stream_props_Release(IWMMediaProps *iface)
     return IWMStreamConfig_Release(&config->IWMStreamConfig_iface);
 }
 
-static HRESULT WINAPI stream_props_GetType(IWMMediaProps *iface, GUID *type)
+static HRESULT WINAPI stream_props_GetType(IWMMediaProps *iface, GUID *major_type)
 {
-    struct stream_config *config = impl_from_IWMMediaProps(iface);
-    TRACE("iface %p, type %p\n", iface, type);
-    *type = config->mt.majortype;
-    return S_OK;
+    FIXME("iface %p, major_type %p, stub!\n", iface, major_type);
+    return E_NOTIMPL;
 }
 
 static HRESULT WINAPI stream_props_GetMediaType(IWMMediaProps *iface, WM_MEDIA_TYPE *mt, DWORD *size)
 {
     struct stream_config *config = impl_from_IWMMediaProps(iface);
+
     TRACE("iface %p, mt %p, size %p.\n", iface, mt, size);
+
     return copy_wm_media_type(mt, size, &config->mt);
 }
 
 static HRESULT WINAPI stream_props_SetMediaType(IWMMediaProps *iface, WM_MEDIA_TYPE *mt)
 {
     struct stream_config *config = impl_from_IWMMediaProps(iface);
+
     FIXME("iface %p, mt %p, stub!\n", iface, mt);
+
     FreeMediaType(&config->mt);
     return CopyMediaType(&config->mt, (AM_MEDIA_TYPE *)mt);
 }
@@ -751,6 +563,91 @@ static const IWMMediaPropsVtbl stream_props_vtbl =
     stream_props_GetMediaType,
     stream_props_SetMediaType,
 };
+
+static DWORD CALLBACK read_thread(void *arg)
+{
+    struct wm_reader *reader = arg;
+    IStream *stream = reader->source_stream;
+    HANDLE file = reader->file;
+    size_t buffer_size = 4096;
+    uint64_t file_size = reader->file_size;
+    void *data;
+
+    if (!(data = malloc(buffer_size)))
+        return 0;
+
+    TRACE("Starting read thread for reader %p.\n", reader);
+
+    while (true)
+    {
+        LARGE_INTEGER large_offset;
+        uint64_t offset;
+        ULONG ret_size;
+        uint32_t size;
+        HRESULT hr;
+
+        EnterCriticalSection(&reader->shutdown_cs);
+        if (reader->read_thread_shutdown)
+        {
+            LeaveCriticalSection(&reader->shutdown_cs);
+            break;
+        }
+        LeaveCriticalSection(&reader->shutdown_cs);
+
+        if (!wg_parser_get_next_read_offset(reader->wg_parser, &offset, &size))
+            continue;
+
+        if (offset >= file_size)
+            size = 0;
+        else if (offset + size >= file_size)
+            size = file_size - offset;
+
+        if (!size)
+        {
+            wg_parser_push_data(reader->wg_parser, data, 0);
+            continue;
+        }
+
+        if (!array_reserve(&data, &buffer_size, size, 1))
+        {
+            free(data);
+            return 0;
+        }
+
+        ret_size = 0;
+
+        large_offset.QuadPart = offset;
+        if (file)
+        {
+            if (!SetFilePointerEx(file, large_offset, NULL, FILE_BEGIN)
+                    || !ReadFile(file, data, size, &ret_size, NULL))
+            {
+                ERR("Failed to read %u bytes at offset %I64u, error %lu.\n", size, offset, GetLastError());
+                wg_parser_push_data(reader->wg_parser, NULL, 0);
+                continue;
+            }
+        }
+        else
+        {
+            if (SUCCEEDED(hr = IStream_Seek(stream, large_offset, STREAM_SEEK_SET, NULL)))
+                hr = IStream_Read(stream, data, size, &ret_size);
+            if (FAILED(hr))
+            {
+                ERR("Failed to read %u bytes at offset %I64u, hr %#lx.\n", size, offset, hr);
+                wg_parser_push_data(reader->wg_parser, NULL, 0);
+                continue;
+            }
+        }
+
+        if (ret_size != size)
+            ERR("Unexpected short read: requested %u bytes, got %lu.\n", size, ret_size);
+        wg_parser_push_data(reader->wg_parser, data, ret_size);
+    }
+
+    free(data);
+    TRACE("Reader is shutting down; exiting.\n");
+    return 0;
+}
 
 static struct wm_reader *impl_from_IWMProfile3(IWMProfile3 *iface)
 {
@@ -823,31 +720,39 @@ static HRESULT WINAPI profile_GetStreamCount(IWMProfile3 *iface, DWORD *count)
 static HRESULT WINAPI profile_GetStream(IWMProfile3 *iface, DWORD index, IWMStreamConfig **config)
 {
     struct wm_reader *reader = impl_from_IWMProfile3(iface);
+    struct wg_format codec_format;
     struct stream_config *object;
-    struct wm_stream *stream;
-    HRESULT hr;
 
     TRACE("reader %p, index %lu, config %p.\n", reader, index, config);
 
+    EnterCriticalSection(&reader->cs);
+
+    if (index >= reader->stream_count)
+    {
+        LeaveCriticalSection(&reader->cs);
+        WARN("Index %lu exceeds stream count %u; returning E_INVALIDARG.\n", index, reader->stream_count);
+        return E_INVALIDARG;
+    }
+
     if (!(object = calloc(1, sizeof(*object))))
+    {
+        LeaveCriticalSection(&reader->cs);
         return E_OUTOFMEMORY;
+    }
+
     object->IWMStreamConfig_iface.lpVtbl = &stream_config_vtbl;
     object->IWMMediaProps_iface.lpVtbl = &stream_props_vtbl;
     object->refcount = 1;
-    object->index = index;
+    object->stream_index = index;
+    IWMProfile3_AddRef(&reader->IWMProfile3_iface);
 
-    EnterCriticalSection(&reader->cs);
-    if ((stream = wm_reader_get_stream_by_stream_number(reader, index + 1)))
-        hr = CopyMediaType(&object->mt, &stream->mt);
+    wg_parser_stream_get_codec_format(reader->streams[index].wg_stream, &codec_format);
+    if (codec_format.major_type != WG_MAJOR_TYPE_UNKNOWN)
+        amt_from_wg_format(&object->mt, &codec_format, true);
     else
-        hr = E_INVALIDARG;
-    LeaveCriticalSection(&reader->cs);
+        CopyMediaType(&object->mt, &reader->streams[index].mt);
 
-    if (FAILED(hr))
-    {
-        free(object);
-        return hr;
-    }
+    LeaveCriticalSection(&reader->cs);
 
     TRACE("Created stream config %p.\n", object);
     *config = &object->IWMStreamConfig_iface;
@@ -1087,7 +992,7 @@ static HRESULT WINAPI header_info_GetAttributeByName(IWMHeaderInfo3 *iface, WORD
         const WCHAR *name, WMT_ATTR_DATATYPE *type, BYTE *value, WORD *size)
 {
     struct wm_reader *reader = impl_from_IWMHeaderInfo3(iface);
-    const WORD capacity = *size;
+    const WORD req_size = *size;
 
     TRACE("reader %p, stream_number %p, name %s, type %p, value %p, size %u.\n",
             reader, stream_number, debugstr_w(name), type, value, *size);
@@ -1111,12 +1016,12 @@ static HRESULT WINAPI header_info_GetAttributeByName(IWMHeaderInfo3 *iface, WORD
             *type = WMT_TYPE_QWORD;
             return S_OK;
         }
-        if (capacity < *size)
+        if (req_size < *size)
             return ASF_E_BUFFERTOOSMALL;
 
         *type = WMT_TYPE_QWORD;
         EnterCriticalSection(&reader->cs);
-        duration = reader->duration;
+        duration = wg_parser_stream_get_duration(wg_parser_get_stream(reader->wg_parser, 0));
         LeaveCriticalSection(&reader->cs);
         TRACE("Returning duration %s.\n", debugstr_time(duration));
         memcpy(value, &duration, sizeof(QWORD));
@@ -1136,7 +1041,7 @@ static HRESULT WINAPI header_info_GetAttributeByName(IWMHeaderInfo3 *iface, WORD
             *type = WMT_TYPE_BOOL;
             return S_OK;
         }
-        if (capacity < *size)
+        if (req_size < *size)
             return ASF_E_BUFFERTOOSMALL;
 
         *type = WMT_TYPE_BOOL;
@@ -1526,24 +1431,50 @@ static const IWMReaderTimecodeVtbl timecode_vtbl =
     timecode_GetTimecodeRangeBounds,
 };
 
+static void destroy_stream(struct wm_reader *reader)
+{
+    unsigned int i;
+
+    for (i = 0; i < reader->stream_count; ++i)
+    {
+        struct wm_stream *stream = &reader->streams[i];
+
+        if (stream->current_buffer.size)
+        {
+            wg_parser_stream_release_buffer(stream->wg_stream);
+            stream->current_buffer.size = 0;
+            stream->current_buffer_offset = 0;
+        }
+    }
+}
+
 static HRESULT stream_init_decoder(struct wm_stream *stream)
 {
     DMO_PARTIAL_MEDIATYPE input_type = {0};
+    struct wg_format format;
     IEnumDMO *enum_dmo;
+    AM_MEDIA_TYPE mt;
     HRESULT hr;
     GUID clsid;
 
+    wg_parser_stream_get_codec_format(stream->wg_stream, &format);
+    if (format.major_type == WG_MAJOR_TYPE_UNKNOWN)
+        return S_OK;
+    if (!amt_from_wg_format(&mt, &format, FALSE))
+        return E_OUTOFMEMORY;
+    strmbase_dump_media_type(&mt);
     strmbase_dump_media_type(&stream->mt);
 
-    input_type.type = stream->mt.majortype;
-    input_type.subtype = stream->mt.subtype;
-    if (IsEqualGUID(&stream->mt.majortype, &MEDIATYPE_Video))
+    input_type.type = mt.majortype;
+    input_type.subtype = mt.subtype;
+    if (IsEqualGUID(&mt.majortype, &MEDIATYPE_Video))
         hr = DMOEnum(&DMOCATEGORY_VIDEO_DECODER, 0, 1, &input_type, 0, NULL, &enum_dmo);
-    else if (IsEqualGUID(&stream->mt.majortype, &MEDIATYPE_Audio))
+    else if (IsEqualGUID(&mt.majortype, &MEDIATYPE_Audio))
         hr = DMOEnum(&DMOCATEGORY_AUDIO_DECODER, 0, 1, &input_type, 0, NULL, &enum_dmo);
     else
     {
-        WARN("Ignoring unknown major type %s\n", debugstr_guid(&stream->mt.majortype));
+        WARN("Ignoring unknown major type %s\n", debugstr_guid(&mt.majortype));
+        FreeMediaType(&mt);
         return S_OK;
     }
 
@@ -1560,287 +1491,317 @@ static HRESULT stream_init_decoder(struct wm_stream *stream)
     }
 
     if (FAILED(hr) || !stream->decoder)
-    {
         WARN("Failed to find or create a decoder, hr %#lx\n", hr);
-        stream->read_compressed = true;
-        return S_OK;
-    }
-
-    if (FAILED(hr = IMediaObject_SetInputType(stream->decoder, 0, &stream->mt, 0)))
-    {
+    else if (FAILED(hr = IMediaObject_SetInputType(stream->decoder, 0, &mt, 0)))
         ERR("Failed to set the decoder input type, hr %#lx\n", hr);
-        return hr;
-    }
+    else if (FAILED(hr = IMediaObject_SetOutputType(stream->decoder, 0, &stream->mt, 0)))
+        ERR("Failed to set the decoder output type, hr %#lx\n", hr);
 
-    if (IsEqualGUID(&stream->mt.majortype, &MEDIATYPE_Video))
-    {
-        /* Call of Juarez: Bound in Blood breaks if I420 is enumerated.
-         * Some native decoders output I420, but the msmpeg4v3 decoder
-         * never does.
-         *
-         * Shadowgrounds provides wmv3 video and assumes that the initial
-         * video type will be BGR. */
-        const VIDEOINFOHEADER *stream_vih = (VIDEOINFOHEADER *)stream->mt.pbFormat;
-        VIDEOINFOHEADER vih =
-        {
-            .bmiHeader =
-            {
-                .biSize = sizeof(vih.bmiHeader),
-                .biWidth = stream_vih->bmiHeader.biWidth,
-                .biHeight = abs(stream_vih->bmiHeader.biHeight),
-                .biPlanes = 1,
-                .biBitCount = 24,
-                .biCompression = BI_RGB,
-            },
-            .rcSource = stream_vih->rcSource,
-            .rcTarget = stream_vih->rcTarget,
-        };
-        AM_MEDIA_TYPE mt =
-        {
-            .majortype = MEDIATYPE_Video,
-            .subtype = MEDIASUBTYPE_RGB24,
-            .bFixedSizeSamples = TRUE,
-            .formattype = FORMAT_VideoInfo,
-            .cbFormat = sizeof(vih),
-            .pbFormat = (BYTE *)&vih,
-        };
-
-        vih.bmiHeader.biSizeImage = vih.bmiHeader.biHeight * vih.bmiHeader.biWidth * 4;
-
-        strmbase_dump_media_type((AM_MEDIA_TYPE *)&mt);
-        if (FAILED(hr = IMediaObject_SetOutputType(stream->decoder, 0, &mt, 0)))
-            ERR("Failed to set decoder output type %#lx\n", hr );
-    }
-    else if (IsEqualGUID(&stream->mt.majortype, &MEDIATYPE_Audio))
-    {
-        /* R.U.S.E enumerates available audio types, picks the first one it
-         * likes, and then sets the wrong stream to that type. libav might
-         * give us WG_AUDIO_FORMAT_F32LE by default, which will result in
-         * the game incorrectly interpreting float data as integer.
-         * Therefore just match native and always set our default format to
-         * S16LE. */
-        const WAVEFORMATEX *stream_wfx = (WAVEFORMATEX *)stream->mt.pbFormat;
-        WAVEFORMATEX wfx =
-        {
-            .wFormatTag = WAVE_FORMAT_PCM,
-            .wBitsPerSample = 16,
-            .nChannels = stream_wfx->nChannels ? stream_wfx->nChannels : 2,
-            .nSamplesPerSec = stream_wfx->nSamplesPerSec ? stream_wfx->nSamplesPerSec : 44100,
-        };
-        AM_MEDIA_TYPE mt =
-        {
-            .majortype = MEDIATYPE_Audio,
-            .subtype = MEDIASUBTYPE_PCM,
-            .bFixedSizeSamples = TRUE,
-            .formattype = FORMAT_WaveFormatEx,
-            .cbFormat = sizeof(wfx),
-            .pbFormat = (BYTE *)&wfx,
-        };
-
-        wfx.nBlockAlign = wfx.nChannels * wfx.wBitsPerSample / 8,
-        wfx.nAvgBytesPerSec = wfx.nBlockAlign * wfx.nSamplesPerSec,
-
-        strmbase_dump_media_type(&mt);
-        if (FAILED(hr = IMediaObject_SetOutputType(stream->decoder, 0, &mt, 0)))
-            ERR("Failed to set decoder output type %#lx\n", hr );
-    }
-
-    return hr;
-}
-
-static HRESULT media_type_from_winedmo_format( GUID major, union winedmo_format *format, WM_MEDIA_TYPE *mt, DWORD *size )
-{
-    if (IsEqualGUID( &major, &MEDIATYPE_Video ))
-        return media_type_from_mf_video_format( &format->video, mt, size );
-    if (IsEqualGUID( &major, &MEDIATYPE_Audio ))
-        return media_type_from_wave_format_ex( &format->audio, mt, size );
-
-    FIXME( "Unsupported major type %s\n", debugstr_guid( &major ) );
-    return E_NOTIMPL;
-}
-
-static HRESULT get_stream_media_type(struct winedmo_demuxer demuxer, UINT index, WM_MEDIA_TYPE *mt, DWORD *size)
-{
-    union winedmo_format *format;
-    NTSTATUS status;
-    HRESULT hr;
-    GUID major;
-
-    if ((status = winedmo_demuxer_stream_type(demuxer, index, &major, &format)))
-        hr = HRESULT_FROM_NT(status);
-    else
-    {
-        hr = media_type_from_winedmo_format(major, format, mt, size);
-        free(format);
-    }
-
+    FreeMediaType(&mt);
     return hr;
 }
 
 static HRESULT init_stream(struct wm_reader *reader)
 {
+    wg_parser_t wg_parser;
     HRESULT hr;
     WORD i;
 
-    if (!(reader->streams = calloc(reader->stream_count, sizeof(*reader->streams))))
+    if (!(wg_parser = wg_parser_create(FALSE)))
+        return E_OUTOFMEMORY;
+
+    reader->wg_parser = wg_parser;
+    reader->read_thread_shutdown = false;
+
+    if (!(reader->read_thread = CreateThread(NULL, 0, read_thread, reader, 0, NULL)))
+    {
         hr = E_OUTOFMEMORY;
+        goto out_destroy_parser;
+    }
+
+    if (FAILED(hr = wg_parser_connect(reader->wg_parser, reader->file_size, reader->filename)))
+    {
+        ERR("Failed to connect parser, hr %#lx.\n", hr);
+        goto out_shutdown_thread;
+    }
+
+    reader->stream_count = wg_parser_get_stream_count(reader->wg_parser);
+
+    if (!(reader->streams = calloc(reader->stream_count, sizeof(*reader->streams))))
+    {
+        hr = E_OUTOFMEMORY;
+        goto out_disconnect_parser;
+    }
 
     for (i = 0; i < reader->stream_count; ++i)
     {
         struct wm_stream *stream = &reader->streams[i];
-        WM_MEDIA_TYPE *mt;
-        DWORD size = 0;
+        struct wg_format format;
 
+        stream->wg_stream = wg_parser_get_stream(reader->wg_parser, i);
         stream->reader = reader;
         stream->index = i;
         stream->selection = WMT_ON;
-        list_init(&stream->compressed_samples);
 
-        if (SUCCEEDED(hr = get_stream_media_type(reader->winedmo_demuxer, i, NULL, &size)))
+        wg_parser_stream_get_current_format(stream->wg_stream, &format);
+        if (format.major_type == WG_MAJOR_TYPE_AUDIO)
         {
-            if (!(mt = malloc(size)))
-                hr = E_OUTOFMEMORY;
-            else
-                hr = get_stream_media_type(reader->winedmo_demuxer, i, mt, &size);
+            /* R.U.S.E enumerates available audio types, picks the first one it
+             * likes, and then sets the wrong stream to that type. libav might
+             * give us WG_AUDIO_FORMAT_F32LE by default, which will result in
+             * the game incorrectly interpreting float data as integer.
+             * Therefore just match native and always set our default format to
+             * S16LE. */
+            format.u.audio.format = WG_AUDIO_FORMAT_S16LE;
         }
+        else if (format.major_type == WG_MAJOR_TYPE_VIDEO)
+        {
+            /* Call of Juarez: Bound in Blood breaks if I420 is enumerated.
+             * Some native decoders output I420, but the msmpeg4v3 decoder
+             * never does.
+             *
+             * Shadowgrounds provides wmv3 video and assumes that the initial
+             * video type will be BGR. */
+            format.u.video.format = WG_VIDEO_FORMAT_BGR;
 
-        if (SUCCEEDED(hr))
-        {
-            CopyMediaType(&stream->mt, (AM_MEDIA_TYPE *)mt);
-            strmbase_dump_media_type(&stream->mt);
-            hr = stream_init_decoder(stream);
+            /* API consumers expect RGB video to be bottom-up. */
+            if (format.u.video.height > 0)
+                format.u.video.height = -format.u.video.height;
         }
+        wg_parser_stream_enable(stream->wg_stream, &format);
+        amt_from_wg_format(&stream->mt, &format, true);
+
+        stream_init_decoder(stream);
     }
 
+    /* We probably discarded events because streams weren't enabled yet.
+     * Now that they're all enabled seek back to the start again. */
+    wg_parser_stream_seek(reader->streams[0].wg_stream, 1.0, 0, 0,
+            AM_SEEKING_AbsolutePositioning, AM_SEEKING_NoPositioning);
+
     return S_OK;
+
+out_disconnect_parser:
+    wg_parser_disconnect(reader->wg_parser);
+
+out_shutdown_thread:
+    EnterCriticalSection(&reader->shutdown_cs);
+    reader->read_thread_shutdown = true;
+    LeaveCriticalSection(&reader->shutdown_cs);
+    WaitForSingleObject(reader->read_thread, INFINITE);
+    CloseHandle(reader->read_thread);
+    reader->read_thread = NULL;
+
+out_destroy_parser:
+    wg_parser_destroy(reader->wg_parser);
+    reader->wg_parser = 0;
+
+    return hr;
+}
+
+static HRESULT reinit_stream(struct wm_reader *reader, bool read_compressed)
+{
+    wg_parser_t wg_parser;
+    HRESULT hr;
+    WORD i;
+
+    wg_parser_disconnect(reader->wg_parser);
+
+    EnterCriticalSection(&reader->shutdown_cs);
+    reader->read_thread_shutdown = true;
+    LeaveCriticalSection(&reader->shutdown_cs);
+    WaitForSingleObject(reader->read_thread, INFINITE);
+    CloseHandle(reader->read_thread);
+    reader->read_thread = NULL;
+
+    destroy_stream(reader);
+    wg_parser_destroy(reader->wg_parser);
+    reader->wg_parser = 0;
+
+    if (!(wg_parser = wg_parser_create(read_compressed)))
+        return E_OUTOFMEMORY;
+
+    reader->wg_parser = wg_parser;
+    reader->read_thread_shutdown = false;
+
+    if (!(reader->read_thread = CreateThread(NULL, 0, read_thread, reader, 0, NULL)))
+    {
+        hr = E_OUTOFMEMORY;
+        goto out_destroy_parser;
+    }
+
+    if (FAILED(hr = wg_parser_connect(reader->wg_parser, reader->file_size, reader->filename)))
+    {
+        ERR("Failed to connect parser, hr %#lx.\n", hr);
+        goto out_shutdown_thread;
+    }
+
+    assert(reader->stream_count == wg_parser_get_stream_count(reader->wg_parser));
+
+    for (i = 0; i < reader->stream_count; ++i)
+    {
+        struct wm_stream *stream = &reader->streams[i];
+        struct wg_format format;
+
+        stream->wg_stream = wg_parser_get_stream(reader->wg_parser, i);
+        stream->reader = reader;
+        wg_parser_stream_get_current_format(stream->wg_stream, &format);
+        if (stream->selection == WMT_ON)
+        {
+            if (!read_compressed)
+                amt_to_wg_format(&stream->mt, &format);
+            wg_parser_stream_enable(stream->wg_stream, &format);
+        }
+
+        if (stream->decoder)
+        {
+            IMediaObject_Release(stream->decoder);
+            stream->decoder = NULL;
+        }
+
+        stream_init_decoder(stream);
+    }
+
+    /* We probably discarded events because streams weren't enabled yet.
+     * Now that they're all enabled seek back to the start again. */
+    wg_parser_stream_seek(reader->streams[0].wg_stream, 1.0, 0, 0,
+            AM_SEEKING_AbsolutePositioning, AM_SEEKING_NoPositioning);
+
+    return S_OK;
+
+out_shutdown_thread:
+    EnterCriticalSection(&reader->shutdown_cs);
+    reader->read_thread_shutdown = true;
+    LeaveCriticalSection(&reader->shutdown_cs);
+    WaitForSingleObject(reader->read_thread, INFINITE);
+    CloseHandle(reader->read_thread);
+    reader->read_thread = NULL;
+
+out_destroy_parser:
+    destroy_stream(reader);
+    wg_parser_destroy(reader->wg_parser);
+    reader->wg_parser = 0;
+
+    return hr;
+}
+
+static struct wm_stream *wm_reader_get_stream_by_stream_number(struct wm_reader *reader, WORD stream_number)
+{
+    if (stream_number && stream_number <= reader->stream_count)
+        return &reader->streams[stream_number - 1];
+    WARN("Invalid stream number %u.\n", stream_number);
+    return NULL;
+}
+
+static const char *debugstr_major(const GUID *major)
+{
+    if (IsEqualGUID(major, &MEDIATYPE_Video))
+        return "video";
+    if (IsEqualGUID(major, &MEDIATYPE_Audio))
+        return "audio";
+    return debugstr_guid(major);
 }
 
 static HRESULT wm_stream_allocate_sample(struct wm_stream *stream, DWORD size, INSSBuffer **out)
 {
+    struct sample *sample;
+
     if (!stream->read_compressed && stream->output_allocator)
         return IWMReaderAllocatorEx_AllocateForOutputEx(stream->output_allocator, stream->index,
                 size, out, 0, 0, 0, NULL);
+
     if (stream->read_compressed && stream->stream_allocator)
         return IWMReaderAllocatorEx_AllocateForStreamEx(stream->stream_allocator, stream->index + 1,
                 size, out, 0, 0, 0, NULL);
 
-    return E_FAIL;
-}
+    /* FIXME: Should these be pooled? */
+    if (!(sample = calloc(1, offsetof(struct sample, data[size]))))
+        return E_OUTOFMEMORY;
+    sample->INSSBuffer_iface.lpVtbl = &sample_vtbl;
+    sample->refcount = 1;
+    sample->capacity = size;
 
-static HRESULT stream_pop_compressed_sample(struct wm_stream *stream, struct sample **out)
-{
-    struct sample *sample;
-    struct list *ptr;
-
-    if (!(ptr = list_head(&stream->compressed_samples)))
-        return E_PENDING;
-    sample = LIST_ENTRY(ptr, struct sample, entry);
-    list_remove(&sample->entry);
-
-    *out = sample;
+    TRACE("Created sample %p.\n", sample);
+    *out = &sample->INSSBuffer_iface;
     return S_OK;
 }
 
-static void stream_queue_compressed_sample(struct wm_stream *stream, struct sample *sample)
+static HRESULT wm_reader_read_stream_sample(struct wm_reader *reader, struct wg_parser_buffer *buffer,
+        INSSBuffer **sample, QWORD *pts, QWORD *duration, DWORD *flags)
 {
-    list_add_tail(&stream->compressed_samples, &sample->entry);
-    INSSBuffer_AddRef(&sample->INSSBuffer_iface);
-}
-
-static HRESULT stream_read_compressed_sample(struct wm_stream *stream, INSSBuffer **out, QWORD *pts, QWORD *duration, DWORD *flags)
-{
-    struct sample *sample;
-    DWORD length;
+    struct wm_stream *stream;
+    DWORD size, capacity;
     HRESULT hr;
     BYTE *data;
 
-    if (FAILED(stream_pop_compressed_sample(stream, &sample)))
+    if (!(stream = wm_reader_get_stream_by_stream_number(reader, buffer->stream + 1)))
+        return E_INVALIDARG;
+
+    TRACE("Got buffer for '%s' stream %p.\n", debugstr_major(&stream->mt.majortype), stream);
+
+    capacity = buffer->size - stream->current_buffer_offset;
+    if (IsEqualGUID(&stream->mt.majortype, &MEDIATYPE_Audio)
+            && (IsEqualGUID(&stream->mt.subtype, &MEDIASUBTYPE_PCM)
+            || IsEqualGUID(&stream->mt.subtype, &MEDIASUBTYPE_IEEE_FLOAT)))
+        capacity = min(capacity, 16384);
+
+    if (FAILED(hr = wm_stream_allocate_sample(stream, capacity, sample)))
+    {
+        ERR("Failed to allocate sample of %lu bytes, hr %#lx.\n", capacity, hr);
+        wg_parser_stream_release_buffer(stream->wg_stream);
+        return hr;
+    }
+
+    if (FAILED(hr = INSSBuffer_GetBufferAndLength(*sample, &data, &size)))
+        ERR("Failed to get data pointer, hr %#lx.\n", hr);
+
+    size = min(buffer->size - stream->current_buffer_offset, capacity);
+    if (!wg_parser_stream_copy_buffer(stream->wg_stream, data, stream->current_buffer_offset, size))
+    {
+        /* The GStreamer pin has been flushed. */
+        INSSBuffer_Release(*sample);
+        *sample = NULL;
         return S_FALSE;
-
-    INSSBuffer_GetLength(&sample->INSSBuffer_iface, &length);
-    if (FAILED(hr = wm_stream_allocate_sample(stream, length, out)))
-    {
-        INSSBuffer_AddRef(&sample->INSSBuffer_iface);
-        *out = &sample->INSSBuffer_iface;
-        hr = S_OK;
-    }
-    else if (SUCCEEDED(hr = INSSBuffer_GetBuffer(*out, &data)))
-    {
-        memcpy(data, sample->data, sample->size);
-        INSSBuffer_SetLength(*out, sample->size);
     }
 
-    *pts = 0;
+    if (FAILED(hr = INSSBuffer_SetLength(*sample, size)))
+        ERR("Failed to set size %lu, hr %#lx.\n", size, hr);
+
+    *pts = buffer->pts + buffer->duration * (uint64_t)stream->current_buffer_offset / buffer->size;
+    *duration = buffer->duration * (uint64_t)size / buffer->size;
+
+    if (!buffer->has_pts)
+    {
+        FIXME("Missing PTS.\n");
+        *pts = 0;
+    }
+    if (!buffer->has_duration)
+    {
+        FIXME("Missing duration.\n");
+        *duration = 0;
+    }
+
     *flags = 0;
-    *duration = 0;
-    if (sample->flags & DMO_OUTPUT_DATA_BUFFERF_TIME) *pts = sample->time;
-    if (sample->flags & DMO_OUTPUT_DATA_BUFFERF_TIMELENGTH) *duration = sample->duration;
-    if (sample->flags & DMO_OUTPUT_DATA_BUFFERF_SYNCPOINT) *flags |= WM_SF_CLEANPOINT;
-    if (!*duration) *duration = 10000;
+    if (buffer->discontinuity)
+        *flags |= WM_SF_DISCONTINUITY;
+    if (!buffer->delta)
+        *flags |= WM_SF_CLEANPOINT;
 
-    if (stream->state == STREAM_STARTING) *flags |= WM_SF_DISCONTINUITY;
-    stream->state = STREAM_RUNNING;
-
-    INSSBuffer_Release(&sample->INSSBuffer_iface);
-    return hr;
-}
-
-static HRESULT stream_get_next_queued_sample(struct wm_stream *stream, INSSBuffer **out,
-        QWORD *pts, QWORD *duration, DWORD *flags)
-{
-    DMO_OUTPUT_DATA_BUFFER output = {0};
-    DWORD status, size, align;
-    HRESULT hr;
-
-    if (stream->read_compressed)
-        return stream_read_compressed_sample(stream, out, pts, duration, flags);
-
-    IMediaObject_GetOutputSizeInfo(stream->decoder, 0, &size, &align);
-    if (FAILED(hr = wm_stream_allocate_sample(stream, size, out))
-            && FAILED(hr = sample_create(size, out)))
-        return hr;
-    if (SUCCEEDED(hr = media_buffer_create(*out, &output.pBuffer)))
+    stream->current_buffer_offset += size;
+    if (stream->current_buffer_offset == buffer->size)
     {
-        hr = IMediaObject_ProcessOutput(stream->decoder, 0, 1, &output, &status);
-        IMediaBuffer_Release(output.pBuffer);
+        TRACE("Current buffer exhausted, releasing.\n");
+        stream->current_buffer.size = 0;
+        stream->current_buffer_offset = 0;
+        wg_parser_stream_release_buffer(stream->wg_stream);
     }
-    if (FAILED(hr) || hr == S_FALSE)
+    else
     {
-        INSSBuffer_Release(*out);
-        *out = NULL;
-        return hr;
+        TRACE("Keeping buffer around, %lu bytes still available.\n", buffer->size - stream->current_buffer_offset);
+        stream->current_buffer = *buffer;
     }
-
-    *pts = 0;
-    *flags = 0;
-    *duration = 0;
-    if (output.dwStatus & DMO_OUTPUT_DATA_BUFFERF_TIME) *pts = output.rtTimestamp;
-    if (output.dwStatus & DMO_OUTPUT_DATA_BUFFERF_TIMELENGTH) *duration = output.rtTimelength;
-    if (output.dwStatus & DMO_OUTPUT_DATA_BUFFERF_SYNCPOINT) *flags |= WM_SF_CLEANPOINT;
-    if (!*duration) *duration = 10000;
-
-    if (stream->state == STREAM_STARTING) *flags |= WM_SF_DISCONTINUITY;
-    stream->state = STREAM_RUNNING;
 
     return S_OK;
-}
-
-static HRESULT reader_get_next_queued_sample(struct wm_reader *reader, struct wm_stream **stream,
-        INSSBuffer **buffer, QWORD *pts, QWORD *duration, DWORD *flags)
-{
-    HRESULT hr;
-    UINT i;
-
-    if (*stream)
-        return stream_get_next_queued_sample(*stream, buffer, pts, duration, flags);
-
-    for (i = 0, hr = S_FALSE; i < reader->stream_count && hr == S_FALSE; i++)
-    {
-        if ((hr = stream_get_next_queued_sample(&reader->streams[i], buffer, pts, duration, flags)) == S_OK)
-            *stream = &reader->streams[i];
-    }
-
-    return hr;
 }
 
 static struct wm_reader *impl_from_IUnknown(IUnknown *iface)
@@ -1903,18 +1864,6 @@ static ULONG WINAPI unknown_inner_Release(IUnknown *iface)
 
     if (!refcount)
     {
-        while (reader->stream_count--)
-        {
-            struct wm_stream *stream = reader->streams + reader->stream_count;
-            struct sample *sample;
-            while (SUCCEEDED(stream_pop_compressed_sample(stream, &sample)))
-                INSSBuffer_Release(&sample->INSSBuffer_iface);
-            if (stream->decoder)
-                IMediaObject_Release(stream->decoder);
-            FreeMediaType(&stream->mt);
-        }
-        free(reader->streams);
-
         IWMSyncReader2_Close(&reader->IWMSyncReader2_iface);
 
         reader->cs.DebugInfo->Spare[0] = 0;
@@ -1961,30 +1910,51 @@ static ULONG WINAPI reader_Release(IWMSyncReader2 *iface)
 static HRESULT WINAPI reader_Close(IWMSyncReader2 *iface)
 {
     struct wm_reader *reader = impl_from_IWMSyncReader2(iface);
+    UINT i;
 
     TRACE("reader %p.\n", reader);
 
     EnterCriticalSection(&reader->cs);
 
-    if (!reader->stream && !reader->file)
+    if (!reader->wg_parser)
     {
         LeaveCriticalSection(&reader->cs);
         return NS_E_INVALID_REQUEST;
     }
 
-    winedmo_demuxer_destroy(&reader->winedmo_demuxer);
+    wg_parser_disconnect(reader->wg_parser);
 
-    if (reader->stream)
+    EnterCriticalSection(&reader->shutdown_cs);
+    reader->read_thread_shutdown = true;
+    LeaveCriticalSection(&reader->shutdown_cs);
+    WaitForSingleObject(reader->read_thread, INFINITE);
+    CloseHandle(reader->read_thread);
+    reader->read_thread = NULL;
+
+    destroy_stream(reader);
+    wg_parser_destroy(reader->wg_parser);
+    reader->wg_parser = 0;
+
+    for (i = 0; i < reader->stream_count; ++i)
     {
-        IStream_Release(reader->stream);
-        reader->stream = NULL;
+        struct wm_stream *stream = &reader->streams[i];
+        if (stream->decoder)
+        {
+            IMediaObject_Release(stream->decoder);
+            stream->decoder = NULL;
+        }
     }
+    free(reader->streams);
+    reader->streams = NULL;
 
+    if (reader->source_stream)
+        IStream_Release(reader->source_stream);
+    reader->source_stream = NULL;
     if (reader->file)
-    {
         CloseHandle(reader->file);
-        reader->file = NULL;
-    }
+    reader->file = NULL;
+    free(reader->filename);
+    reader->filename = NULL;
 
     LeaveCriticalSection(&reader->cs);
     return S_OK;
@@ -2016,7 +1986,8 @@ static HRESULT WINAPI reader_GetMaxStreamSampleSize(IWMSyncReader2 *iface, WORD 
     struct wm_reader *reader = impl_from_IWMSyncReader2(iface);
     DWORD max_lookahead, alignment;
     struct wm_stream *stream;
-    HRESULT hr = S_OK;
+    struct wg_format format;
+    HRESULT hr;
 
     TRACE("reader %p, stream_number %u, size %p.\n", reader, stream_number, size);
 
@@ -2029,68 +2000,33 @@ static HRESULT WINAPI reader_GetMaxStreamSampleSize(IWMSyncReader2 *iface, WORD 
     }
 
     if (!stream->decoder)
-        *size = 0x10000;
+        hr = E_NOTIMPL;
     else if (stream->read_compressed)
         hr = IMediaObject_GetInputSizeInfo(stream->decoder, 0, size, &max_lookahead, &alignment);
     else
         hr = IMediaObject_GetOutputSizeInfo(stream->decoder, 0, size, &alignment);
 
-    LeaveCriticalSection(&reader->cs);
-    return hr;
-}
-
-static HRESULT demuxer_read_sample(struct winedmo_demuxer demuxer, UINT *index, struct sample **out)
-{
-    DMO_OUTPUT_DATA_BUFFER output = {0};
-    UINT sample_size = 0x1000;
-    INSSBuffer *iface;
-    NTSTATUS status;
-    HRESULT hr;
-
-    do
+    if (FAILED(hr))
     {
-        if (FAILED(hr = sample_create(sample_size, &iface)))
-            return hr;
-        if (FAILED(hr = media_buffer_create(iface, &output.pBuffer)))
-        {
-            INSSBuffer_Release(iface);
-            return hr;
-        }
-
-        if ((status = winedmo_demuxer_read(demuxer, index, &output, &sample_size)))
-        {
-            if (status == STATUS_BUFFER_TOO_SMALL) hr = S_FALSE;
-            else if (status == STATUS_END_OF_FILE) hr = NS_E_NO_MORE_SAMPLES;
-            else hr = HRESULT_FROM_NT(status);
-            INSSBuffer_Release(iface);
-        }
-
-        IMediaBuffer_Release(output.pBuffer);
-    } while (hr == S_FALSE);
-
-    if (SUCCEEDED(hr))
-    {
-        struct sample *sample = impl_from_INSSBuffer(iface);
-        sample->flags = output.dwStatus;
-        sample->time = output.rtTimestamp;
-        sample->duration = output.rtTimelength;
-        *out = sample;
+        amt_to_wg_format(&stream->mt, &format);
+        *size = wg_format_get_max_size(&format);
     }
 
-    return hr;
+    LeaveCriticalSection(&reader->cs);
+    return S_OK;
 }
 
 static HRESULT WINAPI reader_GetNextSample(IWMSyncReader2 *iface,
-        WORD stream_number, INSSBuffer **buffer, QWORD *pts, QWORD *duration,
+        WORD stream_number, INSSBuffer **sample, QWORD *pts, QWORD *duration,
         DWORD *flags, DWORD *output_number, WORD *ret_stream_number)
 {
     struct wm_reader *reader = impl_from_IWMSyncReader2(iface);
-    struct wm_stream *stream, *other;
+    struct wm_stream *stream;
     HRESULT hr = S_FALSE;
 
-    TRACE("reader %p, stream_number %u, buffer %p, pts %p, duration %p,"
+    TRACE("reader %p, stream_number %u, sample %p, pts %p, duration %p,"
             " flags %p, output_number %p, ret_stream_number %p.\n",
-            reader, stream_number, buffer, pts, duration, flags, output_number, ret_stream_number);
+            reader, stream_number, sample, pts, duration, flags, output_number, ret_stream_number);
 
     if (!stream_number && !output_number && !ret_stream_number)
         return E_INVALIDARG;
@@ -2103,62 +2039,30 @@ static HRESULT WINAPI reader_GetNextSample(IWMSyncReader2 *iface,
         hr = E_INVALIDARG;
     else if (stream->selection == WMT_OFF)
         hr = NS_E_INVALID_REQUEST;
-    else if (stream->state == STREAM_ENDED)
+    else if (stream->eos)
         hr = NS_E_NO_MORE_SAMPLES;
-    else
-        hr = reader_get_next_queued_sample(reader, &stream, buffer, pts, duration, flags);
 
     while (hr == S_FALSE)
     {
-        UINT32 stream_index = stream ? stream->index : 0;
-        struct sample *sample;
+        struct wg_parser_buffer wg_buffer;
 
-        if (!stream || FAILED(hr = stream_pop_compressed_sample(stream, &sample)))
-            hr = demuxer_read_sample(reader->winedmo_demuxer, &stream_index, &sample);
-        if (FAILED(hr))
+        if (stream && stream->current_buffer.size)
+        {
+            TRACE("Reusing buffer for stream %p.\n", stream);
+            wg_buffer = stream->current_buffer;
+            hr = S_OK;
+        }
+        else if (!wg_parser_stream_get_buffer(reader->wg_parser, stream ? stream->wg_stream : 0, &wg_buffer))
         {
             hr = NS_E_NO_MORE_SAMPLES;
-            ERR("failed %#lx\n", hr);
-            break;
         }
 
-        ERR("got compressed sample pts %I64d duration %I64d for stream %u\n", sample->time, sample->duration, stream_index);
-        if ((other = wm_reader_get_stream_by_stream_number(reader, stream_index + 1)))
-        {
-            IMediaBuffer *buffer;
-
-            if (other->selection == WMT_OFF)
-            {
-                INSSBuffer_Release(&sample->INSSBuffer_iface);
-                hr = S_FALSE;
-                continue;
-            }
-
-            if (other->read_compressed)
-                stream_queue_compressed_sample(other, sample);
-            else if (SUCCEEDED(hr = media_buffer_create(&sample->INSSBuffer_iface, &buffer)))
-            {
-                if (FAILED(hr = IMediaObject_ProcessInput(other->decoder, 0, buffer, 0, sample->time, sample->duration)))
-                {
-                    ERR("IMediaObject_ProcessInput %p hr %#lx\n", other->decoder, hr);
-                    stream_queue_compressed_sample(other, sample);
-                }
-                IMediaBuffer_Release(buffer);
-            }
-        }
-
-        hr = reader_get_next_queued_sample(reader, &stream, buffer, pts, duration, flags);
-        INSSBuffer_Release(&sample->INSSBuffer_iface);
-    }
-
-    if (hr == S_OK)
-    {
-        ERR("got sample for stream %u pts %I64d, duration %I64d\n", stream->index, pts ? *pts : 0, duration ? *duration : 0);
-        stream_number = stream->index + 1;
+        if (SUCCEEDED(hr) && SUCCEEDED(hr = wm_reader_read_stream_sample(reader, &wg_buffer, sample, pts, duration, flags)))
+            stream_number = wg_buffer.stream + 1;
     }
 
     if (stream && hr == NS_E_NO_MORE_SAMPLES)
-        stream->state = STREAM_ENDED;
+        stream->eos = true;
 
     if (output_number && hr == S_OK)
         *output_number = stream_number - 1;
@@ -2181,8 +2085,8 @@ static HRESULT WINAPI reader_GetOutputCount(IWMSyncReader2 *iface, DWORD *count)
     return S_OK;
 }
 
-static HRESULT WINAPI reader_GetOutputFormat(IWMSyncReader2 *iface, DWORD output,
-        DWORD index, IWMOutputMediaProps **props)
+static HRESULT WINAPI reader_GetOutputFormat(IWMSyncReader2 *iface,
+        DWORD output, DWORD index, IWMOutputMediaProps **props)
 {
     struct wm_reader *reader = impl_from_IWMSyncReader2(iface);
     struct wm_stream *stream;
@@ -2191,9 +2095,14 @@ static HRESULT WINAPI reader_GetOutputFormat(IWMSyncReader2 *iface, DWORD output
     TRACE("reader %p, output %lu, index %lu, props %p.\n", reader, output, index, props);
 
     EnterCriticalSection(&reader->cs);
+
     if (!(stream = get_stream_by_output_number(reader, output)))
-        hr = E_INVALIDARG;
-    else if (stream->decoder && !stream->read_compressed)
+    {
+        LeaveCriticalSection(&reader->cs);
+        return E_INVALIDARG;
+    }
+
+    if (stream->decoder && !stream->read_compressed)
     {
         AM_MEDIA_TYPE mt;
 
@@ -2213,10 +2122,8 @@ static HRESULT WINAPI reader_GetOutputFormat(IWMSyncReader2 *iface, DWORD output
     {
         hr = NS_E_INVALID_OUTPUT_FORMAT;
     }
-    LeaveCriticalSection(&reader->cs);
 
-    if (FAILED(hr))
-        ERR("Failed to get media type, hr %#lx\n", hr);
+    LeaveCriticalSection(&reader->cs);
     return hr;
 }
 
@@ -2224,14 +2131,18 @@ static HRESULT WINAPI reader_GetOutputFormatCount(IWMSyncReader2 *iface, DWORD o
 {
     struct wm_reader *reader = impl_from_IWMSyncReader2(iface);
     struct wm_stream *stream;
-    HRESULT hr = S_OK;
 
     TRACE("reader %p, output %lu, count %p.\n", reader, output, count);
 
     EnterCriticalSection(&reader->cs);
+
     if (!(stream = get_stream_by_output_number(reader, output)))
-        hr = E_INVALIDARG;
-    else if (stream->decoder && !stream->read_compressed)
+    {
+        LeaveCriticalSection(&reader->cs);
+        return E_INVALIDARG;
+    }
+
+    if (stream->decoder && !stream->read_compressed)
     {
         DWORD index = 0;
 
@@ -2243,9 +2154,9 @@ static HRESULT WINAPI reader_GetOutputFormatCount(IWMSyncReader2 *iface, DWORD o
     {
         *count = 1;
     }
-    LeaveCriticalSection(&reader->cs);
 
-    return hr;
+    LeaveCriticalSection(&reader->cs);
+    return S_OK;
 }
 
 static HRESULT WINAPI reader_GetOutputNumberForStream(IWMSyncReader2 *iface,
@@ -2259,30 +2170,26 @@ static HRESULT WINAPI reader_GetOutputNumberForStream(IWMSyncReader2 *iface,
     return S_OK;
 }
 
-static HRESULT WINAPI reader_GetOutputProps(IWMSyncReader2 *iface, DWORD output,
-        IWMOutputMediaProps **props)
+static HRESULT WINAPI reader_GetOutputProps(IWMSyncReader2 *iface,
+        DWORD output, IWMOutputMediaProps **props)
 {
     struct wm_reader *reader = impl_from_IWMSyncReader2(iface);
     struct wm_stream *stream;
-    DMO_MEDIA_TYPE mt;
     HRESULT hr;
 
     TRACE("reader %p, output %lu, props %p.\n", reader, output, props);
 
     EnterCriticalSection(&reader->cs);
+
     if (!(stream = get_stream_by_output_number(reader, output)))
-        hr = E_INVALIDARG;
-    else if (!stream->decoder)
-        hr = output_props_create(&stream->mt, props);
-    else if (SUCCEEDED(hr = IMediaObject_GetOutputCurrentType(stream->decoder, 0, &mt)))
     {
-        hr = output_props_create(&mt, props);
-        FreeMediaType(&mt);
+        LeaveCriticalSection(&reader->cs);
+        return E_INVALIDARG;
     }
+
+    hr = output_props_create(&stream->mt, props);
     LeaveCriticalSection(&reader->cs);
 
-    if (FAILED(hr))
-        ERR("Failed to get media type, hr %#lx\n", hr);
     return hr;
 }
 
@@ -2348,41 +2255,32 @@ static HRESULT WINAPI reader_GetStreamSelected(IWMSyncReader2 *iface,
     return S_OK;
 }
 
-static NTSTATUS CDECL reader_seek_file_cb( struct winedmo_stream *stream, UINT64 *pos )
-{
-    struct wm_reader *reader = CONTAINING_RECORD(stream, struct wm_reader, winedmo_stream);
-    LARGE_INTEGER position = {.QuadPart = *pos};
-    if (!SetFilePointerEx(reader->file, position, &position, FILE_BEGIN)) return STATUS_UNSUCCESSFUL;
-    *pos = position.QuadPart;
-    return STATUS_SUCCESS;
-}
-
-static NTSTATUS CDECL reader_read_file_cb( struct winedmo_stream *stream, BYTE *buffer, ULONG *size )
-{
-    struct wm_reader *reader = CONTAINING_RECORD(stream, struct wm_reader, winedmo_stream);
-    if (!ReadFile(reader->file, buffer, *size, size, NULL)) return STATUS_UNSUCCESSFUL;
-    return STATUS_SUCCESS;
-}
-
 static HRESULT WINAPI reader_Open(IWMSyncReader2 *iface, const WCHAR *filename)
 {
     struct wm_reader *reader = impl_from_IWMSyncReader2(iface);
-    BY_HANDLE_FILE_INFORMATION fi = {0};
-    WCHAR mime_type[256];
-    HRESULT hr = S_OK;
-    NTSTATUS status;
+    LARGE_INTEGER size;
     HANDLE file;
+    HRESULT hr;
 
     TRACE("reader %p, filename %s.\n", reader, debugstr_w(filename));
 
-    file = CreateFileW(filename, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, 0);
-    if (file == INVALID_HANDLE_VALUE)
+    if ((file = CreateFileW(filename, GENERIC_READ, FILE_SHARE_READ, NULL,
+            OPEN_EXISTING, 0, NULL)) == INVALID_HANDLE_VALUE)
+    {
+        ERR("Failed to open %s, error %lu.\n", debugstr_w(filename), GetLastError());
         return HRESULT_FROM_WIN32(GetLastError());
-    GetFileInformationByHandle(file, &fi);
+    }
+
+    if (!GetFileSizeEx(file, &size))
+    {
+        ERR("Failed to get the size of %s, error %lu.\n", debugstr_w(filename), GetLastError());
+        CloseHandle(file);
+        return HRESULT_FROM_WIN32(GetLastError());
+    }
 
     EnterCriticalSection(&reader->cs);
 
-    if (reader->stream || reader->file)
+    if (reader->wg_parser)
     {
         LeaveCriticalSection(&reader->cs);
         WARN("Stream is already open; returning E_UNEXPECTED.\n");
@@ -2390,46 +2288,26 @@ static HRESULT WINAPI reader_Open(IWMSyncReader2 *iface, const WCHAR *filename)
         return E_UNEXPECTED;
     }
 
+    reader->filename = wcsdup(filename);
     reader->file = file;
-    reader->file_size = (UINT64)fi.nFileSizeHigh << 32 | fi.nFileSizeLow;
-    reader->winedmo_stream.p_seek = reader_seek_file_cb;
-    reader->winedmo_stream.p_read = reader_read_file_cb;
+    reader->file_size = size.QuadPart;
 
-    if ((status = winedmo_demuxer_create(filename, &reader->winedmo_stream, reader->file_size, &reader->duration,
-            &reader->stream_count, mime_type, &reader->winedmo_demuxer)))
-        hr = HRESULT_FROM_WIN32(status);
-
-    if (FAILED(hr) || FAILED(hr = init_stream(reader)))
+    if (FAILED(hr = init_stream(reader)))
     {
         CloseHandle(reader->file);
         reader->file = NULL;
+        free(reader->filename);
+        reader->filename = NULL;
     }
 
     LeaveCriticalSection(&reader->cs);
     return hr;
 }
 
-static NTSTATUS CDECL reader_seek_stream_cb( struct winedmo_stream *stream, UINT64 *pos )
-{
-    struct wm_reader *reader = CONTAINING_RECORD(stream, struct wm_reader, winedmo_stream);
-    LARGE_INTEGER move = {.QuadPart = *pos};
-    if (FAILED(IStream_Seek(reader->stream, move, STREAM_SEEK_SET, NULL))) return STATUS_UNSUCCESSFUL;
-    return STATUS_SUCCESS;
-}
-
-static NTSTATUS CDECL reader_read_stream_cb( struct winedmo_stream *stream, BYTE *buffer, ULONG *size )
-{
-    struct wm_reader *reader = CONTAINING_RECORD(stream, struct wm_reader, winedmo_stream);
-    if (FAILED(IStream_Read(reader->stream, buffer, *size, size))) return STATUS_UNSUCCESSFUL;
-    return STATUS_SUCCESS;
-}
-
 static HRESULT WINAPI reader_OpenStream(IWMSyncReader2 *iface, IStream *stream)
 {
     static const ULONG64 canary_size = 0xdeadbeeffeedcafe;
     struct wm_reader *reader = impl_from_IWMSyncReader2(iface);
-    WCHAR mime_type[256];
-    NTSTATUS status;
     STATSTG stat;
     HRESULT hr;
 
@@ -2454,77 +2332,38 @@ static HRESULT WINAPI reader_OpenStream(IWMSyncReader2 *iface, IStream *stream)
 
         if (SUCCEEDED(hr = IStream_Seek(stream, zero, STREAM_SEEK_END, &pos)))
             IStream_Seek(stream, zero, STREAM_SEEK_SET, NULL);
-        stat.cbSize.QuadPart = pos.QuadPart == canary_size ? -1 : pos.QuadPart;
+        stat.cbSize.QuadPart = pos.QuadPart == canary_size ? 0 : pos.QuadPart;
         ERR("IStream_Stat did not fill the stream size, size from _Seek %I64u.\n", stat.cbSize.QuadPart);
     }
 
     EnterCriticalSection(&reader->cs);
 
-    if (reader->stream || reader->file)
+    if (reader->wg_parser)
     {
         LeaveCriticalSection(&reader->cs);
         WARN("Stream is already open; returning E_UNEXPECTED.\n");
         return E_UNEXPECTED;
     }
 
-    reader->stream = stream;
-    IStream_AddRef(reader->stream);
+    IStream_AddRef(reader->source_stream = stream);
     reader->file_size = stat.cbSize.QuadPart;
-    reader->winedmo_stream.p_seek = reader_seek_stream_cb;
-    reader->winedmo_stream.p_read = reader_read_stream_cb;
 
-    if ((status = winedmo_demuxer_create(NULL, &reader->winedmo_stream, reader->file_size, &reader->duration,
-            &reader->stream_count, mime_type, &reader->winedmo_demuxer)))
-        hr = HRESULT_FROM_WIN32(status);
-
-    if (FAILED(hr) || FAILED(hr = init_stream(reader)))
+    if (FAILED(hr = init_stream(reader)))
     {
-        IStream_Release(reader->stream);
-        reader->stream = NULL;
+        IStream_Release(stream);
+        reader->source_stream = NULL;
     }
 
     LeaveCriticalSection(&reader->cs);
     return hr;
 }
 
-static HRESULT stream_set_decoder_output_type(struct wm_stream *stream, const WM_MEDIA_TYPE *mt)
-{
-    HRESULT hr;
-
-    if ((IsEqualGUID( &stream->mt.formattype, &FORMAT_VideoInfo ) || IsEqualGUID( &stream->mt.formattype, &FORMAT_VideoInfo2 ))
-            && (IsEqualGUID( &mt->formattype, &FORMAT_VideoInfo ) || IsEqualGUID( &mt->formattype, &FORMAT_VideoInfo2 )))
-    {
-        VIDEOINFOHEADER *stream_vih = (VIDEOINFOHEADER *)stream->mt.pbFormat, *vih = (VIDEOINFOHEADER *)mt->pbFormat;
-        if (stream_vih->bmiHeader.biWidth != vih->bmiHeader.biWidth)
-            return NS_E_INVALID_OUTPUT_FORMAT;
-        if (abs(stream_vih->bmiHeader.biHeight) != abs(vih->bmiHeader.biHeight))
-            return NS_E_INVALID_OUTPUT_FORMAT;
-    }
-    else if (IsEqualGUID( &stream->mt.formattype, &FORMAT_WaveFormatEx ) && IsEqualGUID( &mt->formattype, &FORMAT_WaveFormatEx ))
-    {
-        WAVEFORMATEX *stream_wfx = (WAVEFORMATEX *)stream->mt.pbFormat, *wfx = (WAVEFORMATEX *)mt->pbFormat;
-        if (stream_wfx->nChannels != wfx->nChannels)
-            return NS_E_AUDIO_CODEC_NOT_INSTALLED;
-    }
-    else
-    {
-        FIXME( "Unsupported format types %s/%s\n", debugstr_guid( &stream->mt.formattype ), debugstr_guid( &mt->formattype ) );
-        return NS_E_INCOMPATIBLE_FORMAT;
-    }
-
-    if (FAILED(hr = IMediaObject_SetOutputType(stream->decoder, 0, (AM_MEDIA_TYPE *)mt, 0)))
-    {
-        WARN("Failed to set DMO output media type, hr %#lx\n", hr);
-        return NS_E_INVALID_OUTPUT_FORMAT;
-    }
-    return S_OK;
-}
-
 static HRESULT WINAPI reader_SetOutputProps(IWMSyncReader2 *iface, DWORD output, IWMOutputMediaProps *props)
 {
     struct wm_reader *reader = impl_from_IWMSyncReader2(iface);
     struct wm_stream *stream;
-    HRESULT hr = S_OK;
+    struct wg_format format;
+    HRESULT hr;
     DWORD size;
     void *mt;
 
@@ -2539,15 +2378,46 @@ static HRESULT WINAPI reader_SetOutputProps(IWMSyncReader2 *iface, DWORD output,
     strmbase_dump_media_type(mt);
 
     EnterCriticalSection(&reader->cs);
-    if (!(stream = get_stream_by_output_number(reader, output)) || !stream->decoder)
+
+    if (!(stream = get_stream_by_output_number(reader, output)))
         hr = E_INVALIDARG;
     else if (!stream->decoder)
+    {
         hr = E_INVALIDARG;
+    }
     else if (FAILED(hr = IMediaObject_SetOutputType(stream->decoder, 0, mt, 0)))
     {
         ERR("Failed to set the decoder output type, hr %#lx\n", hr);
         hr = NS_E_INVALID_OUTPUT_FORMAT;
     }
+    else if (!amt_to_wg_format(mt, &format))
+    {
+        ERR("Failed to convert media type to winegstreamer format.\n");
+        hr = NS_E_INVALID_OUTPUT_FORMAT;
+    }
+    else
+    {
+        FreeMediaType(&stream->mt);
+        CopyMediaType(&stream->mt, mt);
+        wg_parser_stream_enable(stream->wg_stream, &format);
+
+        /* Re-decode any buffers that might have been generated with the old format.
+         *
+         * FIXME: Seeking in-place will cause some buffers to be dropped.
+         * Unfortunately, we can't really store the last received PTS and seek there
+         * either: since seeks are inexact and we aren't guaranteed to receive
+         * samples in order, some buffers might be duplicated or dropped anyway.
+         * In order to really seamlessly allow for format changes, we need
+         * cooperation from each individual GStreamer stream, to be able to tell
+         * upstream exactly which buffers they need resent...
+         *
+         * In all likelihood this function is being called not mid-stream but rather
+         * while setting the stream up, before consuming any events. Accordingly
+         * let's just seek back to the beginning. */
+        wg_parser_stream_seek(reader->streams[0].wg_stream, 1.0, reader->start_time, 0,
+                AM_SEEKING_AbsolutePositioning, AM_SEEKING_NoPositioning);
+    }
+
     LeaveCriticalSection(&reader->cs);
 
 done:
@@ -2595,18 +2465,12 @@ static HRESULT WINAPI reader_SetRange(IWMSyncReader2 *iface, QWORD start, LONGLO
     EnterCriticalSection(&reader->cs);
 
     reader->start_time = start;
-    winedmo_demuxer_seek(reader->winedmo_demuxer, start);
+
+    wg_parser_stream_seek(reader->streams[0].wg_stream, 1.0, start, start + duration,
+            AM_SEEKING_AbsolutePositioning, duration ? AM_SEEKING_AbsolutePositioning : AM_SEEKING_NoPositioning);
 
     for (i = 0; i < reader->stream_count; ++i)
-    {
-        struct sample *sample;
-
-        while (SUCCEEDED(stream_pop_compressed_sample(&reader->streams[i], &sample)))
-            INSSBuffer_Release(&sample->INSSBuffer_iface);
-
-        IMediaObject_Flush(reader->streams[i].decoder);
-        reader->streams[i].state = STREAM_STARTING;
-    }
+        reader->streams[i].eos = false;
 
     LeaveCriticalSection(&reader->cs);
     return S_OK;
@@ -2625,7 +2489,7 @@ static HRESULT WINAPI reader_SetReadStreamSamples(IWMSyncReader2 *iface, WORD st
     struct wm_reader *reader = impl_from_IWMSyncReader2(iface);
     struct wm_stream *stream;
 
-    TRACE("reader %p, stream_number %u, compressed %d.\n", reader, stream_number, compressed);
+    TRACE("reader %p, stream_index %u, compressed %d.\n", reader, stream_number, compressed);
 
     EnterCriticalSection(&reader->cs);
 
@@ -2635,8 +2499,8 @@ static HRESULT WINAPI reader_SetReadStreamSamples(IWMSyncReader2 *iface, WORD st
         return E_INVALIDARG;
     }
 
-    if (compressed || stream->decoder)
-        stream->read_compressed = compressed;
+    stream->read_compressed = compressed;
+    reinit_stream(reader, compressed);
 
     LeaveCriticalSection(&reader->cs);
     return S_OK;
@@ -2671,6 +2535,30 @@ static HRESULT WINAPI reader_SetStreamsSelected(IWMSyncReader2 *iface,
     {
         stream = wm_reader_get_stream_by_stream_number(reader, stream_numbers[i]);
         stream->selection = selections[i];
+        if (selections[i] == WMT_OFF)
+        {
+            TRACE("Disabling stream %u.\n", stream_numbers[i]);
+            wg_parser_stream_disable(stream->wg_stream);
+        }
+        else
+        {
+            struct wg_format format;
+
+            if (selections[i] != WMT_ON)
+                FIXME("Ignoring selection %#x for stream %u; treating as enabled.\n",
+                        selections[i], stream_numbers[i]);
+            TRACE("Enabling stream %u.\n", stream_numbers[i]);
+            if (stream->read_compressed)
+            {
+                wg_parser_stream_get_current_format(stream->wg_stream, &format);
+                wg_parser_stream_enable(stream->wg_stream, &format);
+            }
+            else
+            {
+                amt_to_wg_format(&stream->mt, &format);
+                wg_parser_stream_enable(stream->wg_stream, &format);
+            }
+        }
     }
 
     LeaveCriticalSection(&reader->cs);
@@ -2827,20 +2715,14 @@ static const IWMSyncReader2Vtbl reader_vtbl =
     reader_GetAllocateForStream
 };
 
-extern HRESULT WINAPI winegstreamer_create_wm_sync_reader(IUnknown *outer, void **out);
-
-HRESULT sync_reader_create(IUnknown *outer, void **out)
+HRESULT WINAPI winegstreamer_create_wm_sync_reader(IUnknown *outer, void **out)
 {
     struct wm_reader *object;
-    NTSTATUS status;
-
-    if ((status = winedmo_demuxer_check("video/x-ms-asf")))
-    {
-        WARN("Unsupported demuxer, status %#lx.\n", status);
-        return winegstreamer_create_wm_sync_reader(outer, out);
-    }
 
     TRACE("out %p.\n", out);
+
+    if (!init_gstreamer())
+        return E_FAIL;
 
     if (!(object = calloc(1, sizeof(*object))))
         return E_OUTOFMEMORY;
@@ -2864,18 +2746,4 @@ HRESULT sync_reader_create(IUnknown *outer, void **out)
     TRACE("Created reader %p.\n", object);
     *out = outer ? (void *)&object->IUnknown_inner : (void *)&object->IWMSyncReader2_iface;
     return S_OK;
-}
-
-HRESULT WINAPI WMCreateSyncReader(IUnknown *reserved, DWORD rights, IWMSyncReader **reader)
-{
-    TRACE("reserved %p, rights %#lx, reader %p.\n", reserved, rights, reader);
-
-    return sync_reader_create(NULL, (void **)reader);
-}
-
-HRESULT WINAPI WMCreateSyncReaderPriv(IWMSyncReader **reader)
-{
-    TRACE("reader %p.\n", reader);
-
-    return sync_reader_create(NULL, (void **)reader);
 }
