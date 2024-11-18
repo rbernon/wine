@@ -52,6 +52,7 @@ extern int interpreted_mode;
 extern int use_abi_namespace;
 
 extern char *input_name;
+extern char *output_name;
 extern char *idl_name;
 extern char *acf_name;
 extern char *header_name;
@@ -77,6 +78,7 @@ extern time_t now;
 extern int open_typelib( const char *name );
 
 extern void write_header(const statement_list_t *stmts);
+extern void write_header_impl(const statement_list_t *stmts);
 extern void write_id_data(const statement_list_t *stmts);
 extern void write_proxies(const statement_list_t *stmts);
 extern void write_client(const statement_list_t *stmts);

@@ -114,6 +114,7 @@ int use_abi_namespace = 0;
 static int stdinc = 1;
 
 char *input_name;
+char *output_name;
 char *idl_name;
 char *acf_name;
 char *header_name;
@@ -138,7 +139,6 @@ static const char *bindir;
 static const char *libdir;
 static const char *includedir;
 static struct strarray dlldirs;
-static char *output_name;
 static const char *sysroot = "";
 
 static FILE *idfile;
