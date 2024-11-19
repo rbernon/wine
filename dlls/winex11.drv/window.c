@@ -1278,6 +1278,13 @@ static void window_set_net_wm_state( struct x11drv_win_data *data, UINT new_stat
             XSendEvent( data->display, root_window, False,
                         SubstructureRedirectMask | SubstructureNotifyMask, &xev );
         }
+
+        if (!(data->current_state.net_wm_state & (1 << NET_WM_STATE_MAXIMIZED)) &&
+            data->pending_state.net_wm_state == (1 << NET_WM_STATE_MAXIMIZED))
+        {
+            /* FVWM has broken NET_WM_STATE_MAXIMIZED support, don't expect an event */
+            data->net_wm_state_serial = 0;
+        }
     }
 
     XFlush( data->display );
