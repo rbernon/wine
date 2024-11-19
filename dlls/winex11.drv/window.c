@@ -1228,6 +1228,7 @@ static void window_set_net_wm_state( struct x11drv_win_data *data, UINT new_stat
     /* we ignore and override previous _NET_WM_STATE update requests */
     if (old_state == new_state) return; /* states are the same, nothing to update */
 
+    data->broken_net_wm_maximized = 0;
     if (data->pending_state.wm_state == IconicState) return; /* window is iconic, don't update its state now */
     if (data->pending_state.wm_state == WithdrawnState)  /* set the _NET_WM_STATE atom directly */
     {
@@ -1283,6 +1284,7 @@ static void window_set_net_wm_state( struct x11drv_win_data *data, UINT new_stat
             data->pending_state.net_wm_state == (1 << NET_WM_STATE_MAXIMIZED))
         {
             /* FVWM has broken NET_WM_STATE_MAXIMIZED support, don't expect an event */
+            data->broken_net_wm_maximized = 1;
             data->net_wm_state_serial = 0;
         }
     }
@@ -1299,6 +1301,7 @@ static void window_set_config( struct x11drv_win_data *data, const RECT *new_rec
 
     data->desired_state.rect = *new_rect;
     if (!data->whole_window) return; /* no window, nothing to update */
+    if (data->net_wm_state_serial || data->broken_net_wm_maximized) return; /* another _NET_WM_STATE update is pending, wait for it to complete */
     if (EqualRect( old_rect, new_rect ) && !above) return; /* rects are the same, no need to be raised, nothing to update */
 
     if (data->pending_state.wm_state == NormalState && data->net_wm_state_serial &&
@@ -1761,6 +1764,13 @@ void window_configure_notify( struct x11drv_win_data *data, unsigned long serial
     if (reason)
     {
         ERR( "Ignoring window %p/%lx %s%s%s\n", data->hwnd, data->whole_window, reason, received, expected );
+        return;
+    }
+
+    if (data->broken_net_wm_maximized)
+    {
+        data->broken_net_wm_maximized = 0;
+        window_set_config( data, &data->desired_state.rect, FALSE );
         return;
     }
 
