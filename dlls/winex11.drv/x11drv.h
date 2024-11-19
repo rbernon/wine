@@ -650,6 +650,7 @@ struct x11drv_win_data
     unsigned long wm_state_serial;     /* serial of last pending WM_STATE request */
     unsigned long net_wm_state_serial; /* serial of last pending _NET_WM_STATE request */
     unsigned long configure_serial;    /* serial of last pending configure request */
+    int broken_net_wm_maximized;
 };
 
 extern struct x11drv_win_data *get_win_data( HWND hwnd );
