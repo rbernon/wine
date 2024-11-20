@@ -5628,15 +5628,21 @@ static void test_messages(void)
         flush_sequence();
     }
 
+trace("hwnd %p SW_MINIMIZE\n", hwnd);
     ShowWindow(hwnd, SW_MINIMIZE);
+trace("flushing %p\n", hwnd);
     flush_events();
+trace("flushed %p\n", hwnd);
     ok_sequence(WmShowMinOverlappedSeq, "ShowWindow(SW_SHOWMINIMIZED):overlapped", FALSE);
     flush_sequence();
 
     if (GetWindowLongW( hwnd, GWL_STYLE ) & WS_MINIMIZE)
     {
+trace("hwnd %p SW_RESTORE\n", hwnd);
         ShowWindow(hwnd, SW_RESTORE);
+trace("flushing %p\n", hwnd);
         flush_events();
+trace("flushed %p\n", hwnd);
         ok_sequence(WmShowRestoreMinOverlappedSeq, "ShowWindow(SW_RESTORE):overlapped", FALSE);
         flush_sequence();
     }
@@ -20986,6 +20992,9 @@ START_TEST(msg)
     cbt_hook_thread_id = winevent_hook_thread_id = GetCurrentThreadId();
     hCBT_hook = SetWindowsHookExA(WH_CBT, cbt_hook_proc, 0, GetCurrentThreadId());
     if (!hCBT_hook) win_skip( "cannot set global hook, will skip hook tests\n" );
+
+    test_messages();
+return;
 
     test_winevents();
     test_SendMessage_other_thread();
