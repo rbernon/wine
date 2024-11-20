@@ -1347,6 +1347,7 @@ static void window_set_config( struct x11drv_win_data *data, const RECT *new_rec
  */
 static void update_net_wm_states( struct x11drv_win_data *data )
 {
+    static const UINT fullscreen_mask = (1 << NET_WM_STATE_MAXIMIZED) | (1 << NET_WM_STATE_FULLSCREEN);
     UINT style, ex_style, new_state = 0;
 
     if (!data->managed || data->embedded) return;
@@ -1358,13 +1359,19 @@ static void update_net_wm_states( struct x11drv_win_data *data )
 
     style = NtUserGetWindowLongW( data->hwnd, GWL_STYLE );
     if (style & WS_MINIMIZE)
-        new_state |= data->desired_state.net_wm_state & ((1 << NET_WM_STATE_FULLSCREEN)|(1 << NET_WM_STATE_MAXIMIZED));
+        new_state |= data->desired_state.net_wm_state & fullscreen_mask;
     if (data->is_fullscreen)
     {
         if ((style & WS_MAXIMIZE) && (style & WS_CAPTION) == WS_CAPTION)
+        {
+            new_state &= ~fullscreen_mask;
             new_state |= (1 << NET_WM_STATE_MAXIMIZED);
+        }
         else if (!(style & WS_MINIMIZE))
+        {
+            new_state &= ~fullscreen_mask;
             new_state |= (1 << NET_WM_STATE_FULLSCREEN);
+        }
     }
     else if (style & WS_MAXIMIZE)
         new_state |= (1 << NET_WM_STATE_MAXIMIZED);
