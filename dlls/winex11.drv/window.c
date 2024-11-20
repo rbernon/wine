@@ -1697,7 +1697,7 @@ void window_wm_state_notify( struct x11drv_win_data *data, unsigned long serial,
 
 void window_net_wm_state_notify( struct x11drv_win_data *data, unsigned long serial, UINT value )
 {
-    static const UINT maximized = (1 << NET_WM_STATE_MAXIMIZED), fullscreen = (1 << NET_WM_STATE_FULLSCREEN);
+    static const UINT fullscreen_mask = (1 << NET_WM_STATE_MAXIMIZED) | (1 << NET_WM_STATE_FULLSCREEN);
     UINT *desired = &data->desired_state.net_wm_state, *pending = &data->pending_state.net_wm_state, *current = &data->current_state.net_wm_state;
     unsigned long *expect_serial = &data->net_wm_state_serial;
     const char *reason = NULL, *expected, *received;
@@ -1714,9 +1714,10 @@ void window_net_wm_state_notify( struct x11drv_win_data *data, unsigned long ser
         return;
     }
 
-    if ((*desired & (maximized | fullscreen)) && (value & (maximized | fullscreen)) == (maximized | fullscreen))
+    if ((*desired & fullscreen_mask) && (value & fullscreen_mask))
     {
-        value = *desired & (maximized | fullscreen);
+        if ((*desired ^ value) & fullscreen_mask) WARN( "Foring fullscreen\n" );
+        value = (value & ~fullscreen_mask) | (*desired & fullscreen_mask);
     }
 
     if (!*expect_serial) reason = "unexpected ";
