@@ -29,14 +29,14 @@ struct constant_effect
     LONG ref;
 };
 
-static inline struct constant_effect *impl_from_IConstantForceEffect( IConstantForceEffect *iface )
+static inline struct constant_effect *constant_effect_from_IConstantForceEffect( IConstantForceEffect *iface )
 {
     return CONTAINING_RECORD( iface, struct constant_effect, IConstantForceEffect_iface );
 }
 
 static HRESULT WINAPI effect_QueryInterface( IConstantForceEffect *iface, REFIID iid, void **out )
 {
-    struct constant_effect *impl = impl_from_IConstantForceEffect( iface );
+    struct constant_effect *impl = constant_effect_from_IConstantForceEffect( iface );
 
     TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
 
@@ -53,7 +53,7 @@ static HRESULT WINAPI effect_QueryInterface( IConstantForceEffect *iface, REFIID
 
 static ULONG WINAPI effect_AddRef( IConstantForceEffect *iface )
 {
-    struct constant_effect *impl = impl_from_IConstantForceEffect( iface );
+    struct constant_effect *impl = constant_effect_from_IConstantForceEffect( iface );
     ULONG ref = InterlockedIncrement( &impl->ref );
     TRACE( "iface %p increasing refcount to %lu.\n", iface, ref );
     return ref;
@@ -61,7 +61,7 @@ static ULONG WINAPI effect_AddRef( IConstantForceEffect *iface )
 
 static ULONG WINAPI effect_Release( IConstantForceEffect *iface )
 {
-    struct constant_effect *impl = impl_from_IConstantForceEffect( iface );
+    struct constant_effect *impl = constant_effect_from_IConstantForceEffect( iface );
     ULONG ref = InterlockedDecrement( &impl->ref );
 
     TRACE( "iface %p decreasing refcount to %lu.\n", iface, ref );
@@ -109,7 +109,7 @@ static HRESULT WINAPI effect_SetParameters( IConstantForceEffect *iface, Vector3
             .gain = 1.,
         },
     };
-    struct constant_effect *impl = impl_from_IConstantForceEffect( iface );
+    struct constant_effect *impl = constant_effect_from_IConstantForceEffect( iface );
 
     TRACE( "iface %p, direction %s, duration %I64u.\n", iface, debugstr_vector3( &direction ), duration.Duration );
 
@@ -140,7 +140,7 @@ static HRESULT WINAPI effect_SetParametersWithEnvelope( IConstantForceEffect *if
         .attack_duration = attack_duration,
         .release_duration = release_duration,
     };
-    struct constant_effect *impl = impl_from_IConstantForceEffect( iface );
+    struct constant_effect *impl = constant_effect_from_IConstantForceEffect( iface );
 
     TRACE( "iface %p, direction %s, attack_gain %f, sustain_gain %f, release_gain %f, start_delay %I64u, attack_duration %I64u, "
            "sustain_duration %I64u, release_duration %I64u, repeat_count %u.\n", iface, debugstr_vector3( &direction ),
@@ -171,14 +171,14 @@ struct constant_factory
     LONG ref;
 };
 
-static inline struct constant_factory *impl_from_IActivationFactory( IActivationFactory *iface )
+static inline struct constant_factory *constant_factory_from_IActivationFactory( IActivationFactory *iface )
 {
     return CONTAINING_RECORD( iface, struct constant_factory, IActivationFactory_iface );
 }
 
 static HRESULT WINAPI activation_QueryInterface( IActivationFactory *iface, REFIID iid, void **out )
 {
-    struct constant_factory *impl = impl_from_IActivationFactory( iface );
+    struct constant_factory *impl = constant_factory_from_IActivationFactory( iface );
 
     TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
 
@@ -203,7 +203,7 @@ static HRESULT WINAPI activation_QueryInterface( IActivationFactory *iface, REFI
 
 static ULONG WINAPI activation_AddRef( IActivationFactory *iface )
 {
-    struct constant_factory *impl = impl_from_IActivationFactory( iface );
+    struct constant_factory *impl = constant_factory_from_IActivationFactory( iface );
     ULONG ref = InterlockedIncrement( &impl->ref );
     TRACE( "iface %p increasing refcount to %lu.\n", iface, ref );
     return ref;
@@ -211,7 +211,7 @@ static ULONG WINAPI activation_AddRef( IActivationFactory *iface )
 
 static ULONG WINAPI activation_Release( IActivationFactory *iface )
 {
-    struct constant_factory *impl = impl_from_IActivationFactory( iface );
+    struct constant_factory *impl = constant_factory_from_IActivationFactory( iface );
     ULONG ref = InterlockedDecrement( &impl->ref );
     TRACE( "iface %p decreasing refcount to %lu.\n", iface, ref );
     return ref;

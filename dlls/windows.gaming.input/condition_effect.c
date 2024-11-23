@@ -31,14 +31,14 @@ struct condition_effect
     ConditionForceEffectKind kind;
 };
 
-static inline struct condition_effect *impl_from_IConditionForceEffect( IConditionForceEffect *iface )
+static inline struct condition_effect *condition_effect_from_IConditionForceEffect( IConditionForceEffect *iface )
 {
     return CONTAINING_RECORD( iface, struct condition_effect, IConditionForceEffect_iface );
 }
 
 static HRESULT WINAPI effect_QueryInterface( IConditionForceEffect *iface, REFIID iid, void **out )
 {
-    struct condition_effect *impl = impl_from_IConditionForceEffect( iface );
+    struct condition_effect *impl = condition_effect_from_IConditionForceEffect( iface );
 
     TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
 
@@ -55,7 +55,7 @@ static HRESULT WINAPI effect_QueryInterface( IConditionForceEffect *iface, REFII
 
 static ULONG WINAPI effect_AddRef( IConditionForceEffect *iface )
 {
-    struct condition_effect *impl = impl_from_IConditionForceEffect( iface );
+    struct condition_effect *impl = condition_effect_from_IConditionForceEffect( iface );
     ULONG ref = InterlockedIncrement( &impl->ref );
     TRACE( "iface %p increasing refcount to %lu.\n", iface, ref );
     return ref;
@@ -63,7 +63,7 @@ static ULONG WINAPI effect_AddRef( IConditionForceEffect *iface )
 
 static ULONG WINAPI effect_Release( IConditionForceEffect *iface )
 {
-    struct condition_effect *impl = impl_from_IConditionForceEffect( iface );
+    struct condition_effect *impl = condition_effect_from_IConditionForceEffect( iface );
     ULONG ref = InterlockedDecrement( &impl->ref );
 
     TRACE( "iface %p decreasing refcount to %lu.\n", iface, ref );
@@ -100,7 +100,7 @@ static HRESULT WINAPI effect_GetTrustLevel( IConditionForceEffect *iface, TrustL
 
 static HRESULT WINAPI effect_get_Kind( IConditionForceEffect *iface, ConditionForceEffectKind *kind )
 {
-    struct condition_effect *impl = impl_from_IConditionForceEffect( iface );
+    struct condition_effect *impl = condition_effect_from_IConditionForceEffect( iface );
     TRACE( "iface %p, kind %p.\n", iface, kind );
     *kind = impl->kind;
     return S_OK;
@@ -109,7 +109,7 @@ static HRESULT WINAPI effect_get_Kind( IConditionForceEffect *iface, ConditionFo
 static HRESULT WINAPI effect_SetParameters( IConditionForceEffect *iface, Vector3 direction, FLOAT positive_coeff, FLOAT negative_coeff,
                                             FLOAT max_positive_magnitude, FLOAT max_negative_magnitude, FLOAT deadzone, FLOAT bias )
 {
-    struct condition_effect *impl = impl_from_IConditionForceEffect( iface );
+    struct condition_effect *impl = condition_effect_from_IConditionForceEffect( iface );
     WineForceFeedbackEffectParameters params =
     {
         .condition =
@@ -153,14 +153,14 @@ struct condition_factory
     LONG ref;
 };
 
-static inline struct condition_factory *impl_from_IActivationFactory( IActivationFactory *iface )
+static inline struct condition_factory *condition_factory_from_IActivationFactory( IActivationFactory *iface )
 {
     return CONTAINING_RECORD( iface, struct condition_factory, IActivationFactory_iface );
 }
 
 static HRESULT WINAPI activation_QueryInterface( IActivationFactory *iface, REFIID iid, void **out )
 {
-    struct condition_factory *impl = impl_from_IActivationFactory( iface );
+    struct condition_factory *impl = condition_factory_from_IActivationFactory( iface );
 
     TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
 
@@ -191,7 +191,7 @@ static HRESULT WINAPI activation_QueryInterface( IActivationFactory *iface, REFI
 
 static ULONG WINAPI activation_AddRef( IActivationFactory *iface )
 {
-    struct condition_factory *impl = impl_from_IActivationFactory( iface );
+    struct condition_factory *impl = condition_factory_from_IActivationFactory( iface );
     ULONG ref = InterlockedIncrement( &impl->ref );
     TRACE( "iface %p increasing refcount to %lu.\n", iface, ref );
     return ref;
@@ -199,7 +199,7 @@ static ULONG WINAPI activation_AddRef( IActivationFactory *iface )
 
 static ULONG WINAPI activation_Release( IActivationFactory *iface )
 {
-    struct condition_factory *impl = impl_from_IActivationFactory( iface );
+    struct condition_factory *impl = condition_factory_from_IActivationFactory( iface );
     ULONG ref = InterlockedDecrement( &impl->ref );
     TRACE( "iface %p decreasing refcount to %lu.\n", iface, ref );
     return ref;

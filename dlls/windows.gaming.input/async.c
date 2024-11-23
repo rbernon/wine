@@ -48,14 +48,14 @@ struct async_info
     HRESULT hr;
 };
 
-static inline struct async_info *impl_from_IWineAsyncInfoImpl( IWineAsyncInfoImpl *iface )
+static inline struct async_info *async_info_from_IWineAsyncInfoImpl( IWineAsyncInfoImpl *iface )
 {
     return CONTAINING_RECORD( iface, struct async_info, IWineAsyncInfoImpl_iface );
 }
 
 static HRESULT WINAPI async_impl_QueryInterface( IWineAsyncInfoImpl *iface, REFIID iid, void **out )
 {
-    struct async_info *impl = impl_from_IWineAsyncInfoImpl( iface );
+    struct async_info *impl = async_info_from_IWineAsyncInfoImpl( iface );
 
     TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
 
@@ -86,7 +86,7 @@ static HRESULT WINAPI async_impl_QueryInterface( IWineAsyncInfoImpl *iface, REFI
 
 static ULONG WINAPI async_impl_AddRef( IWineAsyncInfoImpl *iface )
 {
-    struct async_info *impl = impl_from_IWineAsyncInfoImpl( iface );
+    struct async_info *impl = async_info_from_IWineAsyncInfoImpl( iface );
     ULONG ref = InterlockedIncrement( &impl->ref );
     TRACE( "iface %p, ref %lu.\n", iface, ref );
     return ref;
@@ -94,7 +94,7 @@ static ULONG WINAPI async_impl_AddRef( IWineAsyncInfoImpl *iface )
 
 static ULONG WINAPI async_impl_Release( IWineAsyncInfoImpl *iface )
 {
-    struct async_info *impl = impl_from_IWineAsyncInfoImpl( iface );
+    struct async_info *impl = async_info_from_IWineAsyncInfoImpl( iface );
     ULONG ref = InterlockedDecrement( &impl->ref );
     TRACE( "iface %p, ref %lu.\n", iface, ref );
 
@@ -114,7 +114,7 @@ static ULONG WINAPI async_impl_Release( IWineAsyncInfoImpl *iface )
 
 static HRESULT WINAPI async_impl_put_Completed( IWineAsyncInfoImpl *iface, IWineAsyncOperationCompletedHandler *handler )
 {
-    struct async_info *impl = impl_from_IWineAsyncInfoImpl( iface );
+    struct async_info *impl = async_info_from_IWineAsyncInfoImpl( iface );
     HRESULT hr = S_OK;
 
     TRACE( "iface %p, handler %p.\n", iface, handler );
@@ -146,7 +146,7 @@ static HRESULT WINAPI async_impl_put_Completed( IWineAsyncInfoImpl *iface, IWine
 
 static HRESULT WINAPI async_impl_get_Completed( IWineAsyncInfoImpl *iface, IWineAsyncOperationCompletedHandler **handler )
 {
-    struct async_info *impl = impl_from_IWineAsyncInfoImpl( iface );
+    struct async_info *impl = async_info_from_IWineAsyncInfoImpl( iface );
     HRESULT hr = S_OK;
 
     TRACE( "iface %p, handler %p.\n", iface, handler );
@@ -162,7 +162,7 @@ static HRESULT WINAPI async_impl_get_Completed( IWineAsyncInfoImpl *iface, IWine
 
 static HRESULT WINAPI async_impl_get_Result( IWineAsyncInfoImpl *iface, PROPVARIANT *result )
 {
-    struct async_info *impl = impl_from_IWineAsyncInfoImpl( iface );
+    struct async_info *impl = async_info_from_IWineAsyncInfoImpl( iface );
     HRESULT hr = E_ILLEGAL_METHOD_CALL;
 
     TRACE( "iface %p, result %p.\n", iface, result );
@@ -180,7 +180,7 @@ static HRESULT WINAPI async_impl_get_Result( IWineAsyncInfoImpl *iface, PROPVARI
 
 static HRESULT WINAPI async_impl_Start( IWineAsyncInfoImpl *iface )
 {
-    struct async_info *impl = impl_from_IWineAsyncInfoImpl( iface );
+    struct async_info *impl = async_info_from_IWineAsyncInfoImpl( iface );
 
     TRACE( "iface %p.\n", iface );
 
@@ -208,7 +208,7 @@ DEFINE_IINSPECTABLE_OUTER( async_info, IAsyncInfo, async_info, IInspectable_oute
 
 static HRESULT WINAPI async_info_get_Id( IAsyncInfo *iface, UINT32 *id )
 {
-    struct async_info *impl = impl_from_IAsyncInfo( iface );
+    struct async_info *impl = async_info_from_IAsyncInfo( iface );
     HRESULT hr = S_OK;
 
     TRACE( "iface %p, id %p.\n", iface, id );
@@ -223,7 +223,7 @@ static HRESULT WINAPI async_info_get_Id( IAsyncInfo *iface, UINT32 *id )
 
 static HRESULT WINAPI async_info_get_Status( IAsyncInfo *iface, AsyncStatus *status )
 {
-    struct async_info *impl = impl_from_IAsyncInfo( iface );
+    struct async_info *impl = async_info_from_IAsyncInfo( iface );
     HRESULT hr = S_OK;
 
     TRACE( "iface %p, status %p.\n", iface, status );
@@ -238,7 +238,7 @@ static HRESULT WINAPI async_info_get_Status( IAsyncInfo *iface, AsyncStatus *sta
 
 static HRESULT WINAPI async_info_get_ErrorCode( IAsyncInfo *iface, HRESULT *error_code )
 {
-    struct async_info *impl = impl_from_IAsyncInfo( iface );
+    struct async_info *impl = async_info_from_IAsyncInfo( iface );
     HRESULT hr = S_OK;
 
     TRACE( "iface %p, error_code %p.\n", iface, error_code );
@@ -253,7 +253,7 @@ static HRESULT WINAPI async_info_get_ErrorCode( IAsyncInfo *iface, HRESULT *erro
 
 static HRESULT WINAPI async_info_Cancel( IAsyncInfo *iface )
 {
-    struct async_info *impl = impl_from_IAsyncInfo( iface );
+    struct async_info *impl = async_info_from_IAsyncInfo( iface );
     HRESULT hr = S_OK;
 
     TRACE( "iface %p.\n", iface );
@@ -268,7 +268,7 @@ static HRESULT WINAPI async_info_Cancel( IAsyncInfo *iface )
 
 static HRESULT WINAPI async_info_Close( IAsyncInfo *iface )
 {
-    struct async_info *impl = impl_from_IAsyncInfo( iface );
+    struct async_info *impl = async_info_from_IAsyncInfo( iface );
     HRESULT hr = S_OK;
 
     TRACE( "iface %p.\n", iface );
@@ -309,7 +309,7 @@ DEFINE_IAGILEOBJECT( async_info, IInspectable, object->IInspectable_outer );
 
 static void CALLBACK async_info_callback( TP_CALLBACK_INSTANCE *instance, void *iface, TP_WORK *work )
 {
-    struct async_info *impl = impl_from_IWineAsyncInfoImpl( iface );
+    struct async_info *impl = async_info_from_IWineAsyncInfoImpl( iface );
     IInspectable *operation = impl->IInspectable_outer;
     PROPVARIANT result;
     HRESULT hr;
@@ -379,14 +379,14 @@ struct async_bool
     LONG ref;
 };
 
-static inline struct async_bool *impl_from_IAsyncOperation_boolean( IAsyncOperation_boolean *iface )
+static inline struct async_bool *async_bool_from_IAsyncOperation_boolean( IAsyncOperation_boolean *iface )
 {
     return CONTAINING_RECORD( iface, struct async_bool, IAsyncOperation_boolean_iface );
 }
 
 static HRESULT WINAPI async_bool_QueryInterface( IAsyncOperation_boolean *iface, REFIID iid, void **out )
 {
-    struct async_bool *impl = impl_from_IAsyncOperation_boolean( iface );
+    struct async_bool *impl = async_bool_from_IAsyncOperation_boolean( iface );
 
     TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
 
@@ -403,7 +403,7 @@ static HRESULT WINAPI async_bool_QueryInterface( IAsyncOperation_boolean *iface,
 
 static ULONG WINAPI async_bool_AddRef( IAsyncOperation_boolean *iface )
 {
-    struct async_bool *impl = impl_from_IAsyncOperation_boolean( iface );
+    struct async_bool *impl = async_bool_from_IAsyncOperation_boolean( iface );
     ULONG ref = InterlockedIncrement( &impl->ref );
     TRACE( "iface %p, ref %lu.\n", iface, ref );
     return ref;
@@ -411,7 +411,7 @@ static ULONG WINAPI async_bool_AddRef( IAsyncOperation_boolean *iface )
 
 static ULONG WINAPI async_bool_Release( IAsyncOperation_boolean *iface )
 {
-    struct async_bool *impl = impl_from_IAsyncOperation_boolean( iface );
+    struct async_bool *impl = async_bool_from_IAsyncOperation_boolean( iface );
     ULONG ref = InterlockedDecrement( &impl->ref );
     TRACE( "iface %p, ref %lu.\n", iface, ref );
 
@@ -448,7 +448,7 @@ static HRESULT WINAPI async_bool_GetTrustLevel( IAsyncOperation_boolean *iface, 
 static HRESULT WINAPI async_bool_put_Completed( IAsyncOperation_boolean *iface, IAsyncOperationCompletedHandler_boolean *bool_handler )
 {
     IWineAsyncOperationCompletedHandler *handler = (IWineAsyncOperationCompletedHandler *)bool_handler;
-    struct async_bool *impl = impl_from_IAsyncOperation_boolean( iface );
+    struct async_bool *impl = async_bool_from_IAsyncOperation_boolean( iface );
     TRACE( "iface %p, handler %p.\n", iface, handler );
     return IWineAsyncInfoImpl_put_Completed( impl->IWineAsyncInfoImpl_inner, handler );
 }
@@ -456,14 +456,14 @@ static HRESULT WINAPI async_bool_put_Completed( IAsyncOperation_boolean *iface, 
 static HRESULT WINAPI async_bool_get_Completed( IAsyncOperation_boolean *iface, IAsyncOperationCompletedHandler_boolean **bool_handler )
 {
     IWineAsyncOperationCompletedHandler **handler = (IWineAsyncOperationCompletedHandler **)bool_handler;
-    struct async_bool *impl = impl_from_IAsyncOperation_boolean( iface );
+    struct async_bool *impl = async_bool_from_IAsyncOperation_boolean( iface );
     TRACE( "iface %p, handler %p.\n", iface, handler );
     return IWineAsyncInfoImpl_get_Completed( impl->IWineAsyncInfoImpl_inner, handler );
 }
 
 static HRESULT WINAPI async_bool_GetResults( IAsyncOperation_boolean *iface, BOOLEAN *results )
 {
-    struct async_bool *impl = impl_from_IAsyncOperation_boolean( iface );
+    struct async_bool *impl = async_bool_from_IAsyncOperation_boolean( iface );
     PROPVARIANT result = {.vt = VT_BOOL};
     HRESULT hr;
 
@@ -523,14 +523,14 @@ struct async_result
     LONG ref;
 };
 
-static inline struct async_result *impl_from_IAsyncOperation_ForceFeedbackLoadEffectResult( IAsyncOperation_ForceFeedbackLoadEffectResult *iface )
+static inline struct async_result *async_result_from_IAsyncOperation_ForceFeedbackLoadEffectResult( IAsyncOperation_ForceFeedbackLoadEffectResult *iface )
 {
     return CONTAINING_RECORD( iface, struct async_result, IAsyncOperation_ForceFeedbackLoadEffectResult_iface );
 }
 
 static HRESULT WINAPI async_result_QueryInterface( IAsyncOperation_ForceFeedbackLoadEffectResult *iface, REFIID iid, void **out )
 {
-    struct async_result *impl = impl_from_IAsyncOperation_ForceFeedbackLoadEffectResult( iface );
+    struct async_result *impl = async_result_from_IAsyncOperation_ForceFeedbackLoadEffectResult( iface );
 
     TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
 
@@ -547,7 +547,7 @@ static HRESULT WINAPI async_result_QueryInterface( IAsyncOperation_ForceFeedback
 
 static ULONG WINAPI async_result_AddRef( IAsyncOperation_ForceFeedbackLoadEffectResult *iface )
 {
-    struct async_result *impl = impl_from_IAsyncOperation_ForceFeedbackLoadEffectResult( iface );
+    struct async_result *impl = async_result_from_IAsyncOperation_ForceFeedbackLoadEffectResult( iface );
     ULONG ref = InterlockedIncrement( &impl->ref );
     TRACE( "iface %p, ref %lu.\n", iface, ref );
     return ref;
@@ -555,7 +555,7 @@ static ULONG WINAPI async_result_AddRef( IAsyncOperation_ForceFeedbackLoadEffect
 
 static ULONG WINAPI async_result_Release( IAsyncOperation_ForceFeedbackLoadEffectResult *iface )
 {
-    struct async_result *impl = impl_from_IAsyncOperation_ForceFeedbackLoadEffectResult( iface );
+    struct async_result *impl = async_result_from_IAsyncOperation_ForceFeedbackLoadEffectResult( iface );
     ULONG ref = InterlockedDecrement( &impl->ref );
     TRACE( "iface %p, ref %lu.\n", iface, ref );
 
@@ -591,21 +591,21 @@ static HRESULT WINAPI async_result_GetTrustLevel( IAsyncOperation_ForceFeedbackL
 
 static HRESULT WINAPI async_result_put_Completed( IAsyncOperation_ForceFeedbackLoadEffectResult *iface, IAsyncOperationCompletedHandler_ForceFeedbackLoadEffectResult *handler )
 {
-    struct async_result *impl = impl_from_IAsyncOperation_ForceFeedbackLoadEffectResult( iface );
+    struct async_result *impl = async_result_from_IAsyncOperation_ForceFeedbackLoadEffectResult( iface );
     TRACE( "iface %p, handler %p.\n", iface, handler );
     return IWineAsyncInfoImpl_put_Completed( impl->IWineAsyncInfoImpl_inner, (IWineAsyncOperationCompletedHandler *)handler );
 }
 
 static HRESULT WINAPI async_result_get_Completed( IAsyncOperation_ForceFeedbackLoadEffectResult *iface, IAsyncOperationCompletedHandler_ForceFeedbackLoadEffectResult **handler )
 {
-    struct async_result *impl = impl_from_IAsyncOperation_ForceFeedbackLoadEffectResult( iface );
+    struct async_result *impl = async_result_from_IAsyncOperation_ForceFeedbackLoadEffectResult( iface );
     TRACE( "iface %p, handler %p.\n", iface, handler );
     return IWineAsyncInfoImpl_get_Completed( impl->IWineAsyncInfoImpl_inner, (IWineAsyncOperationCompletedHandler **)handler );
 }
 
 static HRESULT WINAPI async_result_GetResults( IAsyncOperation_ForceFeedbackLoadEffectResult *iface, ForceFeedbackLoadEffectResult *results )
 {
-    struct async_result *impl = impl_from_IAsyncOperation_ForceFeedbackLoadEffectResult( iface );
+    struct async_result *impl = async_result_from_IAsyncOperation_ForceFeedbackLoadEffectResult( iface );
     PROPVARIANT result = {.vt = VT_UI4};
     HRESULT hr;
 
