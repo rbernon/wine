@@ -142,6 +142,27 @@ static void write_interface( const type_t *iface )
         put_str( indent, "    }\n" );
         put_str( indent, "\n" );
 
+        put_str( indent, "#define WIDL_impl_IUnknown_Release( type, name ) WIDL_impl_IUnknown_Release_( type, name, type ## _from_ ## name )\n" );
+        put_str( indent, "#define WIDL_impl_IUnknown_Release_( type, name, impl_from ) \\\n" );
+        put_str( indent, "    static ULONG WINAPI type ## _Release( name *iface ) \\\n" );
+        put_str( indent, "    { \\\n" );
+        put_str( indent, "        struct type *object = impl_from( iface ); \\\n" );
+        put_str( indent, "        ULONG ref = InterlockedDecrement( &object->refcount ); \\\n" );
+        put_str( indent, "        TRACE( \"object %%p decreasing refcount to %%lu.\\n\", object, ref); \\\n" );
+        put_str( indent, "        if (!ref) \\\n" );
+        put_str( indent, "        { \\\n" );
+        put_str( indent, "            InterlockedIncrement( &object->refcount ); /* guard against re-entry when aggregated */ \\\n" );
+        put_str( indent, "            type ## _destroy( object ); \\\n" );
+        put_str( indent, "        } \\\n" );
+        put_str( indent, "        return ref; \\\n" );
+        put_str( indent, "    }\n" );
+        put_str( indent, "#define WIDL_impl_static_IUnknown_Release( type, name ) \\\n" );
+        put_str( indent, "    static ULONG WINAPI type ## _Release( name *iface ) \\\n" );
+        put_str( indent, "    { \\\n" );
+        put_str( indent, "        return 1; \\\n" );
+        put_str( indent, "    }\n" );
+        put_str( indent, "\n" );
+
         put_str( indent, "#define WIDL_impl_IUnknown_forwards( type, name, base, expr ) WIDL_impl_IUnknown_forwards_( type, name, base, expr, type ## _from_ ## name, type ## _ ## name )\n" );
         put_str( indent, "#define WIDL_impl_IUnknown_forwards_( type, name, base, expr, impl_from, prefix ) \\\n" );
         put_str( indent, "    static HRESULT WINAPI prefix ## _QueryInterface( name *iface, REFIID iid, void **out ) \\\n" );
