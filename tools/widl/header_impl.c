@@ -123,6 +123,28 @@ static void write_interface( const type_t *iface )
     put_str( indent, "/* %s */\n", iface->name );
     if (winrt_mode) write_widl_using_macros( iface );
     write_widl_impl_macros( iface );
+
+    if (!strcmp( iface->name, "IUnknown" ))
+    {
+        put_str( indent, "#define WIDL_impl_IUnknown_forwards( type, name, base, expr ) WIDL_impl_IUnknown_forwards_( type, name, base, expr, type ## _from_ ## name, type ## _ ## name )\n" );
+        put_str( indent, "#define WIDL_impl_IUnknown_forwards_( type, name, base, expr, impl_from, prefix ) \\\n" );
+        put_str( indent, "    static HRESULT WINAPI prefix ## _QueryInterface( name *iface, REFIID iid, void **out ) \\\n" );
+        put_str( indent, "    { \\\n" );
+        put_str( indent, "        struct type *object = impl_from( iface ); \\\n" );
+        put_str( indent, "        return base ## _QueryInterface( (expr), iid, out ); \\\n" );
+        put_str( indent, "    } \\\n" );
+        put_str( indent, "    static ULONG WINAPI prefix ## _AddRef( name *iface ) \\\n" );
+        put_str( indent, "    { \\\n" );
+        put_str( indent, "        struct type *object = impl_from( iface ); \\\n" );
+        put_str( indent, "        return base ## _AddRef( (expr) ); \\\n" );
+        put_str( indent, "    } \\\n" );
+        put_str( indent, "    static ULONG WINAPI prefix ## _Release( name *iface ) \\\n" );
+        put_str( indent, "    { \\\n" );
+        put_str( indent, "        struct type *object = impl_from( iface ); \\\n" );
+        put_str( indent, "        return base ## _Release( (expr) ); \\\n" );
+        put_str( indent, "    }\n" );
+        put_str( indent, "\n" );
+    }
 }
 
 static void write_interfaces( const statement_list_t *stmts )
