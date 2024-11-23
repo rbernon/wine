@@ -76,6 +76,13 @@ static void write_widl_using_macros( const type_t *iface )
     put_str( indent, "#define WIDL_impl_each_QueryInterface_%s WIDL_impl_each_QueryInterface_%s\n", name, iface->c_name );
     put_str( indent, "#define WIDL_impl_%sVtbl    WIDL_impl_%sVtbl\n", name, iface->c_name );
 
+    put_str( indent, "#define WIDL_impl_%s        WIDL_impl_%s\n", name, iface->c_name );
+    put_str( indent, "#define WIDL_impl_outer_%s  WIDL_impl_outer_%s\n", name, iface->c_name );
+    put_str( indent, "#define WIDL_impl_static_%s WIDL_impl_static_%s\n", name, iface->c_name );
+
+    put_str( indent, "#define WIDL_impl_base_%s      WIDL_impl_base_%s\n", name, iface->c_name );
+    put_str( indent, "#define WIDL_impl_each_base_%s WIDL_impl_each_base_%s\n", name, iface->c_name );
+
     put_str( indent, "#endif /* %s */\n\n", macro );
     free( macro );
 }
@@ -105,6 +112,10 @@ static void write_widl_impl_macros( const type_t *iface )
 
     if (uuid)
     {
+        int inspectable = base && !strcmp( base->c_name, "IInspectable" ), object = 0;
+        for (base = iface; base; (base = type_iface_get_inherit( base )))
+            if (!strcmp( base->c_name, "IUnknown" )) object = 1;
+
         put_str( indent, "#define WIDL_impl_from_%s( type ) \\\n", iface->c_name );
         put_str( indent, "    static struct type *type ## _from_%s( %s *iface ) \\\n", name, iface->c_name );
         put_str( indent, "    { \\\n" );
@@ -137,6 +148,36 @@ static void write_widl_impl_macros( const type_t *iface )
         write_widl_impl_macros_methods( iface, iface, "pfx ## " );
         put_str( indent, "    };\n" );
         put_str( indent, "\n" );
+
+        put_str( indent, "#define WIDL_impl_%s( type, ... ) \\\n", iface->c_name );
+        put_str( indent, "    WIDL_impl_from_%s( type ) \\\n", iface->c_name );
+        if (object) put_str( indent, "    WIDL_impl_IUnknown_methods( type, %s, __VA_ARGS__ ) \\\n", name );
+        if (inspectable) put_str( indent, "    WIDL_impl_IInspectable_methods( type, %s ) \\\n", name );
+        put_str( indent, "    WIDL_impl_each_base( type, %s, &object->%s_iface, __VA_ARGS__ )\n", name, name );
+
+        put_str( indent, "#define WIDL_impl_outer_%s( type, ... ) \\\n", iface->c_name );
+        put_str( indent, "    WIDL_impl_from_%s( type ) \\\n", iface->c_name );
+        if (object) put_str( indent, "    WIDL_impl_IUnknown_methods( type, %s, __VA_ARGS__ ) \\\n", name );
+        if (inspectable) put_str( indent, "    WIDL_impl_IInspectable_methods( type, %s ) \\\n", name );
+        put_str( indent, "    WIDL_impl_each_base( type, %s, object->outer, __VA_ARGS__ )\n", inspectable ? "IInspectable" : "IUnknown" );
+
+        put_str( indent, "#define WIDL_impl_static_%s( type, ... ) \\\n", iface->c_name );
+        put_str( indent, "    WIDL_impl_from_%s( type ) \\\n", iface->c_name );
+        if (object) put_str( indent, "    WIDL_impl_static_IUnknown_methods( type, %s, __VA_ARGS__ ) \\\n", name );
+        if (inspectable) put_str( indent, "    WIDL_impl_IInspectable_methods( type, %s ) \\\n", name );
+        put_str( indent, "    WIDL_impl_each_base( type, %s, &object->%s_iface, __VA_ARGS__ )\n", name, name );
+        put_str( indent, "\n" );
+
+        put_str( indent, "#define WIDL_impl_base_%s( type, base, expr ) \\\n", iface->c_name );
+        put_str( indent, "    WIDL_impl_from_%s( type ) \\\n", iface->c_name );
+        if (object) put_str( indent, "    WIDL_impl_IUnknown_forwards( type, %s, base, expr ) \\\n", name );
+        if (inspectable) put_str( indent, "    WIDL_impl_IInspectable_forwards( type, %s, base, expr ) \\\n", name );
+        put_str( indent, "\n" );
+
+        put_str( indent, "#define WIDL_impl_each_base_%s( type, base, expr, X, ... ) \\\n", iface->c_name );
+        put_str( indent, "    WIDL_impl_base_%s( type, base, expr ) \\\n", name );
+        put_str( indent, "    WIDL_impl_each_base_ ## X( type, base, expr, __VA_ARGS__ )\n" );
+        put_str( indent, "\n" );
     }
 }
 
@@ -148,6 +189,10 @@ static void write_interface( const type_t *iface )
 
     if (!strcmp( iface->name, "IUnknown" ))
     {
+        put_str( indent, "#define WIDL_impl_each_base( type, base, expr, X, ... ) WIDL_impl_each_base_ ## X( type, base, expr, __VA_ARGS__ )\n" );
+        put_str( indent, "#define WIDL_impl_each_base_END( type, base, expr, ... )\n" );
+        put_str( indent, "\n" );
+
         put_str( indent, "#define WIDL_impl_each_QueryInterface( object, iid, out, X, ... ) WIDL_impl_each_QueryInterface_ ## X( object, iid, out, __VA_ARGS__ )\n" );
         put_str( indent, "#define WIDL_impl_each_QueryInterface_END( object, iid, out, X, ... ) \\\n" );
         put_str( indent, "        *out = NULL; \\\n" );
