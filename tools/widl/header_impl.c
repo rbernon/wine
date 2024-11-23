@@ -234,6 +234,33 @@ static void write_interface( const type_t *iface )
 
     if (!strcmp( iface->name, "IInspectable" ))
     {
+        put_str( indent, "#define WIDL_impl_IInspectable_methods( type, name ) WIDL_impl_IInspectable_methods_( type, name, type ## _from_ ## name )\n" );
+        put_str( indent, "#define WIDL_impl_IInspectable_methods_( type, name, impl_from ) \\\n" );
+        put_str( indent, "    static HRESULT WINAPI type ## _GetIids( name *iface, ULONG *count, IID **iids ) \\\n" );
+        put_str( indent, "    { \\\n" );
+        put_str( indent, "        struct type *object = impl_from( iface ); \\\n" );
+        put_str( indent, "        FIXME( \"object %%p, count %%p, iids %%p, stub!\\n\", object, count, iids ); \\\n" );
+        put_str( indent, "        return E_NOTIMPL; \\\n" );
+        put_str( indent, "    } \\\n" );
+        put_str( indent, "    static HRESULT WINAPI type ## _GetRuntimeClassName( name *iface, HSTRING *class_name ) \\\n" );
+        put_str( indent, "    { \\\n" );
+        put_str( indent, "        struct type *object = impl_from( iface ); \\\n" );
+        put_str( indent, "        if (!object->class_name) \\\n" );
+        put_str( indent, "        { \\\n" );
+        put_str( indent, "            FIXME( \"object %%p, class_name %%p, stub!\\n\", object, class_name ); \\\n" );
+        put_str( indent, "            return E_NOTIMPL; \\\n" );
+        put_str( indent, "        } \\\n" );
+        put_str( indent, "        TRACE( \"object %%p, class_name %%p.\\n\", object, class_name ); \\\n" );
+        put_str( indent, "        return WindowsCreateString( object->class_name, wcslen( object->class_name ), class_name ); \\\n" );
+        put_str( indent, "    } \\\n" );
+        put_str( indent, "    static HRESULT WINAPI type ## _GetTrustLevel( name *iface, TrustLevel *trust_level ) \\\n" );
+        put_str( indent, "    { \\\n" );
+        put_str( indent, "        struct type *object = impl_from( iface ); \\\n" );
+        put_str( indent, "        FIXME( \"object %%p, trust_level %%p, stub!\\n\", object, trust_level ); \\\n" );
+        put_str( indent, "        return E_NOTIMPL; \\\n" );
+        put_str( indent, "    }\n" );
+        put_str( indent, "\n" );
+
         put_str( indent, "#define WIDL_impl_IInspectable_forwards( type, name, base, expr ) WIDL_impl_IInspectable_forwards_( type, name, base, expr, type ## _from_ ## name, type ## _ ## name )\n" );
         put_str( indent, "#define WIDL_impl_IInspectable_forwards_( type, name, base, expr, impl_from, prefix ) \\\n" );
         put_str( indent, "    static HRESULT WINAPI prefix ## _GetIids( name *iface, ULONG *count, IID **iids ) \\\n" );
