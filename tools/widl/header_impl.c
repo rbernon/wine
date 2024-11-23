@@ -145,6 +145,28 @@ static void write_interface( const type_t *iface )
         put_str( indent, "    }\n" );
         put_str( indent, "\n" );
     }
+
+    if (!strcmp( iface->name, "IInspectable" ))
+    {
+        put_str( indent, "#define WIDL_impl_IInspectable_forwards( type, name, base, expr ) WIDL_impl_IInspectable_forwards_( type, name, base, expr, type ## _from_ ## name, type ## _ ## name )\n" );
+        put_str( indent, "#define WIDL_impl_IInspectable_forwards_( type, name, base, expr, impl_from, prefix ) \\\n" );
+        put_str( indent, "    static HRESULT WINAPI prefix ## _GetIids( name *iface, ULONG *count, IID **iids ) \\\n" );
+        put_str( indent, "    { \\\n" );
+        put_str( indent, "        struct type *object = impl_from( iface ); \\\n" );
+        put_str( indent, "        return base ## _GetIids( (expr), count, iids ); \\\n" );
+        put_str( indent, "    } \\\n" );
+        put_str( indent, "    static HRESULT WINAPI prefix ## _GetRuntimeClassName( name *iface, HSTRING *class_name ) \\\n" );
+        put_str( indent, "    { \\\n" );
+        put_str( indent, "        struct type *object = impl_from( iface ); \\\n" );
+        put_str( indent, "        return base ## _GetRuntimeClassName( (expr), class_name ); \\\n" );
+        put_str( indent, "    } \\\n" );
+        put_str( indent, "    static HRESULT WINAPI prefix ## _GetTrustLevel( name *iface, TrustLevel *trust_level ) \\\n" );
+        put_str( indent, "    { \\\n" );
+        put_str( indent, "        struct type *object = impl_from( iface ); \\\n" );
+        put_str( indent, "        return base ## _GetTrustLevel( (expr), trust_level ); \\\n" );
+        put_str( indent, "    }\n" );
+        put_str( indent, "\n" );
+    }
 }
 
 static void write_interfaces( const statement_list_t *stmts )
