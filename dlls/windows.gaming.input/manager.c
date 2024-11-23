@@ -48,14 +48,14 @@ struct controller
     ICustomGameControllerFactory *factory;
 };
 
-static inline struct controller *impl_from_IGameController( IGameController *iface )
+static inline struct controller *controller_from_IGameController( IGameController *iface )
 {
     return CONTAINING_RECORD( iface, struct controller, IGameController_iface );
 }
 
 static HRESULT WINAPI controller_QueryInterface( IGameController *iface, REFIID iid, void **out )
 {
-    struct controller *impl = impl_from_IGameController( iface );
+    struct controller *impl = controller_from_IGameController( iface );
 
     TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
 
@@ -84,7 +84,7 @@ static HRESULT WINAPI controller_QueryInterface( IGameController *iface, REFIID 
 
 static ULONG WINAPI controller_AddRef( IGameController *iface )
 {
-    struct controller *impl = impl_from_IGameController( iface );
+    struct controller *impl = controller_from_IGameController( iface );
     ULONG ref = InterlockedIncrement( &impl->ref );
     TRACE( "iface %p increasing refcount to %lu.\n", iface, ref );
     return ref;
@@ -92,7 +92,7 @@ static ULONG WINAPI controller_AddRef( IGameController *iface )
 
 static ULONG WINAPI controller_Release( IGameController *iface )
 {
-    struct controller *impl = impl_from_IGameController( iface );
+    struct controller *impl = controller_from_IGameController( iface );
     ULONG ref = InterlockedDecrement( &impl->ref );
 
     TRACE( "iface %p decreasing refcount to %lu.\n", iface, ref );
@@ -118,13 +118,13 @@ static HRESULT WINAPI controller_GetIids( IGameController *iface, ULONG *iid_cou
 
 static HRESULT WINAPI controller_GetRuntimeClassName( IGameController *iface, HSTRING *class_name )
 {
-    struct controller *impl = impl_from_IGameController( iface );
+    struct controller *impl = controller_from_IGameController( iface );
     return IInspectable_GetRuntimeClassName( impl->IInspectable_inner, class_name );
 }
 
 static HRESULT WINAPI controller_GetTrustLevel( IGameController *iface, TrustLevel *trust_level )
 {
-    struct controller *impl = impl_from_IGameController( iface );
+    struct controller *impl = controller_from_IGameController( iface );
     return IInspectable_GetTrustLevel( impl->IInspectable_inner, trust_level );
 }
 
@@ -239,14 +239,14 @@ struct manager_statics
     LONG ref;
 };
 
-static inline struct manager_statics *impl_from_IActivationFactory( IActivationFactory *iface )
+static inline struct manager_statics *manager_statics_from_IActivationFactory( IActivationFactory *iface )
 {
     return CONTAINING_RECORD( iface, struct manager_statics, IActivationFactory_iface );
 }
 
 static HRESULT WINAPI factory_QueryInterface( IActivationFactory *iface, REFIID iid, void **out )
 {
-    struct manager_statics *impl = impl_from_IActivationFactory( iface );
+    struct manager_statics *impl = manager_statics_from_IActivationFactory( iface );
 
     TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
 
@@ -283,7 +283,7 @@ static HRESULT WINAPI factory_QueryInterface( IActivationFactory *iface, REFIID 
 
 static ULONG WINAPI factory_AddRef( IActivationFactory *iface )
 {
-    struct manager_statics *impl = impl_from_IActivationFactory( iface );
+    struct manager_statics *impl = manager_statics_from_IActivationFactory( iface );
     ULONG ref = InterlockedIncrement( &impl->ref );
     TRACE( "iface %p increasing refcount to %lu.\n", iface, ref );
     return ref;
@@ -291,7 +291,7 @@ static ULONG WINAPI factory_AddRef( IActivationFactory *iface )
 
 static ULONG WINAPI factory_Release( IActivationFactory *iface )
 {
-    struct manager_statics *impl = impl_from_IActivationFactory( iface );
+    struct manager_statics *impl = manager_statics_from_IActivationFactory( iface );
     ULONG ref = InterlockedDecrement( &impl->ref );
     TRACE( "iface %p decreasing refcount to %lu.\n", iface, ref );
     return ref;
