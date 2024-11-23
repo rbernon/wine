@@ -326,7 +326,7 @@ static const struct IVectorView_IInspectableVtbl vector_view_vtbl =
 };
 
 DEFINE_IINSPECTABLE_( iterable_view, IIterable_IInspectable, vector_view, vector_view_from_IIterable_IInspectable,
-                      &impl->IVectorView_IInspectable_iface )
+                      (IInspectable *)&object->IVectorView_IInspectable_iface )
 
 static HRESULT WINAPI iterable_view_First( IIterable_IInspectable *iface, IIterator_IInspectable **value )
 {
