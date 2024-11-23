@@ -71,22 +71,6 @@ struct controller
 
 WIDL_impl_from_IGameControllerImpl( controller );
 
-static HRESULT WINAPI controller_QueryInterface( IGameControllerImpl *iface, REFIID iid, void **out )
-{
-    struct controller *impl = controller_from_IGameControllerImpl( iface );
-
-    TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
-
-    WIDL_impl_QueryInterface_IGameControllerImpl( impl, iid, out, IGameControllerImpl_iface );
-    WIDL_impl_QueryInterface_IGameControllerInputSink( impl, iid, out, IGameControllerInputSink_iface );
-    WIDL_impl_QueryInterface_IRawGameController( impl, iid, out, IRawGameController_iface );
-    WIDL_impl_QueryInterface_IRawGameController2( impl, iid, out, IRawGameController2_iface );
-
-    FIXME( "%s not implemented, returning E_NOINTERFACE.\n", debugstr_guid( iid ) );
-    *out = NULL;
-    return E_NOINTERFACE;
-}
-
 static void controller_destroy( struct controller *impl )
 {
     if (impl->wine_provider) IWineGameControllerProvider_Release( impl->wine_provider );
@@ -94,6 +78,13 @@ static void controller_destroy( struct controller *impl )
     free( impl );
 }
 
+WIDL_impl_IUnknown_QueryInterface( controller,
+    IGameControllerImpl,
+    IGameControllerInputSink,
+    IRawGameController,
+    IRawGameController2,
+    END, FIXME
+);
 WIDL_impl_IUnknown_AddRef( controller, IGameControllerImpl );
 WIDL_impl_IUnknown_Release( controller, IGameControllerImpl );
 
@@ -309,23 +300,13 @@ struct controller_statics
 };
 
 WIDL_impl_from_IActivationFactory( controller_statics );
-
-static HRESULT WINAPI controller_statics_QueryInterface( IActivationFactory *iface, REFIID iid, void **out )
-{
-    struct controller_statics *impl = controller_statics_from_IActivationFactory( iface );
-
-    TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
-
-    WIDL_impl_QueryInterface_IActivationFactory( impl, iid, out, IActivationFactory_iface );
-    WIDL_impl_QueryInterface_IRawGameControllerStatics( impl, iid, out, IRawGameControllerStatics_iface );
-    WIDL_impl_QueryInterface_ICustomGameControllerFactory( impl, iid, out, ICustomGameControllerFactory_iface );
-    WIDL_impl_QueryInterface_IAgileObject( impl, iid, out, IAgileObject_iface );
-
-    FIXME( "%s not implemented, returning E_NOINTERFACE.\n", debugstr_guid( iid ) );
-    *out = NULL;
-    return E_NOINTERFACE;
-}
-
+WIDL_impl_IUnknown_QueryInterface( controller_statics,
+    IActivationFactory,
+    IRawGameControllerStatics,
+    ICustomGameControllerFactory,
+    IAgileObject,
+    END, FIXME
+);
 WIDL_impl_static_IUnknown_AddRef( controller_statics, IActivationFactory );
 WIDL_impl_static_IUnknown_Release( controller_statics, IActivationFactory );
 
