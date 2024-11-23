@@ -118,9 +118,11 @@ extern HRESULT async_operation_effect_result_create( IUnknown *invoker, IUnknown
         return IInspectable_GetTrustLevel( (IInspectable *)(expr), trust_level );                  \
     }
 #define DEFINE_IINSPECTABLE( pfx, iface_type, impl_type, base_iface )                              \
-    DEFINE_IINSPECTABLE_( pfx, iface_type, impl_type, impl_from_##iface_type, iface_type##_iface, &impl->base_iface )
+    DEFINE_IINSPECTABLE_( pfx, iface_type, impl_type, impl_type##_from_##iface_type,               \
+                          iface_type##_iface, &impl->base_iface )
 #define DEFINE_IINSPECTABLE_OUTER( pfx, iface_type, impl_type, outer_iface )                       \
-    DEFINE_IINSPECTABLE_( pfx, iface_type, impl_type, impl_from_##iface_type, iface_type##_iface, impl->outer_iface )
+    DEFINE_IINSPECTABLE_( pfx, iface_type, impl_type, impl_type##_from_##iface_type,               \
+                          iface_type##_iface, impl->outer_iface )
 
 #define DEFINE_IAGILEOBJECT( type, base, expr )             \
     static HRESULT WINAPI type##_IAgileObject_QueryInterface( IAgileObject *iface, REFIID iid, void **out ) \

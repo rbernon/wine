@@ -66,14 +66,14 @@ struct provider
     HANDLE device;
 };
 
-static inline struct provider *impl_from_IWineGameControllerProvider( IWineGameControllerProvider *iface )
+static inline struct provider *provider_from_IWineGameControllerProvider( IWineGameControllerProvider *iface )
 {
     return CONTAINING_RECORD( iface, struct provider, IWineGameControllerProvider_iface );
 }
 
 static HRESULT WINAPI wine_provider_QueryInterface( IWineGameControllerProvider *iface, REFIID iid, void **out )
 {
-    struct provider *impl = impl_from_IWineGameControllerProvider( iface );
+    struct provider *impl = provider_from_IWineGameControllerProvider( iface );
 
     TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
 
@@ -104,7 +104,7 @@ static HRESULT WINAPI wine_provider_QueryInterface( IWineGameControllerProvider 
 
 static ULONG WINAPI wine_provider_AddRef( IWineGameControllerProvider *iface )
 {
-    struct provider *impl = impl_from_IWineGameControllerProvider( iface );
+    struct provider *impl = provider_from_IWineGameControllerProvider( iface );
     ULONG ref = InterlockedIncrement( &impl->ref );
     TRACE( "iface %p increasing refcount to %lu.\n", iface, ref );
     return ref;
@@ -112,7 +112,7 @@ static ULONG WINAPI wine_provider_AddRef( IWineGameControllerProvider *iface )
 
 static ULONG WINAPI wine_provider_Release( IWineGameControllerProvider *iface )
 {
-    struct provider *impl = impl_from_IWineGameControllerProvider( iface );
+    struct provider *impl = provider_from_IWineGameControllerProvider( iface );
     ULONG ref = InterlockedDecrement( &impl->ref );
 
     TRACE( "iface %p decreasing refcount to %lu.\n", iface, ref );
@@ -156,7 +156,7 @@ static BOOL CALLBACK count_ffb_axes( const DIDEVICEOBJECTINSTANCEW *obj, void *a
 
 static HRESULT WINAPI wine_provider_get_Type( IWineGameControllerProvider *iface, WineGameControllerType *value )
 {
-    struct provider *impl = impl_from_IWineGameControllerProvider( iface );
+    struct provider *impl = provider_from_IWineGameControllerProvider( iface );
     DIDEVICEINSTANCEW instance = {.dwSize = sizeof(DIDEVICEINSTANCEW)};
     HRESULT hr;
 
@@ -183,7 +183,7 @@ static HRESULT WINAPI wine_provider_get_Type( IWineGameControllerProvider *iface
 
 static HRESULT WINAPI wine_provider_get_AxisCount( IWineGameControllerProvider *iface, INT32 *value )
 {
-    struct provider *impl = impl_from_IWineGameControllerProvider( iface );
+    struct provider *impl = provider_from_IWineGameControllerProvider( iface );
     DIDEVCAPS caps = {.dwSize = sizeof(DIDEVCAPS)};
     HRESULT hr;
 
@@ -196,7 +196,7 @@ static HRESULT WINAPI wine_provider_get_AxisCount( IWineGameControllerProvider *
 
 static HRESULT WINAPI wine_provider_get_ButtonCount( IWineGameControllerProvider *iface, INT32 *value )
 {
-    struct provider *impl = impl_from_IWineGameControllerProvider( iface );
+    struct provider *impl = provider_from_IWineGameControllerProvider( iface );
     DIDEVCAPS caps = {.dwSize = sizeof(DIDEVCAPS)};
     HRESULT hr;
 
@@ -209,7 +209,7 @@ static HRESULT WINAPI wine_provider_get_ButtonCount( IWineGameControllerProvider
 
 static HRESULT WINAPI wine_provider_get_SwitchCount( IWineGameControllerProvider *iface, INT32 *value )
 {
-    struct provider *impl = impl_from_IWineGameControllerProvider( iface );
+    struct provider *impl = provider_from_IWineGameControllerProvider( iface );
     DIDEVCAPS caps = {.dwSize = sizeof(DIDEVCAPS)};
     HRESULT hr;
 
@@ -222,7 +222,7 @@ static HRESULT WINAPI wine_provider_get_SwitchCount( IWineGameControllerProvider
 
 static HRESULT WINAPI wine_provider_get_State( IWineGameControllerProvider *iface, struct WineGameControllerState *out )
 {
-    struct provider *impl = impl_from_IWineGameControllerProvider( iface );
+    struct provider *impl = provider_from_IWineGameControllerProvider( iface );
     DIJOYSTATE2 state = {0};
     UINT32 i = 0;
     HRESULT hr;
@@ -285,7 +285,7 @@ static HRESULT WINAPI wine_provider_get_State( IWineGameControllerProvider *ifac
 
 static HRESULT WINAPI wine_provider_get_Vibration( IWineGameControllerProvider *iface, struct WineGameControllerVibration *out )
 {
-    struct provider *impl = impl_from_IWineGameControllerProvider( iface );
+    struct provider *impl = provider_from_IWineGameControllerProvider( iface );
     TRACE( "iface %p, out %p.\n", iface, out );
     *out = impl->vibration;
     return S_OK;
@@ -293,7 +293,7 @@ static HRESULT WINAPI wine_provider_get_Vibration( IWineGameControllerProvider *
 
 static HRESULT WINAPI wine_provider_put_Vibration( IWineGameControllerProvider *iface, struct WineGameControllerVibration value )
 {
-    struct provider *impl = impl_from_IWineGameControllerProvider( iface );
+    struct provider *impl = provider_from_IWineGameControllerProvider( iface );
     ULONG report_len = impl->caps.OutputReportByteLength;
     PHIDP_PREPARSED_DATA preparsed = impl->preparsed;
     char *report_buf = impl->report_buf;
@@ -337,7 +337,7 @@ static HRESULT WINAPI wine_provider_put_Vibration( IWineGameControllerProvider *
 
 static HRESULT WINAPI wine_provider_get_ForceFeedbackMotor( IWineGameControllerProvider *iface, IForceFeedbackMotor **value )
 {
-    struct provider *impl = impl_from_IWineGameControllerProvider( iface );
+    struct provider *impl = provider_from_IWineGameControllerProvider( iface );
     DIDEVCAPS caps = {.dwSize = sizeof(DIDEVCAPS)};
     HRESULT hr;
 
@@ -381,7 +381,7 @@ static HRESULT WINAPI game_provider_get_FirmwareVersionInfo( IGameControllerProv
 static HRESULT WINAPI game_provider_get_HardwareProductId( IGameControllerProvider *iface, UINT16 *value )
 {
     DIPROPDWORD vid_pid = {.diph = {.dwHeaderSize = sizeof(DIPROPHEADER), .dwSize = sizeof(DIPROPDWORD)}};
-    struct provider *impl = impl_from_IGameControllerProvider( iface );
+    struct provider *impl = provider_from_IGameControllerProvider( iface );
     HRESULT hr;
 
     TRACE( "iface %p, value %p.\n", iface, value );
@@ -394,7 +394,7 @@ static HRESULT WINAPI game_provider_get_HardwareProductId( IGameControllerProvid
 static HRESULT WINAPI game_provider_get_HardwareVendorId( IGameControllerProvider *iface, UINT16 *value )
 {
     DIPROPDWORD vid_pid = {.diph = {.dwHeaderSize = sizeof(DIPROPHEADER), .dwSize = sizeof(DIPROPDWORD)}};
-    struct provider *impl = impl_from_IGameControllerProvider( iface );
+    struct provider *impl = provider_from_IGameControllerProvider( iface );
     HRESULT hr;
 
     TRACE( "iface %p, value %p.\n", iface, value );

@@ -68,14 +68,14 @@ struct racing_wheel
     IWineGameControllerProvider *wine_provider;
 };
 
-static inline struct racing_wheel *impl_from_IGameControllerImpl( IGameControllerImpl *iface )
+static inline struct racing_wheel *racing_wheel_from_IGameControllerImpl( IGameControllerImpl *iface )
 {
     return CONTAINING_RECORD( iface, struct racing_wheel, IGameControllerImpl_iface );
 }
 
 static HRESULT WINAPI controller_QueryInterface( IGameControllerImpl *iface, REFIID iid, void **out )
 {
-    struct racing_wheel *impl = impl_from_IGameControllerImpl( iface );
+    struct racing_wheel *impl = racing_wheel_from_IGameControllerImpl( iface );
 
     TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
 
@@ -106,7 +106,7 @@ static HRESULT WINAPI controller_QueryInterface( IGameControllerImpl *iface, REF
 
 static ULONG WINAPI controller_AddRef( IGameControllerImpl *iface )
 {
-    struct racing_wheel *impl = impl_from_IGameControllerImpl( iface );
+    struct racing_wheel *impl = racing_wheel_from_IGameControllerImpl( iface );
     ULONG ref = InterlockedIncrement( &impl->ref );
     TRACE( "iface %p increasing refcount to %lu.\n", iface, ref );
     return ref;
@@ -114,7 +114,7 @@ static ULONG WINAPI controller_AddRef( IGameControllerImpl *iface )
 
 static ULONG WINAPI controller_Release( IGameControllerImpl *iface )
 {
-    struct racing_wheel *impl = impl_from_IGameControllerImpl( iface );
+    struct racing_wheel *impl = racing_wheel_from_IGameControllerImpl( iface );
     ULONG ref = InterlockedDecrement( &impl->ref );
 
     TRACE( "iface %p decreasing refcount to %lu.\n", iface, ref );
@@ -150,7 +150,7 @@ static HRESULT WINAPI controller_GetTrustLevel( IGameControllerImpl *iface, Trus
 static HRESULT WINAPI controller_Initialize( IGameControllerImpl *iface, IGameController *outer,
                                              IGameControllerProvider *provider )
 {
-    struct racing_wheel *impl = impl_from_IGameControllerImpl( iface );
+    struct racing_wheel *impl = racing_wheel_from_IGameControllerImpl( iface );
     HRESULT hr;
 
     TRACE( "iface %p, outer %p, provider %p.\n", iface, outer, provider );
@@ -245,7 +245,7 @@ static HRESULT WINAPI racing_wheel_get_MaxWheelAngle( IRacingWheel *iface, DOUBL
 
 static HRESULT WINAPI racing_wheel_get_WheelMotor( IRacingWheel *iface, IForceFeedbackMotor **value )
 {
-    struct racing_wheel *impl = impl_from_IRacingWheel( iface );
+    struct racing_wheel *impl = racing_wheel_from_IRacingWheel( iface );
 
     TRACE( "iface %p, value %p\n", iface, value );
 
@@ -295,14 +295,14 @@ struct racing_wheel_statics
     LONG ref;
 };
 
-static inline struct racing_wheel_statics *impl_from_IActivationFactory( IActivationFactory *iface )
+static inline struct racing_wheel_statics *racing_wheel_statics_from_IActivationFactory( IActivationFactory *iface )
 {
     return CONTAINING_RECORD( iface, struct racing_wheel_statics, IActivationFactory_iface );
 }
 
 static HRESULT WINAPI factory_QueryInterface( IActivationFactory *iface, REFIID iid, void **out )
 {
-    struct racing_wheel_statics *impl = impl_from_IActivationFactory( iface );
+    struct racing_wheel_statics *impl = racing_wheel_statics_from_IActivationFactory( iface );
 
     TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
 
@@ -345,7 +345,7 @@ static HRESULT WINAPI factory_QueryInterface( IActivationFactory *iface, REFIID 
 
 static ULONG WINAPI factory_AddRef( IActivationFactory *iface )
 {
-    struct racing_wheel_statics *impl = impl_from_IActivationFactory( iface );
+    struct racing_wheel_statics *impl = racing_wheel_statics_from_IActivationFactory( iface );
     ULONG ref = InterlockedIncrement( &impl->ref );
     TRACE( "iface %p increasing refcount to %lu.\n", iface, ref );
     return ref;
@@ -353,7 +353,7 @@ static ULONG WINAPI factory_AddRef( IActivationFactory *iface )
 
 static ULONG WINAPI factory_Release( IActivationFactory *iface )
 {
-    struct racing_wheel_statics *impl = impl_from_IActivationFactory( iface );
+    struct racing_wheel_statics *impl = racing_wheel_statics_from_IActivationFactory( iface );
     ULONG ref = InterlockedDecrement( &impl->ref );
     TRACE( "iface %p decreasing refcount to %lu.\n", iface, ref );
     return ref;
@@ -460,7 +460,7 @@ DEFINE_IINSPECTABLE( statics2, IRacingWheelStatics2, racing_wheel_statics, IActi
 
 static HRESULT WINAPI statics2_FromGameController( IRacingWheelStatics2 *iface, IGameController *game_controller, IRacingWheel **value )
 {
-    struct racing_wheel_statics *impl = impl_from_IRacingWheelStatics2( iface );
+    struct racing_wheel_statics *impl = racing_wheel_statics_from_IRacingWheelStatics2( iface );
     IGameController *controller;
     HRESULT hr;
 
