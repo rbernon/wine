@@ -71,6 +71,7 @@ static void write_widl_using_macros( const type_t *iface )
     macro = format_namespace( iface->namespace, "WIDL_using_", "_", NULL, NULL );
     put_str( indent, "#ifdef %s\n", macro );
 
+    put_str( indent, "#define WIDL_impl_from_%s   WIDL_impl_from_%s\n", name, iface->c_name );
     put_str( indent, "#define WIDL_impl_%sVtbl    WIDL_impl_%sVtbl\n", name, iface->c_name );
 
     put_str( indent, "#endif /* %s */\n\n", macro );
@@ -97,9 +98,17 @@ static void write_widl_impl_macros_methods( const type_t *iface, const type_t *t
 static void write_widl_impl_macros( const type_t *iface )
 {
     const struct uuid *uuid = get_attrp( iface->attrs, ATTR_UUID );
+    const char *name = iface->short_name ? iface->short_name : iface->name;
 
     if (uuid)
     {
+        put_str( indent, "#define WIDL_impl_from_%s( type ) \\\n", iface->c_name );
+        put_str( indent, "    static struct type *type ## _from_%s( %s *iface ) \\\n", name, iface->c_name );
+        put_str( indent, "    { \\\n" );
+        put_str( indent, "        return CONTAINING_RECORD( iface, struct type, %s_iface ); \\\n", name );
+        put_str( indent, "    }\n" );
+        put_str( indent, "\n" );
+
         put_str( indent, "#define WIDL_impl_%sVtbl( pfx ) \\\n", iface->c_name );
         put_str( indent, "    static const %sVtbl %s_vtbl = \\\n", iface->c_name, "pfx ## " );
         put_str( indent, "    { \\\n" );
