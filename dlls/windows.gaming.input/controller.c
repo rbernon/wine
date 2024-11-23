@@ -69,10 +69,7 @@ struct controller
     IWineGameControllerProvider *wine_provider;
 };
 
-static inline struct controller *controller_from_IGameControllerImpl( IGameControllerImpl *iface )
-{
-    return CONTAINING_RECORD( iface, struct controller, IGameControllerImpl_iface );
-}
+WIDL_impl_from_IGameControllerImpl( controller );
 
 static HRESULT WINAPI controller_QueryInterface( IGameControllerImpl *iface, REFIID iid, void **out )
 {
@@ -348,10 +345,7 @@ struct controller_statics
     LONG ref;
 };
 
-static inline struct controller_statics *controller_statics_from_IActivationFactory( IActivationFactory *iface )
-{
-    return CONTAINING_RECORD( iface, struct controller_statics, IActivationFactory_iface );
-}
+WIDL_impl_from_IActivationFactory( controller_statics );
 
 static HRESULT WINAPI controller_statics_QueryInterface( IActivationFactory *iface, REFIID iid, void **out )
 {
