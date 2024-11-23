@@ -250,7 +250,7 @@ static const struct IWineForceFeedbackEffectImplVtbl effect_impl_vtbl =
     effect_impl_put_Parameters,
 };
 
-DEFINE_IINSPECTABLE_OUTER( effect, IForceFeedbackEffect, struct effect, IInspectable_outer )
+DEFINE_IINSPECTABLE_OUTER( effect, IForceFeedbackEffect, effect, IInspectable_outer )
 
 static HRESULT WINAPI effect_get_Gain( IForceFeedbackEffect *iface, DOUBLE *value )
 {

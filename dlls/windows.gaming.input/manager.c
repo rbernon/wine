@@ -207,7 +207,7 @@ static const struct IGameControllerVtbl controller_vtbl =
     controller_get_User,
 };
 
-DEFINE_IINSPECTABLE( battery, IGameControllerBatteryInfo, struct controller, IGameController_iface )
+DEFINE_IINSPECTABLE( battery, IGameControllerBatteryInfo, controller, IGameController_iface )
 
 static HRESULT WINAPI battery_TryGetBatteryReport( IGameControllerBatteryInfo *iface, IBatteryReport **value )
 {
@@ -334,7 +334,7 @@ static const struct IActivationFactoryVtbl factory_vtbl =
     factory_ActivateInstance,
 };
 
-DEFINE_IINSPECTABLE( statics, IGameControllerFactoryManagerStatics, struct manager_statics, IActivationFactory_iface )
+DEFINE_IINSPECTABLE( statics, IGameControllerFactoryManagerStatics, manager_statics, IActivationFactory_iface )
 
 static HRESULT WINAPI
 statics_RegisterCustomFactoryForGipInterface( IGameControllerFactoryManagerStatics *iface,
@@ -378,7 +378,7 @@ static const struct IGameControllerFactoryManagerStaticsVtbl statics_vtbl =
     statics_RegisterCustomFactoryForXusbType,
 };
 
-DEFINE_IINSPECTABLE( statics2, IGameControllerFactoryManagerStatics2, struct manager_statics, IActivationFactory_iface )
+DEFINE_IINSPECTABLE( statics2, IGameControllerFactoryManagerStatics2, manager_statics, IActivationFactory_iface )
 
 static HRESULT WINAPI
 statics2_TryGetFactoryControllerFromGameController( IGameControllerFactoryManagerStatics2 *iface,

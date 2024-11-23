@@ -192,7 +192,7 @@ static const struct IGameControllerImplVtbl controller_vtbl =
     controller_Initialize,
 };
 
-DEFINE_IINSPECTABLE_OUTER( input_sink, IGameControllerInputSink, struct controller, IGameController_outer )
+DEFINE_IINSPECTABLE_OUTER( input_sink, IGameControllerInputSink, controller, IGameController_outer )
 
 static HRESULT WINAPI input_sink_OnInputResumed( IGameControllerInputSink *iface, UINT64 timestamp )
 {
@@ -220,7 +220,7 @@ static const struct IGameControllerInputSinkVtbl input_sink_vtbl =
     input_sink_OnInputSuspended,
 };
 
-DEFINE_IINSPECTABLE_OUTER( raw_controller, IRawGameController, struct controller, IGameController_outer )
+DEFINE_IINSPECTABLE_OUTER( raw_controller, IRawGameController, controller, IGameController_outer )
 
 static HRESULT WINAPI raw_controller_get_AxisCount( IRawGameController *iface, INT32 *value )
 {
@@ -337,7 +337,7 @@ static const struct IRawGameControllerVtbl raw_controller_vtbl =
     raw_controller_GetSwitchKind,
 };
 
-DEFINE_IINSPECTABLE_OUTER( raw_controller_2, IRawGameController2, struct controller, IGameController_outer )
+DEFINE_IINSPECTABLE_OUTER( raw_controller_2, IRawGameController2, controller, IGameController_outer )
 
 static HRESULT WINAPI raw_controller_2_get_SimpleHapticsControllers( IRawGameController2 *iface, IVectorView_SimpleHapticsController** value)
 {
@@ -493,7 +493,7 @@ static const struct IActivationFactoryVtbl factory_vtbl =
     factory_ActivateInstance,
 };
 
-DEFINE_IINSPECTABLE( statics, IRawGameControllerStatics, struct controller_statics, IActivationFactory_iface )
+DEFINE_IINSPECTABLE( statics, IRawGameControllerStatics, controller_statics, IActivationFactory_iface )
 
 static HRESULT WINAPI statics_add_RawGameControllerAdded( IRawGameControllerStatics *iface,
                                                           IEventHandler_RawGameController *handler,
@@ -577,7 +577,7 @@ static const struct IRawGameControllerStaticsVtbl statics_vtbl =
     statics_FromGameController,
 };
 
-DEFINE_IINSPECTABLE( controller_factory, ICustomGameControllerFactory, struct controller_statics, IActivationFactory_iface )
+DEFINE_IINSPECTABLE( controller_factory, ICustomGameControllerFactory, controller_statics, IActivationFactory_iface )
 
 static HRESULT WINAPI controller_factory_CreateGameController( ICustomGameControllerFactory *iface, IGameControllerProvider *provider,
                                                                IInspectable **value )

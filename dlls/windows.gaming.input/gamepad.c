@@ -199,7 +199,7 @@ static const struct IGameControllerImplVtbl controller_vtbl =
     controller_Initialize,
 };
 
-DEFINE_IINSPECTABLE_OUTER( input_sink, IGameControllerInputSink, struct gamepad, IGameController_outer )
+DEFINE_IINSPECTABLE_OUTER( input_sink, IGameControllerInputSink, gamepad, IGameController_outer )
 
 static HRESULT WINAPI input_sink_OnInputResumed( IGameControllerInputSink *iface, UINT64 timestamp )
 {
@@ -227,7 +227,7 @@ static const struct IGameControllerInputSinkVtbl input_sink_vtbl =
     input_sink_OnInputSuspended,
 };
 
-DEFINE_IINSPECTABLE_OUTER( gamepad, IGamepad, struct gamepad, IGameController_outer )
+DEFINE_IINSPECTABLE_OUTER( gamepad, IGamepad, gamepad, IGameController_outer )
 
 static HRESULT WINAPI gamepad_get_Vibration( IGamepad *iface, struct GamepadVibration *value )
 {
@@ -349,7 +349,7 @@ static const struct IGamepadVtbl gamepad_vtbl =
     gamepad_GetCurrentReading,
 };
 
-DEFINE_IINSPECTABLE_OUTER( gamepad2, IGamepad2, struct gamepad, IGameController_outer )
+DEFINE_IINSPECTABLE_OUTER( gamepad2, IGamepad2, gamepad, IGameController_outer )
 
 static HRESULT WINAPI gamepad2_GetButtonLabel( IGamepad2 *iface, GamepadButtons button, GameControllerButtonLabel *value )
 {
@@ -482,7 +482,7 @@ static const struct IActivationFactoryVtbl factory_vtbl =
     factory_ActivateInstance,
 };
 
-DEFINE_IINSPECTABLE( statics, IGamepadStatics, struct gamepad_statics, IActivationFactory_iface )
+DEFINE_IINSPECTABLE( statics, IGamepadStatics, gamepad_statics, IActivationFactory_iface )
 
 static HRESULT WINAPI statics_add_GamepadAdded( IGamepadStatics *iface, IEventHandler_Gamepad *handler,
                                                 EventRegistrationToken *token )
@@ -543,7 +543,7 @@ static const struct IGamepadStaticsVtbl statics_vtbl =
     statics_get_Gamepads,
 };
 
-DEFINE_IINSPECTABLE( statics2, IGamepadStatics2, struct gamepad_statics, IActivationFactory_iface )
+DEFINE_IINSPECTABLE( statics2, IGamepadStatics2, gamepad_statics, IActivationFactory_iface )
 
 static HRESULT WINAPI statics2_FromGameController( IGamepadStatics2 *iface, IGameController *game_controller, IGamepad **value )
 {
@@ -576,7 +576,7 @@ static const struct IGamepadStatics2Vtbl statics2_vtbl =
     statics2_FromGameController,
 };
 
-DEFINE_IINSPECTABLE( controller_factory, ICustomGameControllerFactory, struct gamepad_statics, IActivationFactory_iface )
+DEFINE_IINSPECTABLE( controller_factory, ICustomGameControllerFactory, gamepad_statics, IActivationFactory_iface )
 
 static HRESULT WINAPI controller_factory_CreateGameController( ICustomGameControllerFactory *iface, IGameControllerProvider *provider,
                                                                IInspectable **value )
