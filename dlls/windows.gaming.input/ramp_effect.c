@@ -29,14 +29,14 @@ struct ramp_effect
     LONG ref;
 };
 
-static inline struct ramp_effect *impl_from_IRampForceEffect( IRampForceEffect *iface )
+static inline struct ramp_effect *ramp_effect_from_IRampForceEffect( IRampForceEffect *iface )
 {
     return CONTAINING_RECORD( iface, struct ramp_effect, IRampForceEffect_iface );
 }
 
 static HRESULT WINAPI effect_QueryInterface( IRampForceEffect *iface, REFIID iid, void **out )
 {
-    struct ramp_effect *impl = impl_from_IRampForceEffect( iface );
+    struct ramp_effect *impl = ramp_effect_from_IRampForceEffect( iface );
 
     TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
 
@@ -53,7 +53,7 @@ static HRESULT WINAPI effect_QueryInterface( IRampForceEffect *iface, REFIID iid
 
 static ULONG WINAPI effect_AddRef( IRampForceEffect *iface )
 {
-    struct ramp_effect *impl = impl_from_IRampForceEffect( iface );
+    struct ramp_effect *impl = ramp_effect_from_IRampForceEffect( iface );
     ULONG ref = InterlockedIncrement( &impl->ref );
     TRACE( "iface %p increasing refcount to %lu.\n", iface, ref );
     return ref;
@@ -61,7 +61,7 @@ static ULONG WINAPI effect_AddRef( IRampForceEffect *iface )
 
 static ULONG WINAPI effect_Release( IRampForceEffect *iface )
 {
-    struct ramp_effect *impl = impl_from_IRampForceEffect( iface );
+    struct ramp_effect *impl = ramp_effect_from_IRampForceEffect( iface );
     ULONG ref = InterlockedDecrement( &impl->ref );
 
     TRACE( "iface %p decreasing refcount to %lu.\n", iface, ref );
@@ -110,7 +110,7 @@ static HRESULT WINAPI effect_SetParameters( IRampForceEffect *iface, Vector3 sta
             .gain = 1.,
         },
     };
-    struct ramp_effect *impl = impl_from_IRampForceEffect( iface );
+    struct ramp_effect *impl = ramp_effect_from_IRampForceEffect( iface );
 
     TRACE( "iface %p, start_vector %s, end_vector %s, duration %I64u.\n", iface,
            debugstr_vector3( &start_vector ), debugstr_vector3( &end_vector ), duration.Duration );
@@ -143,7 +143,7 @@ static HRESULT WINAPI effect_SetParametersWithEnvelope( IRampForceEffect *iface,
         .attack_duration = attack_duration,
         .release_duration = release_duration,
     };
-    struct ramp_effect *impl = impl_from_IRampForceEffect( iface );
+    struct ramp_effect *impl = ramp_effect_from_IRampForceEffect( iface );
 
     TRACE( "iface %p, start_vector %s, end_vector %s, attack_gain %f, sustain_gain %f, release_gain %f, start_delay %I64u, attack_duration %I64u, "
            "sustain_duration %I64u, release_duration %I64u, repeat_count %u.\n", iface, debugstr_vector3( &start_vector ), debugstr_vector3( &end_vector ),
@@ -174,14 +174,14 @@ struct ramp_factory
     LONG ref;
 };
 
-static inline struct ramp_factory *impl_from_IActivationFactory( IActivationFactory *iface )
+static inline struct ramp_factory *ramp_factory_from_IActivationFactory( IActivationFactory *iface )
 {
     return CONTAINING_RECORD( iface, struct ramp_factory, IActivationFactory_iface );
 }
 
 static HRESULT WINAPI activation_QueryInterface( IActivationFactory *iface, REFIID iid, void **out )
 {
-    struct ramp_factory *impl = impl_from_IActivationFactory( iface );
+    struct ramp_factory *impl = ramp_factory_from_IActivationFactory( iface );
 
     TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
 
@@ -206,7 +206,7 @@ static HRESULT WINAPI activation_QueryInterface( IActivationFactory *iface, REFI
 
 static ULONG WINAPI activation_AddRef( IActivationFactory *iface )
 {
-    struct ramp_factory *impl = impl_from_IActivationFactory( iface );
+    struct ramp_factory *impl = ramp_factory_from_IActivationFactory( iface );
     ULONG ref = InterlockedIncrement( &impl->ref );
     TRACE( "iface %p increasing refcount to %lu.\n", iface, ref );
     return ref;
@@ -214,7 +214,7 @@ static ULONG WINAPI activation_AddRef( IActivationFactory *iface )
 
 static ULONG WINAPI activation_Release( IActivationFactory *iface )
 {
-    struct ramp_factory *impl = impl_from_IActivationFactory( iface );
+    struct ramp_factory *impl = ramp_factory_from_IActivationFactory( iface );
     ULONG ref = InterlockedDecrement( &impl->ref );
     TRACE( "iface %p decreasing refcount to %lu.\n", iface, ref );
     return ref;

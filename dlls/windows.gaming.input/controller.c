@@ -69,14 +69,14 @@ struct controller
     IWineGameControllerProvider *wine_provider;
 };
 
-static inline struct controller *impl_from_IGameControllerImpl( IGameControllerImpl *iface )
+static inline struct controller *controller_from_IGameControllerImpl( IGameControllerImpl *iface )
 {
     return CONTAINING_RECORD( iface, struct controller, IGameControllerImpl_iface );
 }
 
 static HRESULT WINAPI controller_QueryInterface( IGameControllerImpl *iface, REFIID iid, void **out )
 {
-    struct controller *impl = impl_from_IGameControllerImpl( iface );
+    struct controller *impl = controller_from_IGameControllerImpl( iface );
 
     TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
 
@@ -113,7 +113,7 @@ static HRESULT WINAPI controller_QueryInterface( IGameControllerImpl *iface, REF
 
 static ULONG WINAPI controller_AddRef( IGameControllerImpl *iface )
 {
-    struct controller *impl = impl_from_IGameControllerImpl( iface );
+    struct controller *impl = controller_from_IGameControllerImpl( iface );
     ULONG ref = InterlockedIncrement( &impl->ref );
     TRACE( "iface %p increasing refcount to %lu.\n", iface, ref );
     return ref;
@@ -121,7 +121,7 @@ static ULONG WINAPI controller_AddRef( IGameControllerImpl *iface )
 
 static ULONG WINAPI controller_Release( IGameControllerImpl *iface )
 {
-    struct controller *impl = impl_from_IGameControllerImpl( iface );
+    struct controller *impl = controller_from_IGameControllerImpl( iface );
     ULONG ref = InterlockedDecrement( &impl->ref );
 
     TRACE( "iface %p decreasing refcount to %lu.\n", iface, ref );
@@ -159,7 +159,7 @@ static HRESULT WINAPI controller_GetTrustLevel( IGameControllerImpl *iface, Trus
 static HRESULT WINAPI controller_Initialize( IGameControllerImpl *iface, IGameController *outer,
                                              IGameControllerProvider *provider )
 {
-    struct controller *impl = impl_from_IGameControllerImpl( iface );
+    struct controller *impl = controller_from_IGameControllerImpl( iface );
     HRESULT hr;
 
     TRACE( "iface %p, outer %p, provider %p.\n", iface, outer, provider );
@@ -224,13 +224,13 @@ DEFINE_IINSPECTABLE_OUTER( raw_controller, IRawGameController, controller, IGame
 
 static HRESULT WINAPI raw_controller_get_AxisCount( IRawGameController *iface, INT32 *value )
 {
-    struct controller *impl = impl_from_IRawGameController( iface );
+    struct controller *impl = controller_from_IRawGameController( iface );
     return IWineGameControllerProvider_get_AxisCount( impl->wine_provider, value );
 }
 
 static HRESULT WINAPI raw_controller_get_ButtonCount( IRawGameController *iface, INT32 *value )
 {
-    struct controller *impl = impl_from_IRawGameController( iface );
+    struct controller *impl = controller_from_IRawGameController( iface );
     return IWineGameControllerProvider_get_ButtonCount( impl->wine_provider, value );
 }
 
@@ -243,7 +243,7 @@ static HRESULT WINAPI raw_controller_get_ForceFeedbackMotors( IRawGameController
         .iterable = &IID_IIterable_ForceFeedbackMotor,
         .iterator = &IID_IIterator_ForceFeedbackMotor,
     };
-    struct controller *impl = impl_from_IRawGameController( iface );
+    struct controller *impl = controller_from_IRawGameController( iface );
     IVector_ForceFeedbackMotor *vector;
     IForceFeedbackMotor *motor;
     HRESULT hr;
@@ -266,19 +266,19 @@ static HRESULT WINAPI raw_controller_get_ForceFeedbackMotors( IRawGameController
 
 static HRESULT WINAPI raw_controller_get_HardwareProductId( IRawGameController *iface, UINT16 *value )
 {
-    struct controller *impl = impl_from_IRawGameController( iface );
+    struct controller *impl = controller_from_IRawGameController( iface );
     return IGameControllerProvider_get_HardwareProductId( impl->provider, value );
 }
 
 static HRESULT WINAPI raw_controller_get_HardwareVendorId( IRawGameController *iface, UINT16 *value )
 {
-    struct controller *impl = impl_from_IRawGameController( iface );
+    struct controller *impl = controller_from_IRawGameController( iface );
     return IGameControllerProvider_get_HardwareVendorId( impl->provider, value );
 }
 
 static HRESULT WINAPI raw_controller_get_SwitchCount( IRawGameController *iface, INT32 *value )
 {
-    struct controller *impl = impl_from_IRawGameController( iface );
+    struct controller *impl = controller_from_IRawGameController( iface );
     return IWineGameControllerProvider_get_SwitchCount( impl->wine_provider, value );
 }
 
@@ -293,7 +293,7 @@ static HRESULT WINAPI raw_controller_GetCurrentReading( IRawGameController *ifac
                                                         UINT32 switches_size, enum GameControllerSwitchPosition *switches,
                                                         UINT32 axes_size, DOUBLE *axes, UINT64 *timestamp )
 {
-    struct controller *impl = impl_from_IRawGameController( iface );
+    struct controller *impl = controller_from_IRawGameController( iface );
     WineGameControllerState state;
     HRESULT hr;
 
@@ -398,14 +398,14 @@ struct controller_statics
     LONG ref;
 };
 
-static inline struct controller_statics *impl_from_IActivationFactory( IActivationFactory *iface )
+static inline struct controller_statics *controller_statics_from_IActivationFactory( IActivationFactory *iface )
 {
     return CONTAINING_RECORD( iface, struct controller_statics, IActivationFactory_iface );
 }
 
 static HRESULT WINAPI factory_QueryInterface( IActivationFactory *iface, REFIID iid, void **out )
 {
-    struct controller_statics *impl = impl_from_IActivationFactory( iface );
+    struct controller_statics *impl = controller_statics_from_IActivationFactory( iface );
 
     TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
 
@@ -442,7 +442,7 @@ static HRESULT WINAPI factory_QueryInterface( IActivationFactory *iface, REFIID 
 
 static ULONG WINAPI factory_AddRef( IActivationFactory *iface )
 {
-    struct controller_statics *impl = impl_from_IActivationFactory( iface );
+    struct controller_statics *impl = controller_statics_from_IActivationFactory( iface );
     ULONG ref = InterlockedIncrement( &impl->ref );
     TRACE( "iface %p increasing refcount to %lu.\n", iface, ref );
     return ref;
@@ -450,7 +450,7 @@ static ULONG WINAPI factory_AddRef( IActivationFactory *iface )
 
 static ULONG WINAPI factory_Release( IActivationFactory *iface )
 {
-    struct controller_statics *impl = impl_from_IActivationFactory( iface );
+    struct controller_statics *impl = controller_statics_from_IActivationFactory( iface );
     ULONG ref = InterlockedDecrement( &impl->ref );
     TRACE( "iface %p decreasing refcount to %lu.\n", iface, ref );
     return ref;
@@ -542,7 +542,7 @@ static HRESULT WINAPI statics_get_RawGameControllers( IRawGameControllerStatics 
 static HRESULT WINAPI statics_FromGameController( IRawGameControllerStatics *iface, IGameController *game_controller,
                                                   IRawGameController **value )
 {
-    struct controller_statics *impl = impl_from_IRawGameControllerStatics( iface );
+    struct controller_statics *impl = controller_statics_from_IRawGameControllerStatics( iface );
     IGameController *controller;
     HRESULT hr;
 
