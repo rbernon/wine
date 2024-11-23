@@ -1011,7 +1011,7 @@ static int is_inherited_method(const type_t *iface, const var_t *func)
   return 0;
 }
 
-static int is_override_method(const type_t *iface, const type_t *child, const var_t *func)
+int is_override_method(const type_t *iface, const type_t *child, const var_t *func)
 {
   if (iface == child)
     return 0;

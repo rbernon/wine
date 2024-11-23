@@ -61,6 +61,79 @@ static void write_imports( const statement_list_t *stmts )
     }
 }
 
+static void write_widl_using_macros( const type_t *iface )
+{
+    const char *name = iface->short_name ? iface->short_name : iface->name;
+    char *macro;
+
+    if (!strcmp( iface->name, iface->c_name )) return;
+
+    macro = format_namespace( iface->namespace, "WIDL_using_", "_", NULL, NULL );
+    put_str( indent, "#ifdef %s\n", macro );
+
+    put_str( indent, "#define WIDL_impl_%sVtbl    WIDL_impl_%sVtbl\n", name, iface->c_name );
+
+    put_str( indent, "#endif /* %s */\n\n", macro );
+    free( macro );
+}
+
+static void write_widl_impl_macros_methods( const type_t *iface, const type_t *top_iface, const char *prefix )
+{
+    const statement_t *stmt;
+
+    if (type_iface_get_inherit( iface )) write_widl_impl_macros_methods( type_iface_get_inherit( iface ), top_iface, prefix );
+
+    STATEMENTS_FOR_EACH_FUNC( stmt, type_iface_get_stmts( iface ) )
+    {
+        const var_t *func = stmt->u.var;
+
+        if (is_override_method( iface, top_iface, func )) continue;
+        if (is_callas( func->attrs )) continue;
+
+        put_str( indent, "        %s_%s, \\\n", prefix, get_name( func ) );
+    }
+}
+
+static void write_widl_impl_macros( const type_t *iface )
+{
+    const struct uuid *uuid = get_attrp( iface->attrs, ATTR_UUID );
+
+    if (uuid)
+    {
+        put_str( indent, "#define WIDL_impl_%sVtbl( pfx ) \\\n", iface->c_name );
+        put_str( indent, "    static const %sVtbl %s_vtbl = \\\n", iface->c_name, "pfx ## " );
+        put_str( indent, "    { \\\n" );
+        write_widl_impl_macros_methods( iface, iface, "pfx ## " );
+        put_str( indent, "    };\n" );
+        put_str( indent, "\n" );
+    }
+}
+
+static void write_interface( const type_t *iface )
+{
+    put_str( indent, "/* %s */\n", iface->name );
+    if (winrt_mode) write_widl_using_macros( iface );
+    write_widl_impl_macros( iface );
+}
+
+static void write_interfaces( const statement_list_t *stmts )
+{
+    const statement_t *stmt;
+
+    LIST_FOR_EACH_ENTRY( stmt, stmts, const statement_t, entry )
+    {
+        const type_t *type = stmt->u.type;
+        enum type_type kind;
+
+        if (stmt->type != STMT_TYPE) continue;
+        switch ((kind = type_get_type( type )))
+        {
+        case TYPE_INTERFACE: write_interface( type ); break;
+        default: break;
+        }
+    }
+}
+
 void write_header_impl( const statement_list_t *stmts )
 {
     char *impl_name;
@@ -77,6 +150,7 @@ void write_header_impl( const statement_list_t *stmts )
     write_imports( stmts );
     put_str( indent, "\n" );
 
+    write_interfaces( stmts );
     put_str( indent, "#endif /* __%s_impl__ */\n", header_token );
 
     impl_name = replace_extension( header_name, ".h", "_impl.h" );
