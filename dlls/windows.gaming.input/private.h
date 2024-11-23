@@ -82,11 +82,8 @@ extern HRESULT async_operation_boolean_create( IUnknown *invoker, IUnknown *para
 extern HRESULT async_operation_effect_result_create( IUnknown *invoker, IUnknown *param, async_operation_callback callback,
                                                      IAsyncOperation_ForceFeedbackLoadEffectResult **out );
 
-#define DEFINE_IINSPECTABLE_( pfx, iface_type, impl_type, impl_from, iface_mem, expr )             \
-    static inline struct impl_type *impl_from( iface_type *iface )                                 \
-    {                                                                                              \
-        return CONTAINING_RECORD( iface, struct impl_type, iface_mem );                            \
-    }                                                                                              \
+#define DEFINE_IINSPECTABLE_( pfx, iface_type, impl_type, impl_from, expr )                        \
+    WIDL_impl_from_ ## iface_type( impl_type );                                                    \
     static HRESULT WINAPI pfx##_QueryInterface( iface_type *iface, REFIID iid, void **out )        \
     {                                                                                              \
         struct impl_type *impl = impl_from( iface );                                               \
@@ -118,26 +115,25 @@ extern HRESULT async_operation_effect_result_create( IUnknown *invoker, IUnknown
         return IInspectable_GetTrustLevel( (IInspectable *)(expr), trust_level );                  \
     }
 #define DEFINE_IINSPECTABLE( pfx, iface_type, impl_type, base_iface )                              \
-    DEFINE_IINSPECTABLE_( pfx, iface_type, impl_type, impl_type##_from_##iface_type,               \
-                          iface_type##_iface, &impl->base_iface )
+    DEFINE_IINSPECTABLE_( pfx, iface_type, impl_type, impl_type ## _from_ ## iface_type, &impl->base_iface )
 #define DEFINE_IINSPECTABLE_OUTER( pfx, iface_type, impl_type, outer_iface )                       \
-    DEFINE_IINSPECTABLE_( pfx, iface_type, impl_type, impl_type##_from_##iface_type,               \
-                          iface_type##_iface, impl->outer_iface )
+    DEFINE_IINSPECTABLE_( pfx, iface_type, impl_type, impl_type ## _from_ ## iface_type, impl->outer_iface )
 
-#define DEFINE_IAGILEOBJECT( type, base, expr )             \
+#define DEFINE_IAGILEOBJECT( type, base, expr )                                                    \
+    WIDL_impl_from_IAgileObject( type );                                                           \
     static HRESULT WINAPI type##_IAgileObject_QueryInterface( IAgileObject *iface, REFIID iid, void **out ) \
     {                                                                                              \
-        struct type *object = CONTAINING_RECORD( iface, struct type, IAgileObject_iface );         \
+        struct type *object = type ## _from_IAgileObject( iface );                                 \
         return base##_QueryInterface( (expr), iid, out );                                          \
     }                                                                                              \
     static ULONG WINAPI type##_IAgileObject_AddRef( IAgileObject *iface )                          \
     {                                                                                              \
-        struct type *object = CONTAINING_RECORD( iface, struct type, IAgileObject_iface );         \
+        struct type *object = type ## _from_IAgileObject( iface );                                 \
         return base##_AddRef( (expr) );                                                            \
     }                                                                                              \
     static ULONG WINAPI type##_IAgileObject_Release( IAgileObject *iface )                         \
     {                                                                                              \
-        struct type *object = CONTAINING_RECORD( iface, struct type, IAgileObject_iface );         \
+        struct type *object = type ## _from_IAgileObject( iface );                                 \
         return base##_Release( (expr) );                                                           \
     }                                                                                              \
     WIDL_impl_IAgileObjectVtbl( type ## _IAgileObject );
