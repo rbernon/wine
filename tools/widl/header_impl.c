@@ -72,6 +72,7 @@ static void write_widl_using_macros( const type_t *iface )
     put_str( indent, "#ifdef %s\n", macro );
 
     put_str( indent, "#define WIDL_impl_from_%s   WIDL_impl_from_%s\n", name, iface->c_name );
+    put_str( indent, "#define WIDL_impl_QueryInterface_%s  WIDL_impl_QueryInterface_%s\n", name, iface->c_name );
     put_str( indent, "#define WIDL_impl_%sVtbl    WIDL_impl_%sVtbl\n", name, iface->c_name );
 
     put_str( indent, "#endif /* %s */\n\n", macro );
@@ -99,6 +100,7 @@ static void write_widl_impl_macros( const type_t *iface )
 {
     const struct uuid *uuid = get_attrp( iface->attrs, ATTR_UUID );
     const char *name = iface->short_name ? iface->short_name : iface->name;
+    const type_t *base = type_iface_get_inherit( iface );
 
     if (uuid)
     {
@@ -108,6 +110,20 @@ static void write_widl_impl_macros( const type_t *iface )
         put_str( indent, "        return CONTAINING_RECORD( iface, struct type, %s_iface ); \\\n", name );
         put_str( indent, "    }\n" );
         put_str( indent, "\n" );
+
+        put_str( indent, "#define WIDL_impl_QueryInterface_%s( object, iid, out, mem ) \\\n", iface->c_name );
+        put_str( indent, "    do if ((object)->mem.lpVtbl) \\\n" );
+        put_str( indent, "    { \\\n" );
+        put_str( indent, "        if (0 " );
+        for (base = iface; base; (base = type_iface_get_inherit( base )))
+            put_str( indent, "%s|| IsEqualGUID( (iid), &IID_%s )", base == iface ? "" : " \\\n              ", base->c_name );
+        put_str( indent, ") \\\n" );
+        put_str( indent, "        { \\\n" );
+        put_str( indent, "            %s_AddRef( &(object)->mem ); \\\n", iface->c_name );
+        put_str( indent, "            *(out) = &(object)->mem; \\\n" );
+        put_str( indent, "            return S_OK; \\\n" );
+        put_str( indent, "        } \\\n" );
+        put_str( indent, "    } while (0)\n" );
 
         put_str( indent, "#define WIDL_impl_%sVtbl( pfx ) \\\n", iface->c_name );
         put_str( indent, "    static const %sVtbl %s_vtbl = \\\n", iface->c_name, "pfx ## " );
