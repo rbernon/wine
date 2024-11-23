@@ -325,7 +325,7 @@ static const struct IVectorView_IInspectableVtbl vector_view_vtbl =
     vector_view_GetMany,
 };
 
-DEFINE_IINSPECTABLE_( iterable_view, IIterable_IInspectable, struct vector_view, view_impl_from_IIterable_IInspectable,
+DEFINE_IINSPECTABLE_( iterable_view, IIterable_IInspectable, vector_view, view_impl_from_IIterable_IInspectable,
                       IIterable_IInspectable_iface, &impl->IVectorView_IInspectable_iface )
 
 static HRESULT WINAPI iterable_view_First( IIterable_IInspectable *iface, IIterator_IInspectable **value )
@@ -646,7 +646,7 @@ static const struct IVector_IInspectableVtbl vector_vtbl =
     vector_ReplaceAll,
 };
 
-DEFINE_IINSPECTABLE( iterable, IIterable_IInspectable, struct vector, IVector_IInspectable_iface )
+DEFINE_IINSPECTABLE( iterable, IIterable_IInspectable, vector, IVector_IInspectable_iface )
 
 static HRESULT WINAPI iterable_First( IIterable_IInspectable *iface, IIterator_IInspectable **value )
 {
