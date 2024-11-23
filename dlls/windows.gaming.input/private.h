@@ -85,21 +85,7 @@ extern HRESULT async_operation_effect_result_create( IUnknown *invoker, IUnknown
 #define DEFINE_IINSPECTABLE_( pfx, iface_type, impl_type, impl_from, expr )                         \
     WIDL_impl_from_ ## iface_type( impl_type )                                                      \
     WIDL_impl_IUnknown_forwards_( impl_type, iface_type, IInspectable, expr, impl_from, pfx )       \
-    static HRESULT WINAPI pfx##_GetIids( iface_type *iface, ULONG *iid_count, IID **iids )          \
-    {                                                                                               \
-        struct impl_type *object = impl_from( iface );                                              \
-        return IInspectable_GetIids( (IInspectable *)(expr), iid_count, iids );                     \
-    }                                                                                               \
-    static HRESULT WINAPI pfx##_GetRuntimeClassName( iface_type *iface, HSTRING *class_name )       \
-    {                                                                                               \
-        struct impl_type *object = impl_from( iface );                                              \
-        return IInspectable_GetRuntimeClassName( (IInspectable *)(expr), class_name );              \
-    }                                                                                               \
-    static HRESULT WINAPI pfx##_GetTrustLevel( iface_type *iface, TrustLevel *trust_level )         \
-    {                                                                                               \
-        struct impl_type *object = impl_from( iface );                                              \
-        return IInspectable_GetTrustLevel( (IInspectable *)(expr), trust_level );                   \
-    }
+    WIDL_impl_IInspectable_forwards_( impl_type, iface_type, IInspectable, expr, impl_from, pfx )
 #define DEFINE_IINSPECTABLE( pfx, iface_type, impl_type, base_iface )                               \
     DEFINE_IINSPECTABLE_( pfx, iface_type, impl_type, impl_type ## _from_ ## iface_type, (IInspectable *)&object->base_iface )
 #define DEFINE_IINSPECTABLE_OUTER( pfx, iface_type, impl_type, outer_iface )                        \
