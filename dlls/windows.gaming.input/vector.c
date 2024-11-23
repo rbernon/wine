@@ -35,14 +35,14 @@ struct iterator
     UINT32 size;
 };
 
-static inline struct iterator *impl_from_IIterator_IInspectable( IIterator_IInspectable *iface )
+static inline struct iterator *iterator_from_IIterator_IInspectable( IIterator_IInspectable *iface )
 {
     return CONTAINING_RECORD( iface, struct iterator, IIterator_IInspectable_iface );
 }
 
 static HRESULT WINAPI iterator_QueryInterface( IIterator_IInspectable *iface, REFIID iid, void **out )
 {
-    struct iterator *impl = impl_from_IIterator_IInspectable( iface );
+    struct iterator *impl = iterator_from_IIterator_IInspectable( iface );
 
     TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
 
@@ -67,7 +67,7 @@ static HRESULT WINAPI iterator_QueryInterface( IIterator_IInspectable *iface, RE
 
 static ULONG WINAPI iterator_AddRef( IIterator_IInspectable *iface )
 {
-    struct iterator *impl = impl_from_IIterator_IInspectable( iface );
+    struct iterator *impl = iterator_from_IIterator_IInspectable( iface );
     ULONG ref = InterlockedIncrement( &impl->ref );
     TRACE( "iface %p increasing refcount to %lu.\n", iface, ref );
     return ref;
@@ -75,7 +75,7 @@ static ULONG WINAPI iterator_AddRef( IIterator_IInspectable *iface )
 
 static ULONG WINAPI iterator_Release( IIterator_IInspectable *iface )
 {
-    struct iterator *impl = impl_from_IIterator_IInspectable( iface );
+    struct iterator *impl = iterator_from_IIterator_IInspectable( iface );
     ULONG ref = InterlockedDecrement( &impl->ref );
 
     TRACE( "iface %p decreasing refcount to %lu.\n", iface, ref );
@@ -109,14 +109,14 @@ static HRESULT WINAPI iterator_GetTrustLevel( IIterator_IInspectable *iface, Tru
 
 static HRESULT WINAPI iterator_get_Current( IIterator_IInspectable *iface, IInspectable **value )
 {
-    struct iterator *impl = impl_from_IIterator_IInspectable( iface );
+    struct iterator *impl = iterator_from_IIterator_IInspectable( iface );
     TRACE( "iface %p, value %p.\n", iface, value );
     return IVectorView_IInspectable_GetAt( impl->view, impl->index, value );
 }
 
 static HRESULT WINAPI iterator_get_HasCurrent( IIterator_IInspectable *iface, boolean *value )
 {
-    struct iterator *impl = impl_from_IIterator_IInspectable( iface );
+    struct iterator *impl = iterator_from_IIterator_IInspectable( iface );
 
     TRACE( "iface %p, value %p.\n", iface, value );
 
@@ -126,7 +126,7 @@ static HRESULT WINAPI iterator_get_HasCurrent( IIterator_IInspectable *iface, bo
 
 static HRESULT WINAPI iterator_MoveNext( IIterator_IInspectable *iface, boolean *value )
 {
-    struct iterator *impl = impl_from_IIterator_IInspectable( iface );
+    struct iterator *impl = iterator_from_IIterator_IInspectable( iface );
 
     TRACE( "iface %p, value %p.\n", iface, value );
 
@@ -137,7 +137,7 @@ static HRESULT WINAPI iterator_MoveNext( IIterator_IInspectable *iface, boolean 
 static HRESULT WINAPI iterator_GetMany( IIterator_IInspectable *iface, UINT32 items_size,
                                         IInspectable **items, UINT *count )
 {
-    struct iterator *impl = impl_from_IIterator_IInspectable( iface );
+    struct iterator *impl = iterator_from_IIterator_IInspectable( iface );
     TRACE( "iface %p, items_size %u, items %p, count %p.\n", iface, items_size, items, count );
     return IVectorView_IInspectable_GetMany( impl->view, impl->index, items_size, items, count );
 }
@@ -172,14 +172,14 @@ struct vector_view
     IInspectable *elements[1];
 };
 
-static inline struct vector_view *impl_from_IVectorView_IInspectable( IVectorView_IInspectable *iface )
+static inline struct vector_view *vector_view_from_IVectorView_IInspectable( IVectorView_IInspectable *iface )
 {
     return CONTAINING_RECORD( iface, struct vector_view, IVectorView_IInspectable_iface );
 }
 
 static HRESULT WINAPI vector_view_QueryInterface( IVectorView_IInspectable *iface, REFIID iid, void **out )
 {
-    struct vector_view *impl = impl_from_IVectorView_IInspectable( iface );
+    struct vector_view *impl = vector_view_from_IVectorView_IInspectable( iface );
 
     TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
 
@@ -210,7 +210,7 @@ static HRESULT WINAPI vector_view_QueryInterface( IVectorView_IInspectable *ifac
 
 static ULONG WINAPI vector_view_AddRef( IVectorView_IInspectable *iface )
 {
-    struct vector_view *impl = impl_from_IVectorView_IInspectable( iface );
+    struct vector_view *impl = vector_view_from_IVectorView_IInspectable( iface );
     ULONG ref = InterlockedIncrement( &impl->ref );
     TRACE( "iface %p increasing refcount to %lu.\n", iface, ref );
     return ref;
@@ -218,7 +218,7 @@ static ULONG WINAPI vector_view_AddRef( IVectorView_IInspectable *iface )
 
 static ULONG WINAPI vector_view_Release( IVectorView_IInspectable *iface )
 {
-    struct vector_view *impl = impl_from_IVectorView_IInspectable( iface );
+    struct vector_view *impl = vector_view_from_IVectorView_IInspectable( iface );
     ULONG i, ref = InterlockedDecrement( &impl->ref );
 
     TRACE( "iface %p decreasing refcount to %lu.\n", iface, ref );
@@ -252,7 +252,7 @@ static HRESULT WINAPI vector_view_GetTrustLevel( IVectorView_IInspectable *iface
 
 static HRESULT WINAPI vector_view_GetAt( IVectorView_IInspectable *iface, UINT32 index, IInspectable **value )
 {
-    struct vector_view *impl = impl_from_IVectorView_IInspectable( iface );
+    struct vector_view *impl = vector_view_from_IVectorView_IInspectable( iface );
 
     TRACE( "iface %p, index %u, value %p.\n", iface, index, value );
 
@@ -265,7 +265,7 @@ static HRESULT WINAPI vector_view_GetAt( IVectorView_IInspectable *iface, UINT32
 
 static HRESULT WINAPI vector_view_get_Size( IVectorView_IInspectable *iface, UINT32 *value )
 {
-    struct vector_view *impl = impl_from_IVectorView_IInspectable( iface );
+    struct vector_view *impl = vector_view_from_IVectorView_IInspectable( iface );
 
     TRACE( "iface %p, value %p.\n", iface, value );
 
@@ -276,7 +276,7 @@ static HRESULT WINAPI vector_view_get_Size( IVectorView_IInspectable *iface, UIN
 static HRESULT WINAPI vector_view_IndexOf( IVectorView_IInspectable *iface, IInspectable *element,
                                            UINT32 *index, BOOLEAN *found )
 {
-    struct vector_view *impl = impl_from_IVectorView_IInspectable( iface );
+    struct vector_view *impl = vector_view_from_IVectorView_IInspectable( iface );
     ULONG i;
 
     TRACE( "iface %p, element %p, index %p, found %p.\n", iface, element, index, found );
@@ -291,7 +291,7 @@ static HRESULT WINAPI vector_view_IndexOf( IVectorView_IInspectable *iface, IIns
 static HRESULT WINAPI vector_view_GetMany( IVectorView_IInspectable *iface, UINT32 start_index,
                                            UINT32 items_size, IInspectable **items, UINT *count )
 {
-    struct vector_view *impl = impl_from_IVectorView_IInspectable( iface );
+    struct vector_view *impl = vector_view_from_IVectorView_IInspectable( iface );
     UINT32 i;
 
     TRACE( "iface %p, start_index %u, items_size %u, items %p, count %p.\n",
@@ -325,12 +325,11 @@ static const struct IVectorView_IInspectableVtbl vector_view_vtbl =
     vector_view_GetMany,
 };
 
-DEFINE_IINSPECTABLE_( iterable_view, IIterable_IInspectable, vector_view, view_impl_from_IIterable_IInspectable,
-                      IIterable_IInspectable_iface, &impl->IVectorView_IInspectable_iface )
+DEFINE_IINSPECTABLE( iterable_view, IIterable_IInspectable, vector_view, IIterable_IInspectable_iface )
 
 static HRESULT WINAPI iterable_view_First( IIterable_IInspectable *iface, IIterator_IInspectable **value )
 {
-    struct vector_view *impl = view_impl_from_IIterable_IInspectable( iface );
+    struct vector_view *impl = vector_view_from_IIterable_IInspectable( iface );
     struct iterator *iter;
 
     TRACE( "iface %p, value %p.\n", iface, value );
@@ -376,14 +375,14 @@ struct vector
     IInspectable **elements;
 };
 
-static inline struct vector *impl_from_IVector_IInspectable( IVector_IInspectable *iface )
+static inline struct vector *vector_from_IVector_IInspectable( IVector_IInspectable *iface )
 {
     return CONTAINING_RECORD( iface, struct vector, IVector_IInspectable_iface );
 }
 
 static HRESULT WINAPI vector_QueryInterface( IVector_IInspectable *iface, REFIID iid, void **out )
 {
-    struct vector *impl = impl_from_IVector_IInspectable( iface );
+    struct vector *impl = vector_from_IVector_IInspectable( iface );
 
     TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
 
@@ -414,7 +413,7 @@ static HRESULT WINAPI vector_QueryInterface( IVector_IInspectable *iface, REFIID
 
 static ULONG WINAPI vector_AddRef( IVector_IInspectable *iface )
 {
-    struct vector *impl = impl_from_IVector_IInspectable( iface );
+    struct vector *impl = vector_from_IVector_IInspectable( iface );
     ULONG ref = InterlockedIncrement( &impl->ref );
     TRACE( "iface %p increasing refcount to %lu.\n", iface, ref );
     return ref;
@@ -422,7 +421,7 @@ static ULONG WINAPI vector_AddRef( IVector_IInspectable *iface )
 
 static ULONG WINAPI vector_Release( IVector_IInspectable *iface )
 {
-    struct vector *impl = impl_from_IVector_IInspectable( iface );
+    struct vector *impl = vector_from_IVector_IInspectable( iface );
     ULONG ref = InterlockedDecrement( &impl->ref );
 
     TRACE( "iface %p decreasing refcount to %lu.\n", iface, ref );
@@ -456,7 +455,7 @@ static HRESULT WINAPI vector_GetTrustLevel( IVector_IInspectable *iface, TrustLe
 
 static HRESULT WINAPI vector_GetAt( IVector_IInspectable *iface, UINT32 index, IInspectable **value )
 {
-    struct vector *impl = impl_from_IVector_IInspectable( iface );
+    struct vector *impl = vector_from_IVector_IInspectable( iface );
 
     TRACE( "iface %p, index %u, value %p.\n", iface, index, value );
 
@@ -469,7 +468,7 @@ static HRESULT WINAPI vector_GetAt( IVector_IInspectable *iface, UINT32 index, I
 
 static HRESULT WINAPI vector_get_Size( IVector_IInspectable *iface, UINT32 *value )
 {
-    struct vector *impl = impl_from_IVector_IInspectable( iface );
+    struct vector *impl = vector_from_IVector_IInspectable( iface );
     TRACE( "iface %p, value %p.\n", iface, value );
     *value = impl->size;
     return S_OK;
@@ -477,7 +476,7 @@ static HRESULT WINAPI vector_get_Size( IVector_IInspectable *iface, UINT32 *valu
 
 static HRESULT WINAPI vector_GetView( IVector_IInspectable *iface, IVectorView_IInspectable **value )
 {
-    struct vector *impl = impl_from_IVector_IInspectable( iface );
+    struct vector *impl = vector_from_IVector_IInspectable( iface );
     struct vector_view *view;
     ULONG i;
 
@@ -498,7 +497,7 @@ static HRESULT WINAPI vector_GetView( IVector_IInspectable *iface, IVectorView_I
 
 static HRESULT WINAPI vector_IndexOf( IVector_IInspectable *iface, IInspectable *element, UINT32 *index, BOOLEAN *found )
 {
-    struct vector *impl = impl_from_IVector_IInspectable( iface );
+    struct vector *impl = vector_from_IVector_IInspectable( iface );
     ULONG i;
 
     TRACE( "iface %p, element %p, index %p, found %p.\n", iface, element, index, found );
@@ -512,7 +511,7 @@ static HRESULT WINAPI vector_IndexOf( IVector_IInspectable *iface, IInspectable 
 
 static HRESULT WINAPI vector_SetAt( IVector_IInspectable *iface, UINT32 index, IInspectable *value )
 {
-    struct vector *impl = impl_from_IVector_IInspectable( iface );
+    struct vector *impl = vector_from_IVector_IInspectable( iface );
 
     TRACE( "iface %p, index %u, value %p.\n", iface, index, value );
 
@@ -524,7 +523,7 @@ static HRESULT WINAPI vector_SetAt( IVector_IInspectable *iface, UINT32 index, I
 
 static HRESULT WINAPI vector_InsertAt( IVector_IInspectable *iface, UINT32 index, IInspectable *value )
 {
-    struct vector *impl = impl_from_IVector_IInspectable( iface );
+    struct vector *impl = vector_from_IVector_IInspectable( iface );
     IInspectable **tmp = impl->elements;
 
     TRACE( "iface %p, index %u, value %p.\n", iface, index, value );
@@ -546,7 +545,7 @@ static HRESULT WINAPI vector_InsertAt( IVector_IInspectable *iface, UINT32 index
 
 static HRESULT WINAPI vector_RemoveAt( IVector_IInspectable *iface, UINT32 index )
 {
-    struct vector *impl = impl_from_IVector_IInspectable( iface );
+    struct vector *impl = vector_from_IVector_IInspectable( iface );
 
     TRACE( "iface %p, index %u.\n", iface, index );
 
@@ -558,7 +557,7 @@ static HRESULT WINAPI vector_RemoveAt( IVector_IInspectable *iface, UINT32 index
 
 static HRESULT WINAPI vector_Append( IVector_IInspectable *iface, IInspectable *value )
 {
-    struct vector *impl = impl_from_IVector_IInspectable( iface );
+    struct vector *impl = vector_from_IVector_IInspectable( iface );
 
     TRACE( "iface %p, value %p.\n", iface, value );
 
@@ -567,7 +566,7 @@ static HRESULT WINAPI vector_Append( IVector_IInspectable *iface, IInspectable *
 
 static HRESULT WINAPI vector_RemoveAtEnd( IVector_IInspectable *iface )
 {
-    struct vector *impl = impl_from_IVector_IInspectable( iface );
+    struct vector *impl = vector_from_IVector_IInspectable( iface );
 
     TRACE( "iface %p.\n", iface );
 
@@ -577,7 +576,7 @@ static HRESULT WINAPI vector_RemoveAtEnd( IVector_IInspectable *iface )
 
 static HRESULT WINAPI vector_Clear( IVector_IInspectable *iface )
 {
-    struct vector *impl = impl_from_IVector_IInspectable( iface );
+    struct vector *impl = vector_from_IVector_IInspectable( iface );
 
     TRACE( "iface %p.\n", iface );
 
@@ -592,7 +591,7 @@ static HRESULT WINAPI vector_Clear( IVector_IInspectable *iface )
 static HRESULT WINAPI vector_GetMany( IVector_IInspectable *iface, UINT32 start_index,
                                       UINT32 items_size, IInspectable **items, UINT *count )
 {
-    struct vector *impl = impl_from_IVector_IInspectable( iface );
+    struct vector *impl = vector_from_IVector_IInspectable( iface );
     UINT32 i;
 
     TRACE( "iface %p, start_index %u, items_size %u, items %p, count %p.\n",
@@ -650,7 +649,7 @@ DEFINE_IINSPECTABLE( iterable, IIterable_IInspectable, vector, IVector_IInspecta
 
 static HRESULT WINAPI iterable_First( IIterable_IInspectable *iface, IIterator_IInspectable **value )
 {
-    struct vector *impl = impl_from_IIterable_IInspectable( iface );
+    struct vector *impl = vector_from_IIterable_IInspectable( iface );
     IIterable_IInspectable *iterable;
     IVectorView_IInspectable *view;
     HRESULT hr;

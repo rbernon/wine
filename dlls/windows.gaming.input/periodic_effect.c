@@ -31,14 +31,14 @@ struct periodic_effect
     PeriodicForceEffectKind kind;
 };
 
-static inline struct periodic_effect *impl_from_IPeriodicForceEffect( IPeriodicForceEffect *iface )
+static inline struct periodic_effect *periodic_effect_from_IPeriodicForceEffect( IPeriodicForceEffect *iface )
 {
     return CONTAINING_RECORD( iface, struct periodic_effect, IPeriodicForceEffect_iface );
 }
 
 static HRESULT WINAPI effect_QueryInterface( IPeriodicForceEffect *iface, REFIID iid, void **out )
 {
-    struct periodic_effect *impl = impl_from_IPeriodicForceEffect( iface );
+    struct periodic_effect *impl = periodic_effect_from_IPeriodicForceEffect( iface );
 
     TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
 
@@ -55,7 +55,7 @@ static HRESULT WINAPI effect_QueryInterface( IPeriodicForceEffect *iface, REFIID
 
 static ULONG WINAPI effect_AddRef( IPeriodicForceEffect *iface )
 {
-    struct periodic_effect *impl = impl_from_IPeriodicForceEffect( iface );
+    struct periodic_effect *impl = periodic_effect_from_IPeriodicForceEffect( iface );
     ULONG ref = InterlockedIncrement( &impl->ref );
     TRACE( "iface %p increasing refcount to %lu.\n", iface, ref );
     return ref;
@@ -63,7 +63,7 @@ static ULONG WINAPI effect_AddRef( IPeriodicForceEffect *iface )
 
 static ULONG WINAPI effect_Release( IPeriodicForceEffect *iface )
 {
-    struct periodic_effect *impl = impl_from_IPeriodicForceEffect( iface );
+    struct periodic_effect *impl = periodic_effect_from_IPeriodicForceEffect( iface );
     ULONG ref = InterlockedDecrement( &impl->ref );
 
     TRACE( "iface %p decreasing refcount to %lu.\n", iface, ref );
@@ -100,7 +100,7 @@ static HRESULT WINAPI effect_GetTrustLevel( IPeriodicForceEffect *iface, TrustLe
 
 static HRESULT WINAPI effect_get_Kind( IPeriodicForceEffect *iface, PeriodicForceEffectKind *kind )
 {
-    struct periodic_effect *impl = impl_from_IPeriodicForceEffect( iface );
+    struct periodic_effect *impl = periodic_effect_from_IPeriodicForceEffect( iface );
     TRACE( "iface %p, kind %p.\n", iface, kind );
     *kind = impl->kind;
     return S_OK;
@@ -109,7 +109,7 @@ static HRESULT WINAPI effect_get_Kind( IPeriodicForceEffect *iface, PeriodicForc
 static HRESULT WINAPI effect_SetParameters( IPeriodicForceEffect *iface, Vector3 direction, FLOAT frequency, FLOAT phase,
                                             FLOAT bias, TimeSpan duration )
 {
-    struct periodic_effect *impl = impl_from_IPeriodicForceEffect( iface );
+    struct periodic_effect *impl = periodic_effect_from_IPeriodicForceEffect( iface );
     WineForceFeedbackEffectParameters params =
     {
         .periodic =
@@ -136,7 +136,7 @@ static HRESULT WINAPI effect_SetParametersWithEnvelope( IPeriodicForceEffect *if
                                                         TimeSpan attack_duration, TimeSpan sustain_duration,
                                                         TimeSpan release_duration, UINT32 repeat_count )
 {
-    struct periodic_effect *impl = impl_from_IPeriodicForceEffect( iface );
+    struct periodic_effect *impl = periodic_effect_from_IPeriodicForceEffect( iface );
     WineForceFeedbackEffectParameters params =
     {
         .periodic =
@@ -191,14 +191,14 @@ struct periodic_factory
     LONG ref;
 };
 
-static inline struct periodic_factory *impl_from_IActivationFactory( IActivationFactory *iface )
+static inline struct periodic_factory *periodic_factory_from_IActivationFactory( IActivationFactory *iface )
 {
     return CONTAINING_RECORD( iface, struct periodic_factory, IActivationFactory_iface );
 }
 
 static HRESULT WINAPI activation_QueryInterface( IActivationFactory *iface, REFIID iid, void **out )
 {
-    struct periodic_factory *impl = impl_from_IActivationFactory( iface );
+    struct periodic_factory *impl = periodic_factory_from_IActivationFactory( iface );
 
     TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
 
@@ -229,7 +229,7 @@ static HRESULT WINAPI activation_QueryInterface( IActivationFactory *iface, REFI
 
 static ULONG WINAPI activation_AddRef( IActivationFactory *iface )
 {
-    struct periodic_factory *impl = impl_from_IActivationFactory( iface );
+    struct periodic_factory *impl = periodic_factory_from_IActivationFactory( iface );
     ULONG ref = InterlockedIncrement( &impl->ref );
     TRACE( "iface %p increasing refcount to %lu.\n", iface, ref );
     return ref;
@@ -237,7 +237,7 @@ static ULONG WINAPI activation_AddRef( IActivationFactory *iface )
 
 static ULONG WINAPI activation_Release( IActivationFactory *iface )
 {
-    struct periodic_factory *impl = impl_from_IActivationFactory( iface );
+    struct periodic_factory *impl = periodic_factory_from_IActivationFactory( iface );
     ULONG ref = InterlockedDecrement( &impl->ref );
     TRACE( "iface %p decreasing refcount to %lu.\n", iface, ref );
     return ref;

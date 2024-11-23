@@ -72,14 +72,14 @@ struct gamepad
     BOOL state_changed;
 };
 
-static inline struct gamepad *impl_from_IGameControllerImpl( IGameControllerImpl *iface )
+static inline struct gamepad *gamepad_from_IGameControllerImpl( IGameControllerImpl *iface )
 {
     return CONTAINING_RECORD( iface, struct gamepad, IGameControllerImpl_iface );
 }
 
 static HRESULT WINAPI controller_QueryInterface( IGameControllerImpl *iface, REFIID iid, void **out )
 {
-    struct gamepad *impl = impl_from_IGameControllerImpl( iface );
+    struct gamepad *impl = gamepad_from_IGameControllerImpl( iface );
 
     TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
 
@@ -116,7 +116,7 @@ static HRESULT WINAPI controller_QueryInterface( IGameControllerImpl *iface, REF
 
 static ULONG WINAPI controller_AddRef( IGameControllerImpl *iface )
 {
-    struct gamepad *impl = impl_from_IGameControllerImpl( iface );
+    struct gamepad *impl = gamepad_from_IGameControllerImpl( iface );
     ULONG ref = InterlockedIncrement( &impl->ref );
     TRACE( "iface %p increasing refcount to %lu.\n", iface, ref );
     return ref;
@@ -124,7 +124,7 @@ static ULONG WINAPI controller_AddRef( IGameControllerImpl *iface )
 
 static ULONG WINAPI controller_Release( IGameControllerImpl *iface )
 {
-    struct gamepad *impl = impl_from_IGameControllerImpl( iface );
+    struct gamepad *impl = gamepad_from_IGameControllerImpl( iface );
     ULONG ref = InterlockedDecrement( &impl->ref );
 
     TRACE( "iface %p decreasing refcount to %lu.\n", iface, ref );
@@ -162,7 +162,7 @@ static HRESULT WINAPI controller_GetTrustLevel( IGameControllerImpl *iface, Trus
 static HRESULT WINAPI controller_Initialize( IGameControllerImpl *iface, IGameController *outer,
                                              IGameControllerProvider *provider )
 {
-    struct gamepad *impl = impl_from_IGameControllerImpl( iface );
+    struct gamepad *impl = gamepad_from_IGameControllerImpl( iface );
     HRESULT hr;
 
     TRACE( "iface %p, outer %p, provider %p.\n", iface, outer, provider );
@@ -231,7 +231,7 @@ DEFINE_IINSPECTABLE_OUTER( gamepad, IGamepad, gamepad, IGameController_outer )
 
 static HRESULT WINAPI gamepad_get_Vibration( IGamepad *iface, struct GamepadVibration *value )
 {
-    struct gamepad *impl = impl_from_IGamepad( iface );
+    struct gamepad *impl = gamepad_from_IGamepad( iface );
     struct WineGameControllerVibration vibration;
     HRESULT hr;
 
@@ -249,7 +249,7 @@ static HRESULT WINAPI gamepad_get_Vibration( IGamepad *iface, struct GamepadVibr
 
 static HRESULT WINAPI gamepad_put_Vibration( IGamepad *iface, struct GamepadVibration value )
 {
-    struct gamepad *impl = impl_from_IGamepad( iface );
+    struct gamepad *impl = gamepad_from_IGamepad( iface );
     struct WineGameControllerVibration vibration =
     {
         .rumble = value.LeftMotor * 65535.,
@@ -265,7 +265,7 @@ static HRESULT WINAPI gamepad_put_Vibration( IGamepad *iface, struct GamepadVibr
 
 static HRESULT WINAPI gamepad_GetCurrentReading( IGamepad *iface, struct GamepadReading *value )
 {
-    struct gamepad *impl = impl_from_IGamepad( iface );
+    struct gamepad *impl = gamepad_from_IGamepad( iface );
     struct WineGameControllerState state;
     HRESULT hr;
 
@@ -381,14 +381,14 @@ struct gamepad_statics
     LONG ref;
 };
 
-static inline struct gamepad_statics *impl_from_IActivationFactory( IActivationFactory *iface )
+static inline struct gamepad_statics *gamepad_statics_from_IActivationFactory( IActivationFactory *iface )
 {
     return CONTAINING_RECORD( iface, struct gamepad_statics, IActivationFactory_iface );
 }
 
 static HRESULT WINAPI factory_QueryInterface( IActivationFactory *iface, REFIID iid, void **out )
 {
-    struct gamepad_statics *impl = impl_from_IActivationFactory( iface );
+    struct gamepad_statics *impl = gamepad_statics_from_IActivationFactory( iface );
 
     TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
 
@@ -431,7 +431,7 @@ static HRESULT WINAPI factory_QueryInterface( IActivationFactory *iface, REFIID 
 
 static ULONG WINAPI factory_AddRef( IActivationFactory *iface )
 {
-    struct gamepad_statics *impl = impl_from_IActivationFactory( iface );
+    struct gamepad_statics *impl = gamepad_statics_from_IActivationFactory( iface );
     ULONG ref = InterlockedIncrement( &impl->ref );
     TRACE( "iface %p increasing refcount to %lu.\n", iface, ref );
     return ref;
@@ -439,7 +439,7 @@ static ULONG WINAPI factory_AddRef( IActivationFactory *iface )
 
 static ULONG WINAPI factory_Release( IActivationFactory *iface )
 {
-    struct gamepad_statics *impl = impl_from_IActivationFactory( iface );
+    struct gamepad_statics *impl = gamepad_statics_from_IActivationFactory( iface );
     ULONG ref = InterlockedDecrement( &impl->ref );
     TRACE( "iface %p decreasing refcount to %lu.\n", iface, ref );
     return ref;
@@ -547,7 +547,7 @@ DEFINE_IINSPECTABLE( statics2, IGamepadStatics2, gamepad_statics, IActivationFac
 
 static HRESULT WINAPI statics2_FromGameController( IGamepadStatics2 *iface, IGameController *game_controller, IGamepad **value )
 {
-    struct gamepad_statics *impl = impl_from_IGamepadStatics2( iface );
+    struct gamepad_statics *impl = gamepad_statics_from_IGamepadStatics2( iface );
     IGameController *controller;
     HRESULT hr;
 
