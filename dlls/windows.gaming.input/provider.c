@@ -370,7 +370,7 @@ static const struct IWineGameControllerProviderVtbl wine_provider_vtbl =
     wine_provider_get_ForceFeedbackMotor,
 };
 
-DEFINE_IINSPECTABLE( game_provider, IGameControllerProvider, struct provider, IWineGameControllerProvider_iface )
+DEFINE_IINSPECTABLE( game_provider, IGameControllerProvider, provider, IWineGameControllerProvider_iface )
 
 static HRESULT WINAPI game_provider_get_FirmwareVersionInfo( IGameControllerProvider *iface, GameControllerVersionInfo *value )
 {

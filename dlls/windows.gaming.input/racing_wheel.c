@@ -183,7 +183,7 @@ static const struct IGameControllerImplVtbl controller_vtbl =
     controller_Initialize,
 };
 
-DEFINE_IINSPECTABLE_OUTER( input_sink, IGameControllerInputSink, struct racing_wheel, IGameController_outer )
+DEFINE_IINSPECTABLE_OUTER( input_sink, IGameControllerInputSink, racing_wheel, IGameController_outer )
 
 static HRESULT WINAPI input_sink_OnInputResumed( IGameControllerInputSink *iface, UINT64 timestamp )
 {
@@ -211,7 +211,7 @@ static const struct IGameControllerInputSinkVtbl input_sink_vtbl =
     input_sink_OnInputSuspended,
 };
 
-DEFINE_IINSPECTABLE_OUTER( racing_wheel, IRacingWheel, struct racing_wheel, IGameController_outer )
+DEFINE_IINSPECTABLE_OUTER( racing_wheel, IRacingWheel, racing_wheel, IGameController_outer )
 
 static HRESULT WINAPI racing_wheel_get_HasClutch( IRacingWheel *iface, boolean *value )
 {
@@ -396,7 +396,7 @@ static const struct IActivationFactoryVtbl factory_vtbl =
     factory_ActivateInstance,
 };
 
-DEFINE_IINSPECTABLE( statics, IRacingWheelStatics, struct racing_wheel_statics, IActivationFactory_iface )
+DEFINE_IINSPECTABLE( statics, IRacingWheelStatics, racing_wheel_statics, IActivationFactory_iface )
 
 static HRESULT WINAPI statics_add_RacingWheelAdded( IRacingWheelStatics *iface, IEventHandler_RacingWheel *handler,
                                                     EventRegistrationToken *token )
@@ -456,7 +456,7 @@ static const struct IRacingWheelStaticsVtbl statics_vtbl =
     statics_get_RacingWheels,
 };
 
-DEFINE_IINSPECTABLE( statics2, IRacingWheelStatics2, struct racing_wheel_statics, IActivationFactory_iface )
+DEFINE_IINSPECTABLE( statics2, IRacingWheelStatics2, racing_wheel_statics, IActivationFactory_iface )
 
 static HRESULT WINAPI statics2_FromGameController( IRacingWheelStatics2 *iface, IGameController *game_controller, IRacingWheel **value )
 {
@@ -489,7 +489,7 @@ static const struct IRacingWheelStatics2Vtbl statics2_vtbl =
     statics2_FromGameController,
 };
 
-DEFINE_IINSPECTABLE( controller_factory, ICustomGameControllerFactory, struct racing_wheel_statics, IActivationFactory_iface )
+DEFINE_IINSPECTABLE( controller_factory, ICustomGameControllerFactory, racing_wheel_statics, IActivationFactory_iface )
 
 static HRESULT WINAPI controller_factory_CreateGameController( ICustomGameControllerFactory *iface, IGameControllerProvider *provider,
                                                                IInspectable **value )

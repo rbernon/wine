@@ -204,7 +204,7 @@ static const struct IWineAsyncInfoImplVtbl async_impl_vtbl =
     async_impl_Start,
 };
 
-DEFINE_IINSPECTABLE_OUTER( async_info, IAsyncInfo, struct async_info, IInspectable_outer )
+DEFINE_IINSPECTABLE_OUTER( async_info, IAsyncInfo, async_info, IInspectable_outer )
 
 static HRESULT WINAPI async_info_get_Id( IAsyncInfo *iface, UINT32 *id )
 {
