@@ -242,7 +242,7 @@ static const struct IActivationFactoryVtbl activation_vtbl =
     activation_ActivateInstance,
 };
 
-DEFINE_IINSPECTABLE( factory, IConditionForceEffectFactory, struct condition_factory, IActivationFactory_iface )
+DEFINE_IINSPECTABLE( factory, IConditionForceEffectFactory, condition_factory, IActivationFactory_iface )
 
 static HRESULT WINAPI factory_CreateInstance( IConditionForceEffectFactory *iface, enum ConditionForceEffectKind kind, IForceFeedbackEffect **out )
 {
