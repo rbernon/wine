@@ -27,7 +27,7 @@
 #include "objbase.h"
 #include "dinput.h"
 
-#include "activation.h"
+#include "activation_impl.h"
 
 #define WIDL_using_Windows_Foundation
 #define WIDL_using_Windows_Foundation_Collections
@@ -37,12 +37,12 @@
 #define WIDL_using_Windows_Gaming_Input
 #define WIDL_using_Windows_Gaming_Input_Custom
 #define WIDL_using_Windows_Gaming_Input_ForceFeedback
-#include "windows.gaming.input.custom.h"
+#include "windows.gaming.input.custom_impl.h"
 
 #include "wine/debug.h"
 #include "wine/list.h"
 
-#include "provider.h"
+#include "provider_impl.h"
 
 extern HINSTANCE windows_gaming_input;
 extern ICustomGameControllerFactory *controller_factory;
@@ -140,12 +140,7 @@ extern HRESULT async_operation_effect_result_create( IUnknown *invoker, IUnknown
         struct type *object = CONTAINING_RECORD( iface, struct type, IAgileObject_iface );         \
         return base##_Release( (expr) );                                                           \
     }                                                                                              \
-    static const IAgileObjectVtbl type##_IAgileObject_vtbl =                                       \
-    {                                                                                              \
-        type##_IAgileObject_QueryInterface,                                                        \
-        type##_IAgileObject_AddRef,                                                                \
-        type##_IAgileObject_Release,                                                               \
-    };
+    WIDL_impl_IAgileObjectVtbl( type ## _IAgileObject );
 
 static inline const char *debugstr_vector3( const Vector3 *vector )
 {
