@@ -102,6 +102,7 @@ static inline void vulkan_object_init( struct vulkan_object *obj, UINT64 host_ha
     USE_VK_FUNC(vkUnmapMemory2KHR) \
 
 #define WIN32U_VK_INSTANCE_FUNCS \
+    USE_VK_FUNC(vkCreateHeadlessSurfaceEXT) \
     USE_VK_FUNC(vkCreateWin32SurfaceKHR) \
     USE_VK_FUNC(vkDestroySurfaceKHR) \
     USE_VK_FUNC(vkGetInstanceProcAddr) \
