@@ -383,6 +383,11 @@ STRUCT_CHAIN_CONVERSIONS = {
     "VkInstanceCreateInfo": ["VK_STRUCTURE_TYPE_LOADER_INSTANCE_CREATE_INFO"],
 }
 
+STRUCT_CHAIN_FORCE_UNWRAP = {
+    "VkDeviceCreateInfo": ["VK_STRUCTURE_TYPE_DEVICE_GROUP_DEVICE_CREATE_INFO"],
+    "VkImageCreateInfo": ["VK_STRUCTURE_TYPE_IMAGE_SWAPCHAIN_CREATE_INFO_KHR"],
+}
+
 # Some struct members are conditionally ignored and callers are free to leave them uninitialized.
 # We can't deduce that from XML, so we allow expressing it here.
 MEMBER_LENGTH_EXPRESSIONS = {
@@ -2477,7 +2482,10 @@ class StructConversionFunction(object):
                     if m.name == "pNext":
                         copy_body += ident + "out_ext->pNext = NULL;\n"
                         continue
-                    copy_body += ident + m.copy("in_ext->", "out_ext->", self.direction, self.conv, Unwrap.HOST)
+                    if stype in STRUCT_CHAIN_FORCE_UNWRAP.get(self.type, []):
+                        copy_body += ident + m.copy("in_ext->", "out_ext->", self.direction, self.conv, Unwrap.HOST)
+                    else:
+                        copy_body += ident + m.copy("in_ext->", "out_ext->", self.direction, self.conv, self.unwrap)
 
                 # Generate the definition of "in_ext" if we need it
                 if "in_ext->" in copy_body:
