@@ -209,6 +209,8 @@ USER_DRIVER_FUNCS = {
     "vkAcquireNextImage2KHR",
     "vkAcquireNextImageKHR",
     "vkAllocateMemory",
+    "vkBindImageMemory2",
+    "vkBindImageMemory2KHR",
     "vkCreateBuffer",
     "vkCreateFence",
     "vkCreateHeadlessSurfaceEXT",
@@ -243,6 +245,7 @@ USER_DRIVER_FUNCS = {
     "vkGetPhysicalDeviceSurfaceFormatsKHR",
     "vkGetPhysicalDeviceWin32PresentationSupportKHR",
     "vkGetSemaphoreWin32HandleKHR",
+    "vkGetSwapchainImagesKHR",
     "vkImportFenceWin32HandleKHR",
     "vkImportSemaphoreWin32HandleKHR",
     "vkMapMemory",
@@ -251,8 +254,10 @@ USER_DRIVER_FUNCS = {
     "vkQueueSubmit",
     "vkQueueSubmit2",
     "vkQueueSubmit2KHR",
+    "vkReleaseSwapchainImagesEXT",
     "vkUnmapMemory",
     "vkUnmapMemory2KHR",
+    "vkWaitForPresentKHR",
 }
 
 # functions for which the unix thunk is manually implemented
@@ -395,7 +400,6 @@ STRUCT_CHAIN_CONVERSIONS = {
 
 STRUCT_CHAIN_FORCE_UNWRAP = {
     "VkDeviceCreateInfo": ["VK_STRUCTURE_TYPE_DEVICE_GROUP_DEVICE_CREATE_INFO"],
-    "VkImageCreateInfo": ["VK_STRUCTURE_TYPE_IMAGE_SWAPCHAIN_CREATE_INFO_KHR"],
 }
 
 # Some struct members are conditionally ignored and callers are free to leave them uninitialized.
