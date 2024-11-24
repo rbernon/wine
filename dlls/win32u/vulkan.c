@@ -774,6 +774,12 @@ static VkResult win32u_vkGetPhysicalDeviceImageFormatProperties2KHR( VkPhysicalD
     return win32u_vkGetPhysicalDeviceImageFormatProperties2( client_physical_device, format_info, format_properies );
 }
 
+static VkResult win32u_vkCreateHeadlessSurfaceEXT( VkInstance instance_handle, const VkHeadlessSurfaceCreateInfoEXT *create_info,
+                                                   const VkAllocationCallbacks *allocator, VkSurfaceKHR *ret )
+{
+    return VK_ERROR_INCOMPATIBLE_DRIVER;
+}
+
 static VkResult win32u_vkCreateWin32SurfaceKHR( VkInstance client_instance, const VkWin32SurfaceCreateInfoKHR *create_info,
                                                 const VkAllocationCallbacks *allocator, VkSurfaceKHR *ret )
 {
