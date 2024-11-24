@@ -74,6 +74,8 @@ static inline void vulkan_object_init( struct vulkan_object *obj, UINT64 host_ha
     USE_VK_FUNC(vkAcquireNextImage2KHR) \
     USE_VK_FUNC(vkAcquireNextImageKHR) \
     USE_VK_FUNC(vkAllocateMemory) \
+    USE_VK_FUNC(vkBindImageMemory2) \
+    USE_VK_FUNC(vkBindImageMemory2KHR) \
     USE_VK_FUNC(vkCreateBuffer) \
     USE_VK_FUNC(vkCreateFence) \
     USE_VK_FUNC(vkCreateImage) \
@@ -90,6 +92,7 @@ static inline void vulkan_object_init( struct vulkan_object *obj, UINT64 host_ha
     USE_VK_FUNC(vkGetMemoryWin32HandleKHR) \
     USE_VK_FUNC(vkGetMemoryWin32HandlePropertiesKHR) \
     USE_VK_FUNC(vkGetSemaphoreWin32HandleKHR) \
+    USE_VK_FUNC(vkGetSwapchainImagesKHR) \
     USE_VK_FUNC(vkImportFenceWin32HandleKHR) \
     USE_VK_FUNC(vkImportSemaphoreWin32HandleKHR) \
     USE_VK_FUNC(vkMapMemory) \
@@ -98,8 +101,10 @@ static inline void vulkan_object_init( struct vulkan_object *obj, UINT64 host_ha
     USE_VK_FUNC(vkQueueSubmit) \
     USE_VK_FUNC(vkQueueSubmit2) \
     USE_VK_FUNC(vkQueueSubmit2KHR) \
+    USE_VK_FUNC(vkReleaseSwapchainImagesEXT) \
     USE_VK_FUNC(vkUnmapMemory) \
     USE_VK_FUNC(vkUnmapMemory2KHR) \
+    USE_VK_FUNC(vkWaitForPresentKHR) \
 
 #define WIN32U_VK_INSTANCE_FUNCS \
     USE_VK_FUNC(vkCreateHeadlessSurfaceEXT) \

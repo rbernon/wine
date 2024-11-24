@@ -31,6 +31,7 @@
 #define WIN32_NO_STATUS
 #include "win32u_private.h"
 #include "ntuser_private.h"
+#include "d3d11.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(vulkan);
 
@@ -52,6 +53,31 @@ static const UINT EXTERNAL_MEMORY_WIN32_BITS = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OP
                                                VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_KMT_BIT |
                                                VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_HEAP_BIT |
                                                VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_RESOURCE_BIT;
+struct d3dkmt_runtime_data
+{
+    UINT size;
+    UINT id;
+    UINT width;
+    UINT height;
+    DXGI_FORMAT format;
+    UINT array_size;
+    UINT read_only;
+    UINT sync;
+    D3DKMT_HANDLE keyed_mutex;
+    UINT unknown_0;
+    UINT share_handle;
+    UINT unknown[3];
+    D3D11_RESOURCE_DIMENSION type;
+    union
+    {
+        D3D11_BUFFER_DESC desc_buffer;
+        D3D11_TEXTURE1D_DESC desc_1d;
+        D3D11_TEXTURE2D_DESC desc_2d;
+        D3D11_TEXTURE3D_DESC desc_3d;
+    };
+};
+
+C_ASSERT( sizeof(struct d3dkmt_runtime_data) == 0x68 );
 
 struct device_memory
 {
@@ -215,6 +241,7 @@ static VkResult win32u_vkAllocateMemory( VkDevice client_device, const VkMemoryA
     VkExportMemoryWin32HandleInfoKHR *export_handle_info = NULL;
     VkImportMemoryWin32HandleInfoKHR *import_handle_info = NULL;
     VkImportMemoryHostPointerInfoEXT host_pointer_info = {0};
+    VkMemoryDedicatedAllocateInfo *dedicated_info = NULL;
     VkExportMemoryAllocateInfo *export_info = NULL;
     VkImportMemoryFdInfoKHR host_import_info;
     VkDeviceMemory host_device_memory;
@@ -250,7 +277,9 @@ static VkResult win32u_vkAllocateMemory( VkDevice client_device, const VkMemoryA
             *next = (*next)->pNext;
             break;
         case VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO: break;
-        case VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO: break;
+        case VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO:
+            dedicated_info = (VkMemoryDedicatedAllocateInfo *)*next;
+            break;
         case VK_STRUCTURE_TYPE_IMPORT_MEMORY_HOST_POINTER_INFO_EXT:
             host_pointer_info = *(VkImportMemoryHostPointerInfoEXT *)*next;
             break;
@@ -321,8 +350,17 @@ static VkResult win32u_vkAllocateMemory( VkDevice client_device, const VkMemoryA
     {
         D3DKMT_CREATEALLOCATION create_params;
         VkMemoryGetFdInfoKHR get_info = {.sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR};
+        struct d3dkmt_runtime_data runtime_data = {.size = sizeof(runtime_data)};
         PFN_vkGetMemoryFdKHR p_vkGetMemoryFdKHR;
         int fd;
+
+        if (dedicated_info)
+        {
+            create_params.pPrivateRuntimeData = &runtime_data;
+            create_params.PrivateRuntimeDataSize = sizeof(runtime_data);
+
+            runtime_data.array_size = dedicated_info->image;
+        }
 
         create_params.hDevice = 0 /* FIXME */;
         create_params.Flags.CreateShared = 1;
@@ -668,7 +706,13 @@ static VkResult win32u_vkCreateImage( VkDevice client_device, const VkImageCreat
                 external_info->handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
             }
             break;
-        case VK_STRUCTURE_TYPE_IMAGE_SWAPCHAIN_CREATE_INFO_KHR: break;
+        case VK_STRUCTURE_TYPE_IMAGE_SWAPCHAIN_CREATE_INFO_KHR:
+        {
+            VkImageSwapchainCreateInfoKHR *swapchain_info = (VkImageSwapchainCreateInfoKHR *)*next;
+            struct swapchain *swapchain = swapchain_from_handle( swapchain_info->swapchain );
+            swapchain_info->swapchain = swapchain->obj.host.swapchain;
+            break;
+        }
         case VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO: break;
         case VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT: break;
         case VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_EXPLICIT_CREATE_INFO_EXT: break;
@@ -715,7 +759,13 @@ static void win32u_vkGetDeviceImageMemoryRequirements( VkDevice client_device, c
                 external_info->handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
             }
             break;
-        case VK_STRUCTURE_TYPE_IMAGE_SWAPCHAIN_CREATE_INFO_KHR: break;
+        case VK_STRUCTURE_TYPE_IMAGE_SWAPCHAIN_CREATE_INFO_KHR:
+        {
+            VkImageSwapchainCreateInfoKHR *swapchain_info = (VkImageSwapchainCreateInfoKHR *)*next;
+            struct swapchain *swapchain = swapchain_from_handle( swapchain_info->swapchain );
+            swapchain_info->swapchain = swapchain->obj.host.swapchain;
+            break;
+        }
         case VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO: break;
         case VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT: break;
         case VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_EXPLICIT_CREATE_INFO_EXT: break;
@@ -1118,6 +1168,54 @@ static VkResult win32u_vkAcquireNextImageKHR( VkDevice client_device, VkSwapchai
     return res;
 }
 
+static VkResult win32u_vkBindImageMemory2( VkDevice client_device, uint32_t count, const VkBindImageMemoryInfo *bind_infos )
+{
+    struct vulkan_device *device = vulkan_device_from_handle( client_device );
+    struct swapchain *swapchain;
+    VkBaseOutStructure **next;
+    uint32_t i;
+
+    for (i = 0; i < count; i++)
+    {
+        VkBindImageMemoryInfo *bind_info = (VkBindImageMemoryInfo *)bind_infos + i; /* cast away const, it has been copied in the thunks */
+        struct vulkan_device_memory *memory = vulkan_device_memory_from_handle( bind_info->memory );
+        bind_info->memory = memory->host.device_memory;
+
+        for (next = (VkBaseOutStructure **)&bind_info->pNext; *next; next = &(*next)->pNext)
+        {
+            switch ((*next)->sType)
+            {
+            case VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_DEVICE_GROUP_INFO: break;
+            case VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_SWAPCHAIN_INFO_KHR:
+            {
+                VkBindImageMemorySwapchainInfoKHR *swapchain_info = (VkBindImageMemorySwapchainInfoKHR *)*next;
+                swapchain = swapchain_from_handle( swapchain_info->swapchain );
+                swapchain_info->swapchain = swapchain->obj.host.swapchain;
+                break;
+            }
+            case VK_STRUCTURE_TYPE_BIND_IMAGE_PLANE_MEMORY_INFO: break;
+            case VK_STRUCTURE_TYPE_BIND_MEMORY_STATUS_KHR: break;
+            default: FIXME( "Unhandled sType %u.\n", (*next)->sType ); break;
+            }
+        }
+    }
+
+    return device->host_vkBindImageMemory2( device->host.device, count, bind_infos );
+}
+
+static VkResult win32u_vkBindImageMemory2KHR( VkDevice client_device, uint32_t count, const VkBindImageMemoryInfo *bind_infos )
+{
+    return win32u_vkBindImageMemory2( client_device, count, bind_infos );
+}
+
+static VkResult win32u_vkGetSwapchainImagesKHR( VkDevice client_device, VkSwapchainKHR client_swapchain, uint32_t *count, VkImage *images )
+{
+    struct vulkan_device *device = vulkan_device_from_handle( client_device );
+    struct swapchain *swapchain = swapchain_from_handle( client_swapchain );
+
+    return device->host_vkGetSwapchainImagesKHR( device->host.device, swapchain->obj.host.swapchain, count, images );
+}
+
 static VkResult win32u_vkQueuePresentKHR( VkQueue client_queue, const VkPresentInfoKHR *present_info )
 {
     VkSwapchainKHR swapchains_buffer[16], *client_swapchains = swapchains_buffer;
@@ -1381,6 +1479,25 @@ static VkResult win32u_vkQueueSubmit2( VkQueue client_queue, uint32_t count, con
 static VkResult win32u_vkQueueSubmit2KHR( VkQueue client_queue, uint32_t count, const VkSubmitInfo2 *submits, VkFence client_fence )
 {
     return win32u_vkQueueSubmit2( client_queue, count, submits, client_fence );
+}
+
+static VkResult win32u_vkReleaseSwapchainImagesEXT( VkDevice client_device, const VkReleaseSwapchainImagesInfoEXT *release_info )
+{
+    struct vulkan_device *device = vulkan_device_from_handle( client_device );
+    struct swapchain *swapchain = swapchain_from_handle( release_info->swapchain );
+    VkReleaseSwapchainImagesInfoEXT release_info_host = *release_info;
+
+    release_info_host.swapchain = swapchain->obj.host.swapchain;
+
+    return device->host_vkReleaseSwapchainImagesEXT( device->host.device, &release_info_host );
+}
+
+static VkResult win32u_vkWaitForPresentKHR( VkDevice client_device, VkSwapchainKHR client_swapchain, uint64_t present_id, uint64_t timeout )
+{
+    struct vulkan_device *device = vulkan_device_from_handle( client_device );
+    struct swapchain *swapchain = swapchain_from_handle( client_swapchain );
+
+    return device->host_vkWaitForPresentKHR( device->host.device, swapchain->obj.host.swapchain, present_id, timeout );
 }
 
 static VkResult win32u_vkCreateSemaphore( VkDevice client_device, const VkSemaphoreCreateInfo *create_info,
