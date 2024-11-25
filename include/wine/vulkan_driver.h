@@ -90,6 +90,11 @@ struct vulkan_physical_device
 {
     VULKAN_OBJECT_HEADER( VkPhysicalDevice, physical_device );
     struct vulkan_instance *instance;
+
+    /* for WOW64 memory mapping with VK_EXT_external_memory_host */
+    VkPhysicalDeviceMemoryProperties memory_properties;
+    uint32_t external_memory_align;
+    uint32_t map_placed_align;
 };
 
 static inline struct vulkan_physical_device *vulkan_physical_device_from_handle( VkPhysicalDevice handle )
