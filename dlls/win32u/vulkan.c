@@ -112,6 +112,9 @@ static inline struct semaphore *semaphore_from_handle( VkSemaphore handle )
 struct fence
 {
     struct vulkan_fence obj;
+    D3DKMT_HANDLE d3dkmt_local;
+    D3DKMT_HANDLE d3dkmt_global;
+    HANDLE shared_handle;
 };
 
 static inline struct fence *fence_from_handle( VkFence handle )
@@ -1434,7 +1437,7 @@ static void win32u_vkGetPhysicalDeviceExternalSemaphoreProperties( VkPhysicalDev
     static const VkExternalSemaphoreHandleTypeFlagBits handle_types = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_BIT |
                                                                       VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT |
                                                                       VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_D3D12_FENCE_BIT;
- 
+
     struct vulkan_physical_device *physical_device = vulkan_physical_device_from_handle( client_physical_device );
     struct vulkan_instance *instance = physical_device->instance;
 
@@ -1468,6 +1471,8 @@ static VkResult win32u_vkCreateFence( VkDevice client_device, const VkFenceCreat
 {
     struct vulkan_device *device = vulkan_device_from_handle( client_device );
     struct vulkan_instance *instance = device->physical_device->instance;
+    VkExportFenceWin32HandleInfoKHR *handle_info = NULL;
+    VkExportFenceCreateInfo *export_info = NULL;
     VkBaseOutStructure **next;
     struct fence *fence;
     VkFence host_fence;
@@ -1480,16 +1485,19 @@ static VkResult win32u_vkCreateFence( VkDevice client_device, const VkFenceCreat
         switch ((*next)->sType)
         {
         case VK_STRUCTURE_TYPE_EXPORT_FENCE_CREATE_INFO:
-            FIXME( "VK_STRUCTURE_TYPE_EXPORT_FENCE_CREATE_INFO not implemented.\n" );
-            *next = (*next)->pNext;
+            export_info = (VkExportFenceCreateInfo *)*next;
+            export_info->handleTypes = VK_EXTERNAL_FENCE_HANDLE_TYPE_OPAQUE_FD_BIT;
             break;
         case VK_STRUCTURE_TYPE_EXPORT_FENCE_WIN32_HANDLE_INFO_KHR:
-            FIXME( "VK_STRUCTURE_TYPE_EXPORT_FENCE_WIN32_HANDLE_INFO_KHR not implemented.\n" );
+            handle_info = (VkExportFenceWin32HandleInfoKHR *)*next;
             *next = (*next)->pNext;
             break;
         default: FIXME( "Unhandled sType %u.\n", (*next)->sType ); break;
         }
     }
+
+    if (handle_info) FIXME( "VkExportFenceWin32HandleInfoKHR not implemented\n" );
+    if (export_info) FIXME( "VkExportFenceCreateInfo not implemented\n" );
 
     if (!(fence = calloc( 1, sizeof(*fence) ))) return VK_ERROR_OUT_OF_HOST_MEMORY;
 
@@ -1501,6 +1509,38 @@ static VkResult win32u_vkCreateFence( VkDevice client_device, const VkFenceCreat
 
     vulkan_object_init( &fence->obj.obj, host_fence, NULL );
     instance->p_insert_object( instance, &fence->obj.obj );
+
+    if (export_info)
+    {
+        D3DKMT_CREATESYNCHRONIZATIONOBJECT2 create_params;
+        VkFenceGetFdInfoKHR get_info = {.sType = VK_STRUCTURE_TYPE_FENCE_GET_FD_INFO_KHR};
+        PFN_vkGetFenceFdKHR p_vkGetFenceFdKHR;
+        int fd;
+
+        create_params.hDevice = 0 /* FIXME */;
+        create_params.Info.Flags.Shared = 1;
+        create_params.Info.Flags.NtSecuritySharing = !!handle_info;
+        create_params.Info.Type = 0;
+        NtGdiDdDDICreateSynchronizationObject2( &create_params );
+
+        get_info.fence = fence->obj.host.fence;
+        get_info.handleType = VK_EXTERNAL_FENCE_HANDLE_TYPE_OPAQUE_FD_BIT;
+        p_vkGetFenceFdKHR = (void *)p_vkGetDeviceProcAddr( device->host.device, "vkGetFenceFdKHR" );
+        p_vkGetFenceFdKHR( device->host.device, &get_info, &fd );
+
+        if (handle_info)
+        {
+            OBJECT_ATTRIBUTES attr;
+            UNICODE_STRING str;
+
+            init_unicode_string( &str, handle_info->name );
+            InitializeObjectAttributes( &attr, &str, 0, 0, (void *)handle_info->pAttributes );
+            NtGdiDdDDIShareObjects( 1, &create_params.hSyncObject, &attr, handle_info->dwAccess, &fence->shared_handle );
+        }
+
+        fence->d3dkmt_local = create_params.hSyncObject;
+        fence->d3dkmt_global = create_params.Info.SharedHandle;
+    }
 
     *ret = fence->obj.client.fence;
     return res;
@@ -1516,6 +1556,13 @@ static void win32u_vkDestroyFence( VkDevice client_device, VkFence client_fence,
 
     if (!client_fence) return;
 
+    if (fence->shared_handle) NtClose( fence->shared_handle );
+    if (fence->d3dkmt_local)
+    {
+        D3DKMT_DESTROYSYNCHRONIZATIONOBJECT destroy_params = {.hSyncObject = fence->d3dkmt_local};
+        NtGdiDdDDIDestroySynchronizationObject( &destroy_params );
+    }
+
     device->host_vkDestroyFence( device->host.device, fence->obj.host.fence, NULL /* allocator */ );
     instance->p_remove_object( instance, &fence->obj.obj );
 
@@ -1525,30 +1572,101 @@ static void win32u_vkDestroyFence( VkDevice client_device, VkFence client_fence,
 static VkResult win32u_vkGetFenceWin32HandleKHR( VkDevice client_device, const VkFenceGetWin32HandleInfoKHR *handle_info, HANDLE *handle )
 {
     struct vulkan_device *device = vulkan_device_from_handle( client_device );
+    struct fence *fence = fence_from_handle( handle_info->fence );
 
     FIXME( "device %p, handle_info %p, handle %p stub!\n", device, handle_info, handle );
 
-    return VK_ERROR_INCOMPATIBLE_DRIVER;
+    if (handle_info->handleType == VK_EXTERNAL_FENCE_HANDLE_TYPE_OPAQUE_WIN32_BIT)
+        NtDuplicateObject( GetCurrentProcess(), fence->shared_handle, GetCurrentProcess(), handle,
+                           0, 0, DUPLICATE_SAME_ACCESS );
+    if (handle_info->handleType == VK_EXTERNAL_FENCE_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT)
+        *handle = UlongToHandle( fence->d3dkmt_global );
+
+    return VK_SUCCESS;
 }
 
 static VkResult win32u_vkImportFenceWin32HandleKHR( VkDevice client_device, const VkImportFenceWin32HandleInfoKHR *handle_info )
 {
     struct vulkan_device *device = vulkan_device_from_handle( client_device );
+    struct fence *fence = fence_from_handle( handle_info->fence );
+    VkImportFenceFdInfoKHR import_info = {.sType = VK_STRUCTURE_TYPE_IMPORT_FENCE_FD_INFO_KHR};
+    PFN_vkImportFenceFdKHR p_vkImportFenceFdKHR;
+    D3DKMT_HANDLE d3dkmt_local = 0, d3dkmt_global = 0;
+    struct d3dkmt_desc desc = {0};
+    HANDLE shared_handle = NULL;
+    int fd = -1;
 
     FIXME( "device %p, handle_info %p stub!\n", device, handle_info );
+    if (handle_info->flags & VK_FENCE_IMPORT_TEMPORARY_BIT) FIXME( "Not implemented!\n" );
 
-    return VK_ERROR_INCOMPATIBLE_DRIVER;
+    if (handle_info->handleType == VK_EXTERNAL_FENCE_HANDLE_TYPE_OPAQUE_WIN32_BIT)
+    {
+        D3DKMT_OPENSYNCOBJECTFROMNTHANDLE2 open_params = {.hNtHandle = handle_info->handle};
+
+        NtGdiDdDDIOpenSyncObjectFromNtHandle2( &open_params );
+        NtDuplicateObject( GetCurrentProcess(), handle_info->handle, GetCurrentProcess(), &shared_handle,
+                           0, 0, DUPLICATE_SAME_ACCESS );
+
+        d3dkmt_local = open_params.hSyncObject;
+        d3dkmt_get_object_fd( d3dkmt_local, &desc, &fd );
+    }
+    if (handle_info->handleType == VK_EXTERNAL_FENCE_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT)
+    {
+        D3DKMT_OPENSYNCHRONIZATIONOBJECT open_params = {.hSharedHandle = HandleToULong(handle_info->handle)};
+        NtGdiDdDDIOpenSynchronizationObject( &open_params );
+
+        d3dkmt_global = open_params.hSharedHandle;
+        d3dkmt_local = open_params.hSyncObject;
+        d3dkmt_get_object_fd( d3dkmt_local, &desc, &fd );
+    }
+
+    import_info.fence = fence->obj.host.fence;
+    import_info.handleType = VK_EXTERNAL_FENCE_HANDLE_TYPE_OPAQUE_FD_BIT;
+    import_info.flags = handle_info->flags;
+    import_info.fd = fd;
+    p_vkImportFenceFdKHR = (void *)p_vkGetDeviceProcAddr( device->host.device, "vkImportFenceFdKHR" );
+    p_vkImportFenceFdKHR( device->host.device, &import_info );
+
+    if (fence->shared_handle) NtClose( fence->shared_handle );
+    if (fence->d3dkmt_local)
+    {
+        D3DKMT_DESTROYSYNCHRONIZATIONOBJECT destroy_params = {.hSyncObject = fence->d3dkmt_local};
+        NtGdiDdDDIDestroySynchronizationObject( &destroy_params );
+    }
+    fence->shared_handle = shared_handle;
+    fence->d3dkmt_local = d3dkmt_local;
+    fence->d3dkmt_global = d3dkmt_global;
+
+    return VK_SUCCESS;
 }
 
 static void win32u_vkGetPhysicalDeviceExternalFenceProperties( VkPhysicalDevice client_physical_device, const VkPhysicalDeviceExternalFenceInfo *fence_info,
                                                                VkExternalFenceProperties *fence_properties )
 {
+    static const VkExternalFenceHandleTypeFlagBits handle_types = VK_EXTERNAL_FENCE_HANDLE_TYPE_OPAQUE_WIN32_BIT |
+                                                                  VK_EXTERNAL_FENCE_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT;
+
     struct vulkan_physical_device *physical_device = vulkan_physical_device_from_handle( client_physical_device );
     struct vulkan_instance *instance = physical_device->instance;
 
     TRACE( "physical_device %p, fence_info %p, fence_properties %p\n", physical_device, fence_info, fence_properties );
 
     instance->host_vkGetPhysicalDeviceExternalFenceProperties( physical_device->host.physical_device, fence_info, fence_properties );
+
+    /* info -> VkFenceTypeCreateInfo */
+    if (fence_info->handleType & handle_types)
+    {
+        fence_properties->exportFromImportedHandleTypes = handle_types;
+        fence_properties->compatibleHandleTypes = handle_types;
+        fence_properties->externalFenceFeatures = VK_EXTERNAL_FENCE_FEATURE_EXPORTABLE_BIT |
+                                                  VK_EXTERNAL_FENCE_FEATURE_IMPORTABLE_BIT;
+    }
+    else
+    {
+        fence_properties->exportFromImportedHandleTypes = 0;
+        fence_properties->compatibleHandleTypes = 0;
+        fence_properties->externalFenceFeatures = 0;
+    }
 }
 
 static void win32u_vkGetPhysicalDeviceExternalFencePropertiesKHR( VkPhysicalDevice client_physical_device, const VkPhysicalDeviceExternalFenceInfo *fence_info,
