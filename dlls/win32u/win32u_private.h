@@ -204,6 +204,9 @@ extern BOOL get_vulkan_gpus( struct list *gpus );
 extern void free_vulkan_gpu( struct vulkan_gpu *gpu );
 extern BOOL get_vulkan_uuid_from_luid( const LUID *luid, GUID *uuid );
 
+NTSTATUS d3dkmt_set_object_fd( D3DKMT_HANDLE local, const struct d3dkmt_desc *desc, int fd );
+NTSTATUS d3dkmt_get_object_fd( D3DKMT_HANDLE local, struct d3dkmt_desc *desc, int *fd );
+
 /* winstation.c */
 
 struct object_lock
