@@ -75,18 +75,22 @@ static inline void vulkan_object_init( struct vulkan_object *obj, UINT64 host_ha
     USE_VK_FUNC(vkAcquireNextImageKHR) \
     USE_VK_FUNC(vkAllocateMemory) \
     USE_VK_FUNC(vkCreateBuffer) \
+    USE_VK_FUNC(vkCreateFence) \
     USE_VK_FUNC(vkCreateImage) \
     USE_VK_FUNC(vkCreateSemaphore) \
     USE_VK_FUNC(vkCreateSwapchainKHR) \
+    USE_VK_FUNC(vkDestroyFence) \
     USE_VK_FUNC(vkDestroySemaphore) \
     USE_VK_FUNC(vkDestroySwapchainKHR) \
     USE_VK_FUNC(vkFreeMemory) \
     USE_VK_FUNC(vkGetDeviceBufferMemoryRequirements) \
     USE_VK_FUNC(vkGetDeviceImageMemoryRequirements) \
     USE_VK_FUNC(vkGetDeviceProcAddr) \
+    USE_VK_FUNC(vkGetFenceWin32HandleKHR) \
     USE_VK_FUNC(vkGetMemoryWin32HandleKHR) \
     USE_VK_FUNC(vkGetMemoryWin32HandlePropertiesKHR) \
     USE_VK_FUNC(vkGetSemaphoreWin32HandleKHR) \
+    USE_VK_FUNC(vkImportFenceWin32HandleKHR) \
     USE_VK_FUNC(vkImportSemaphoreWin32HandleKHR) \
     USE_VK_FUNC(vkMapMemory) \
     USE_VK_FUNC(vkMapMemory2KHR) \
@@ -103,6 +107,8 @@ static inline void vulkan_object_init( struct vulkan_object *obj, UINT64 host_ha
     USE_VK_FUNC(vkGetInstanceProcAddr) \
     USE_VK_FUNC(vkGetPhysicalDeviceExternalBufferProperties) \
     USE_VK_FUNC(vkGetPhysicalDeviceExternalBufferPropertiesKHR) \
+    USE_VK_FUNC(vkGetPhysicalDeviceExternalFenceProperties) \
+    USE_VK_FUNC(vkGetPhysicalDeviceExternalFencePropertiesKHR) \
     USE_VK_FUNC(vkGetPhysicalDeviceExternalSemaphoreProperties) \
     USE_VK_FUNC(vkGetPhysicalDeviceExternalSemaphorePropertiesKHR) \
     USE_VK_FUNC(vkGetPhysicalDeviceImageFormatProperties2) \
