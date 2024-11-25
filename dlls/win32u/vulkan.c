@@ -98,6 +98,9 @@ static struct swapchain *swapchain_from_handle( VkSwapchainKHR handle )
 struct semaphore
 {
     struct vulkan_semaphore obj;
+    D3DKMT_HANDLE d3dkmt_local;
+    D3DKMT_HANDLE d3dkmt_global;
+    HANDLE shared_handle;
 };
 
 static inline struct semaphore *semaphore_from_handle( VkSemaphore handle )
@@ -115,6 +118,13 @@ static inline struct fence *fence_from_handle( VkFence handle )
 {
     struct vulkan_fence *obj = vulkan_fence_from_handle( handle );
     return CONTAINING_RECORD( obj, struct fence, obj );
+}
+
+static void init_unicode_string( UNICODE_STRING *str, const WCHAR *data )
+{
+    str->Length = wcslen(data) * sizeof(WCHAR);
+    str->MaximumLength = str->Length + sizeof(WCHAR);
+    str->Buffer = (WCHAR *)data;
 }
 
 static inline const void *find_next_struct( const void *head, VkStructureType type )
@@ -1164,6 +1174,7 @@ static VkResult win32u_vkQueueSubmit( VkQueue client_queue, uint32_t count, cons
                 break;
             case VK_STRUCTURE_TYPE_D3D12_FENCE_SUBMIT_INFO_KHR:
                 FIXME( "VK_STRUCTURE_TYPE_D3D12_FENCE_SUBMIT_INFO_KHR not implemented!\n" );
+                /* FIXME: convert to VkTimelineSemaphoreSubmitInfo? */
                 *next = (*next)->pNext;
                 break;
             case VK_STRUCTURE_TYPE_DEVICE_GROUP_SUBMIT_INFO: break;
@@ -1245,6 +1256,8 @@ static VkResult win32u_vkCreateSemaphore( VkDevice client_device, const VkSemaph
 {
     struct vulkan_device *device = vulkan_device_from_handle( client_device );
     struct vulkan_instance *instance = device->physical_device->instance;
+    VkExportSemaphoreWin32HandleInfoKHR *handle_info = NULL;
+    VkExportSemaphoreCreateInfo *export_info = NULL;
     struct semaphore *semaphore;
     VkSemaphore host_semaphore;
     VkBaseOutStructure **next;
@@ -1257,11 +1270,11 @@ static VkResult win32u_vkCreateSemaphore( VkDevice client_device, const VkSemaph
         switch ((*next)->sType)
         {
         case VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO:
-            FIXME( "VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO not implemented!\n" );
-            *next = (*next)->pNext;
+            export_info = (VkExportSemaphoreCreateInfo *)*next;
+            export_info->handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
             break;
         case VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_WIN32_HANDLE_INFO_KHR:
-            FIXME( "VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_WIN32_HANDLE_INFO_KHR not implemented!\n" );
+            handle_info = (VkExportSemaphoreWin32HandleInfoKHR *)*next;
             *next = (*next)->pNext;
             break;
         case VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO: break;
@@ -1269,6 +1282,9 @@ static VkResult win32u_vkCreateSemaphore( VkDevice client_device, const VkSemaph
         default: FIXME( "Unhandled sType %u.\n", (*next)->sType ); break;
         }
     }
+
+    if (handle_info) FIXME( "VkExportSemaphoreWin32HandleInfoKHR not implemented\n" );
+    if (export_info) FIXME( "VkExportSemaphoreCreateInfo not implemented\n" );
 
     if (!(semaphore = calloc( 1, sizeof(*semaphore) ))) return VK_ERROR_OUT_OF_HOST_MEMORY;
 
@@ -1280,6 +1296,38 @@ static VkResult win32u_vkCreateSemaphore( VkDevice client_device, const VkSemaph
 
     vulkan_object_init( &semaphore->obj.obj, host_semaphore, NULL );
     instance->p_insert_object( instance, &semaphore->obj.obj );
+
+    if (export_info)
+    {
+        D3DKMT_CREATESYNCHRONIZATIONOBJECT2 create_params;
+        VkSemaphoreGetFdInfoKHR get_info = {.sType = VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR};
+        PFN_vkGetSemaphoreFdKHR p_vkGetSemaphoreFdKHR;
+        int fd;
+
+        create_params.hDevice = 0 /* FIXME */;
+        create_params.Info.Flags.Shared = 1;
+        create_params.Info.Flags.NtSecuritySharing = !!handle_info;
+        create_params.Info.Type = 0;
+        NtGdiDdDDICreateSynchronizationObject2( &create_params );
+
+        get_info.semaphore = semaphore->obj.host.semaphore;
+        get_info.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
+        p_vkGetSemaphoreFdKHR = (void *)p_vkGetDeviceProcAddr( device->host.device, "vkGetSemaphoreFdKHR" );
+        p_vkGetSemaphoreFdKHR( device->host.device, &get_info, &fd );
+
+        if (handle_info)
+        {
+            OBJECT_ATTRIBUTES attr;
+            UNICODE_STRING str;
+
+            init_unicode_string( &str, handle_info->name );
+            InitializeObjectAttributes( &attr, &str, 0, 0, (void *)handle_info->pAttributes );
+            NtGdiDdDDIShareObjects( 1, &create_params.hSyncObject, &attr, handle_info->dwAccess, &semaphore->shared_handle );
+        }
+
+        semaphore->d3dkmt_local = create_params.hSyncObject;
+        semaphore->d3dkmt_global = create_params.Info.SharedHandle;
+    }
 
     *ret = semaphore->obj.client.semaphore;
     return res;
@@ -1295,6 +1343,13 @@ static void win32u_vkDestroySemaphore( VkDevice client_device, VkSemaphore clien
 
     if (!client_semaphore) return;
 
+    if (semaphore->shared_handle) NtClose( semaphore->shared_handle );
+    if (semaphore->d3dkmt_local)
+    {
+        D3DKMT_DESTROYSYNCHRONIZATIONOBJECT destroy_params = {.hSyncObject = semaphore->d3dkmt_local};
+        NtGdiDdDDIDestroySynchronizationObject( &destroy_params );
+    }
+
     device->host_vkDestroySemaphore( device->host.device, semaphore->obj.host.semaphore, NULL /* allocator */ );
     instance->p_remove_object( instance, &semaphore->obj.obj );
 
@@ -1304,30 +1359,103 @@ static void win32u_vkDestroySemaphore( VkDevice client_device, VkSemaphore clien
 static VkResult win32u_vkGetSemaphoreWin32HandleKHR( VkDevice client_device, const VkSemaphoreGetWin32HandleInfoKHR *handle_info, HANDLE *handle )
 {
     struct vulkan_device *device = vulkan_device_from_handle( client_device );
+    struct semaphore *semaphore = semaphore_from_handle( handle_info->semaphore );
 
     FIXME( "device %p, handle_info %p, handle %p stub!\n", device, handle_info, handle );
 
-    return VK_ERROR_INCOMPATIBLE_DRIVER;
+    if (handle_info->handleType == VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_BIT)
+        NtDuplicateObject( GetCurrentProcess(), semaphore->shared_handle, GetCurrentProcess(), handle,
+                           0, 0, DUPLICATE_SAME_ACCESS );
+    if (handle_info->handleType == VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT)
+        *handle = UlongToHandle( semaphore->d3dkmt_global );
+
+    return VK_SUCCESS;
 }
 
 static VkResult win32u_vkImportSemaphoreWin32HandleKHR( VkDevice client_device, const VkImportSemaphoreWin32HandleInfoKHR *handle_info )
 {
     struct vulkan_device *device = vulkan_device_from_handle( client_device );
+    struct semaphore *semaphore = semaphore_from_handle( handle_info->semaphore );
+    VkImportSemaphoreFdInfoKHR import_info = {.sType = VK_STRUCTURE_TYPE_IMPORT_SEMAPHORE_FD_INFO_KHR};
+    PFN_vkImportSemaphoreFdKHR p_vkImportSemaphoreFdKHR;
+    D3DKMT_HANDLE d3dkmt_local = 0, d3dkmt_global = 0;
+    struct d3dkmt_desc desc = {0};
+    HANDLE shared_handle = NULL;
+    int fd = -1;
 
     FIXME( "device %p, handle_info %p stub!\n", device, handle_info );
+    if (handle_info->flags & VK_SEMAPHORE_IMPORT_TEMPORARY_BIT) FIXME( "Not implemented!\n" );
 
-    return VK_ERROR_INCOMPATIBLE_DRIVER;
+    if (handle_info->handleType == VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_BIT)
+    {
+        D3DKMT_OPENSYNCOBJECTFROMNTHANDLE2 open_params = {.hNtHandle = handle_info->handle};
+
+        NtGdiDdDDIOpenSyncObjectFromNtHandle2( &open_params );
+        NtDuplicateObject( GetCurrentProcess(), handle_info->handle, GetCurrentProcess(), &shared_handle,
+                           0, 0, DUPLICATE_SAME_ACCESS );
+
+        d3dkmt_local = open_params.hSyncObject;
+        d3dkmt_get_object_fd( d3dkmt_local, &desc, &fd );
+    }
+    if (handle_info->handleType == VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT)
+    {
+        D3DKMT_OPENSYNCHRONIZATIONOBJECT open_params = {.hSharedHandle = HandleToULong(handle_info->handle)};
+        NtGdiDdDDIOpenSynchronizationObject( &open_params );
+
+        d3dkmt_global = open_params.hSharedHandle;
+        d3dkmt_local = open_params.hSyncObject;
+        d3dkmt_get_object_fd( d3dkmt_local, &desc, &fd );
+    }
+
+    import_info.semaphore = semaphore->obj.host.semaphore;
+    import_info.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
+    import_info.flags = handle_info->flags;
+    import_info.fd = fd;
+    p_vkImportSemaphoreFdKHR = (void *)p_vkGetDeviceProcAddr( device->host.device, "vkImportSemaphoreFdKHR" );
+    p_vkImportSemaphoreFdKHR( device->host.device, &import_info );
+
+    if (semaphore->shared_handle) NtClose( semaphore->shared_handle );
+    if (semaphore->d3dkmt_local)
+    {
+        D3DKMT_DESTROYSYNCHRONIZATIONOBJECT destroy_params = {.hSyncObject = semaphore->d3dkmt_local};
+        NtGdiDdDDIDestroySynchronizationObject( &destroy_params );
+    }
+
+    semaphore->shared_handle = shared_handle;
+    semaphore->d3dkmt_local = d3dkmt_local;
+    semaphore->d3dkmt_global = d3dkmt_global;
+
+    return VK_SUCCESS;
 }
 
 static void win32u_vkGetPhysicalDeviceExternalSemaphoreProperties( VkPhysicalDevice client_physical_device, const VkPhysicalDeviceExternalSemaphoreInfo *semaphore_info,
                                                                    VkExternalSemaphoreProperties *semaphore_properties )
 {
+    static const VkExternalSemaphoreHandleTypeFlagBits handle_types = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_BIT |
+                                                                      VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT |
+                                                                      VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_D3D12_FENCE_BIT;
+ 
     struct vulkan_physical_device *physical_device = vulkan_physical_device_from_handle( client_physical_device );
     struct vulkan_instance *instance = physical_device->instance;
 
     TRACE( "physical_device %p, semaphore_info %p, semaphore_properties %p\n", physical_device, semaphore_info, semaphore_properties );
 
     instance->host_vkGetPhysicalDeviceExternalSemaphoreProperties( physical_device->host.physical_device, semaphore_info, semaphore_properties );
+
+    /* info -> VkSemaphoreTypeCreateInfo */
+    if (semaphore_info->handleType & handle_types)
+    {
+        semaphore_properties->exportFromImportedHandleTypes = handle_types;
+        semaphore_properties->compatibleHandleTypes = handle_types;
+        semaphore_properties->externalSemaphoreFeatures = VK_EXTERNAL_SEMAPHORE_FEATURE_EXPORTABLE_BIT |
+                                                          VK_EXTERNAL_SEMAPHORE_FEATURE_IMPORTABLE_BIT;
+    }
+    else
+    {
+        semaphore_properties->exportFromImportedHandleTypes = 0;
+        semaphore_properties->compatibleHandleTypes = 0;
+        semaphore_properties->externalSemaphoreFeatures = 0;
+    }
 }
 
 static void win32u_vkGetPhysicalDeviceExternalSemaphorePropertiesKHR( VkPhysicalDevice client_physical_device, const VkPhysicalDeviceExternalSemaphoreInfo *semaphore_info,
