@@ -1581,7 +1581,9 @@ static VkResult win32u_vkQueueSubmit( VkQueue client_queue, uint32_t count, cons
 {
     struct vulkan_fence *fence = client_fence ? vulkan_fence_from_handle( client_fence ) : NULL;
     struct vulkan_queue *queue = vulkan_queue_from_handle( client_queue );
+    VkTimelineSemaphoreSubmitInfo mutex_timeline_info;
     struct vulkan_device *device = queue->device;
+    uint64_t *timeline_values = NULL;
     uint32_t i, j;
 
     for (i = 0; i < count; i++)
@@ -1639,18 +1641,43 @@ static VkResult win32u_vkQueueSubmit( VkQueue client_queue, uint32_t count, cons
             }
         }
 
+        /* FIXME: Put this in the submit info instead? */
+        mutex_timeline_info.pWaitSemaphoreValues = timeline_values;
+        mutex_timeline_info.waitSemaphoreValueCount = mutex_info->acquireCount;
         for (i = 0; mutex_info && i < mutex_info->acquireCount; i++)
         {
-            (void)mutex_info->pAcquireSyncs[i];
-            (void)mutex_info->pAcquireKeys[i];
-            (void)mutex_info->pAcquireTimeouts[i];
+            struct device_memory *memory = device_memory_from_handle( mutex_info->pAcquireSyncs[i] );
+            LARGE_INTEGER timeout = {.QuadPart = mutex_info->pAcquireTimeouts[i]};
+            D3DKMT_ACQUIREKEYEDMUTEX acquire_params =
+            {
+                .hKeyedMutex = 0 /* memory->keyed_mutex */,
+                .Key = mutex_info->pAcquireKeys[i],
+                .pTimeout = &timeout,
+            };
+
+            NtGdiDdDDIAcquireKeyedMutex( &acquire_params );
+            *timeline_values++ = /* memory->fence_value = */ acquire_params.FenceValue;
+            (void)memory;
         }
 
+        /* FIXME: Put this in the submit info instead? */
+        mutex_timeline_info.pSignalSemaphoreValues = timeline_values;
+        mutex_timeline_info.signalSemaphoreValueCount = mutex_info->releaseCount;
         for (i = 0; mutex_info && i < mutex_info->releaseCount; i++)
         {
-            (void)mutex_info->pReleaseSyncs[i];
-            (void)mutex_info->pReleaseKeys[i];
+            struct device_memory *memory = device_memory_from_handle( mutex_info->pReleaseSyncs[i] );
+            D3DKMT_RELEASEKEYEDMUTEX release_params =
+            {
+                .hKeyedMutex = 0 /* memory->keyed_mutex */,
+                .Key = mutex_info->pReleaseKeys[i],
+            };
+
+            *timeline_values++ = release_params.FenceValue/* = memory->fence_value + 1 */;
+            NtGdiDdDDIReleaseKeyedMutex( &release_params );
+            (void)memory;
         }
+
+        (void)mutex_timeline_info;
     }
 
     return device->host_vkQueueSubmit( queue->host.queue, count, submits, fence ? fence->host.fence : 0 );
@@ -1660,7 +1687,9 @@ static VkResult win32u_vkQueueSubmit2( VkQueue client_queue, uint32_t count, con
 {
     struct vulkan_fence *fence = client_fence ? vulkan_fence_from_handle( client_fence ) : NULL;
     struct vulkan_queue *queue = vulkan_queue_from_handle( client_queue );
+    VkTimelineSemaphoreSubmitInfo mutex_timeline_info;
     struct vulkan_device *device = queue->device;
+    uint64_t *timeline_values = NULL;
     uint32_t i, j;
 
     for (i = 0; i < count; i++)
@@ -1709,18 +1738,43 @@ static VkResult win32u_vkQueueSubmit2( VkQueue client_queue, uint32_t count, con
             }
         }
 
+        /* FIXME: Put this in the submit info instead? */
+        mutex_timeline_info.pWaitSemaphoreValues = timeline_values;
+        mutex_timeline_info.waitSemaphoreValueCount = mutex_info->acquireCount;
         for (i = 0; mutex_info && i < mutex_info->acquireCount; i++)
         {
-            (void)mutex_info->pAcquireSyncs[i];
-            (void)mutex_info->pAcquireKeys[i];
-            (void)mutex_info->pAcquireTimeouts[i];
+            struct device_memory *memory = device_memory_from_handle( mutex_info->pAcquireSyncs[i] );
+            LARGE_INTEGER timeout = {.QuadPart = mutex_info->pAcquireTimeouts[i]};
+            D3DKMT_ACQUIREKEYEDMUTEX acquire_params =
+            {
+                .hKeyedMutex = 0 /* memory->keyed_mutex */,
+                .Key = mutex_info->pAcquireKeys[i],
+                .pTimeout = &timeout,
+            };
+
+            NtGdiDdDDIAcquireKeyedMutex( &acquire_params );
+            *timeline_values++ = /* memory->fence_value = */ acquire_params.FenceValue;
+            (void)memory;
         }
 
+        /* FIXME: Put this in the submit info instead? */
+        mutex_timeline_info.pSignalSemaphoreValues = timeline_values;
+        mutex_timeline_info.signalSemaphoreValueCount = mutex_info->releaseCount;
         for (i = 0; mutex_info && i < mutex_info->releaseCount; i++)
         {
-            (void)mutex_info->pReleaseSyncs[i];
-            (void)mutex_info->pReleaseKeys[i];
+            struct device_memory *memory = device_memory_from_handle( mutex_info->pReleaseSyncs[i] );
+            D3DKMT_RELEASEKEYEDMUTEX release_params =
+            {
+                .hKeyedMutex = 0 /* memory->keyed_mutex */,
+                .Key = mutex_info->pReleaseKeys[i],
+            };
+
+            *timeline_values++ = release_params.FenceValue/* = memory->fence_value + 1 */;
+            NtGdiDdDDIReleaseKeyedMutex( &release_params );
+            (void)memory;
         }
+
+        (void)mutex_timeline_info;
     }
 
     return device->host_vkQueueSubmit2( queue->host.queue, count, submits, fence ? fence->host.fence : 0 );
