@@ -378,6 +378,9 @@ MANUAL_LOADER_THUNKS = {
 }
 
 STRUCT_CHAIN_CONVERSIONS = {
+    # Force making copies of some struct chains
+    "VkMemoryAllocateInfo": [],
+
     # Ignore to not confuse host loader.
     "VkDeviceCreateInfo": ["VK_STRUCTURE_TYPE_LOADER_DEVICE_CREATE_INFO"],
     "VkInstanceCreateInfo": ["VK_STRUCTURE_TYPE_LOADER_INSTANCE_CREATE_INFO"],
@@ -2444,7 +2447,8 @@ class StructConversionFunction(object):
             if self.direction == Direction.INPUT and self.type in STRUCT_CHAIN_CONVERSIONS:
                 for i in STRUCT_CHAIN_CONVERSIONS[self.type]:
                     body += "        case {0}:\n".format(i)
-                body += ident + "break;\n"
+                if len(STRUCT_CHAIN_CONVERSIONS[self.type]):
+                    body += ident + "break;\n"
 
             for ext in self.operand.struct_extensions:
                 if not ext.required:
