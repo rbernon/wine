@@ -1086,6 +1086,10 @@ static VkResult win32u_vkQueueSubmit( VkQueue client_queue, uint32_t count, cons
                 FIXME( "VK_STRUCTURE_TYPE_WIN32_KEYED_MUTEX_ACQUIRE_RELEASE_INFO_KHR not implemented!\n" );
                 *next = (*next)->pNext;
                 break;
+            case VK_STRUCTURE_TYPE_D3D12_FENCE_SUBMIT_INFO_KHR:
+                FIXME( "VK_STRUCTURE_TYPE_D3D12_FENCE_SUBMIT_INFO_KHR not implemented!\n" );
+                *next = (*next)->pNext;
+                break;
             case VK_STRUCTURE_TYPE_DEVICE_GROUP_SUBMIT_INFO: break;
             case VK_STRUCTURE_TYPE_PROTECTED_SUBMIT_INFO: break;
             case VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO: break;
@@ -1141,6 +1145,79 @@ static VkResult win32u_vkQueueSubmit2( VkQueue client_queue, uint32_t count, con
 static VkResult win32u_vkQueueSubmit2KHR( VkQueue client_queue, uint32_t count, const VkSubmitInfo2 *submits, VkFence fence )
 {
     return win32u_vkQueueSubmit2( client_queue, count, submits, fence );
+}
+
+static VkResult win32u_vkCreateSemaphore( VkDevice client_device, const VkSemaphoreCreateInfo *create_info,
+                                          const VkAllocationCallbacks *allocator, VkSemaphore *ret )
+{
+    struct vulkan_device *device = vulkan_device_from_handle( client_device );
+    VkBaseOutStructure **next;
+
+    TRACE( "device %p, create_info %p, allocator %p, ret %p\n", device, create_info, allocator, ret );
+
+    for (next = (VkBaseOutStructure **)&create_info->pNext; *next; next = &(*next)->pNext)
+    {
+        switch ((*next)->sType)
+        {
+        case VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO:
+            FIXME( "VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO not implemented!\n" );
+            *next = (*next)->pNext;
+            break;
+        case VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_WIN32_HANDLE_INFO_KHR:
+            FIXME( "VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_WIN32_HANDLE_INFO_KHR not implemented!\n" );
+            *next = (*next)->pNext;
+            break;
+        case VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO: break;
+        case VK_STRUCTURE_TYPE_QUERY_LOW_LATENCY_SUPPORT_NV: break;
+        default: FIXME( "Unhandled sType %u.\n", (*next)->sType ); break;
+        }
+    }
+
+    return device->host_vkCreateSemaphore( device->host.device, create_info, NULL /* allocator */, ret );
+}
+
+static void win32u_vkDestroySemaphore( VkDevice client_device, VkSemaphore client_semaphore, const VkAllocationCallbacks *allocator )
+{
+    struct vulkan_device *device = vulkan_device_from_handle( client_device );
+
+    TRACE( "device %p, client_semaphore %#jx, allocator %p\n", device, client_semaphore, allocator );
+
+    device->host_vkDestroySemaphore( device->host.device, client_semaphore, NULL /* allocator */ );
+}
+
+static VkResult win32u_vkGetSemaphoreWin32HandleKHR( VkDevice client_device, const VkSemaphoreGetWin32HandleInfoKHR *handle_info, HANDLE *handle )
+{
+    struct vulkan_device *device = vulkan_device_from_handle( client_device );
+
+    FIXME( "device %p, handle_info %p, handle %p stub!\n", device, handle_info, handle );
+
+    return VK_ERROR_INCOMPATIBLE_DRIVER;
+}
+
+static VkResult win32u_vkImportSemaphoreWin32HandleKHR( VkDevice client_device, const VkImportSemaphoreWin32HandleInfoKHR *handle_info )
+{
+    struct vulkan_device *device = vulkan_device_from_handle( client_device );
+
+    FIXME( "device %p, handle_info %p stub!\n", device, handle_info );
+
+    return VK_ERROR_INCOMPATIBLE_DRIVER;
+}
+
+static void win32u_vkGetPhysicalDeviceExternalSemaphoreProperties( VkPhysicalDevice client_physical_device, const VkPhysicalDeviceExternalSemaphoreInfo *semaphore_info,
+                                                                   VkExternalSemaphoreProperties *semaphore_properties )
+{
+    struct vulkan_physical_device *physical_device = vulkan_physical_device_from_handle( client_physical_device );
+    struct vulkan_instance *instance = physical_device->instance;
+
+    TRACE( "physical_device %p, semaphore_info %p, semaphore_properties %p\n", physical_device, semaphore_info, semaphore_properties );
+
+    instance->host_vkGetPhysicalDeviceExternalSemaphoreProperties( physical_device->host.physical_device, semaphore_info, semaphore_properties );
+}
+
+static void win32u_vkGetPhysicalDeviceExternalSemaphorePropertiesKHR( VkPhysicalDevice client_physical_device, const VkPhysicalDeviceExternalSemaphoreInfo *info,
+                                                                      VkExternalSemaphoreProperties *properties )
+{
+    win32u_vkGetPhysicalDeviceExternalSemaphoreProperties( client_physical_device, info, properties );
 }
 
 static const char *win32u_get_host_surface_extension(void)

@@ -100,7 +100,6 @@ UNSUPPORTED_EXTENSIONS = [
     "VK_EXT_full_screen_exclusive",
     "VK_GOOGLE_display_timing",
     "VK_KHR_external_fence_win32",
-    "VK_KHR_external_semaphore_win32",
     # Relates to external_semaphore and needs type conversions in bitflags.
     "VK_KHR_maintenance7", # Causes infinity recursion in struct convert code
     "VK_KHR_shared_presentable_image", # Needs WSI work.
@@ -202,7 +201,6 @@ FUNCTION_OVERRIDES = {
     # Instance functions
     "vkCreateDevice" : {"extra_param" : "client_ptr"},
     "vkGetPhysicalDeviceExternalFenceProperties" : {"dispatch" : False},
-    "vkGetPhysicalDeviceExternalSemaphoreProperties" : {"dispatch" : False},
 
     # Device functions
     "vkCreateCommandPool" : {"extra_param" : "client_ptr"},
@@ -210,9 +208,6 @@ FUNCTION_OVERRIDES = {
 
     # VK_KHR_external_fence_capabilities
     "vkGetPhysicalDeviceExternalFencePropertiesKHR" : {"dispatch" : False},
-
-    # VK_KHR_external_semaphore_capabilities
-    "vkGetPhysicalDeviceExternalSemaphorePropertiesKHR" : {"dispatch" : False},
 }
 
 # functions for which a user driver entry must be generated
@@ -222,8 +217,10 @@ USER_DRIVER_FUNCS = {
     "vkAllocateMemory",
     "vkCreateBuffer",
     "vkCreateImage",
+    "vkCreateSemaphore",
     "vkCreateSwapchainKHR",
     "vkCreateWin32SurfaceKHR",
+    "vkDestroySemaphore",
     "vkDestroySurfaceKHR",
     "vkDestroySwapchainKHR",
     "vkFreeMemory",
@@ -235,6 +232,8 @@ USER_DRIVER_FUNCS = {
     "vkGetMemoryWin32HandlePropertiesKHR",
     "vkGetPhysicalDeviceExternalBufferProperties",
     "vkGetPhysicalDeviceExternalBufferPropertiesKHR",
+    "vkGetPhysicalDeviceExternalSemaphoreProperties",
+    "vkGetPhysicalDeviceExternalSemaphorePropertiesKHR",
     "vkGetPhysicalDeviceImageFormatProperties2",
     "vkGetPhysicalDeviceImageFormatProperties2KHR",
     "vkGetPhysicalDevicePresentRectanglesKHR",
@@ -243,6 +242,8 @@ USER_DRIVER_FUNCS = {
     "vkGetPhysicalDeviceSurfaceFormats2KHR",
     "vkGetPhysicalDeviceSurfaceFormatsKHR",
     "vkGetPhysicalDeviceWin32PresentationSupportKHR",
+    "vkGetSemaphoreWin32HandleKHR",
+    "vkImportSemaphoreWin32HandleKHR",
     "vkMapMemory",
     "vkMapMemory2KHR",
     "vkQueuePresentKHR",
@@ -287,8 +288,6 @@ MANUAL_UNIX_THUNKS = {
     "vkGetPhysicalDeviceCalibrateableTimeDomainsKHR",
     "vkGetPhysicalDeviceExternalFenceProperties",
     "vkGetPhysicalDeviceExternalFencePropertiesKHR",
-    "vkGetPhysicalDeviceExternalSemaphoreProperties",
-    "vkGetPhysicalDeviceExternalSemaphorePropertiesKHR",
 
     "xrCreateAction",
     "xrCreateActionSet",
@@ -385,6 +384,7 @@ STRUCT_CHAIN_CONVERSIONS = {
     "VkImageCreateInfo": [],
     "VkPhysicalDeviceExternalBufferInfo": [],
     "VkPhysicalDeviceImageFormatInfo2": [],
+    "VkSemaphoreCreateInfo": [],
 
     # Ignore to not confuse host loader.
     "VkDeviceCreateInfo": ["VK_STRUCTURE_TYPE_LOADER_DEVICE_CREATE_INFO"],
