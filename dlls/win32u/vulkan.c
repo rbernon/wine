@@ -1294,6 +1294,76 @@ static void win32u_vkGetPhysicalDeviceExternalSemaphorePropertiesKHR( VkPhysical
     win32u_vkGetPhysicalDeviceExternalSemaphoreProperties( client_physical_device, semaphore_info, semaphore_properties );
 }
 
+static VkResult win32u_vkCreateFence( VkDevice client_device, const VkFenceCreateInfo *create_info, const VkAllocationCallbacks *allocator, VkFence *ret )
+{
+    struct vulkan_device *device = vulkan_device_from_handle( client_device );
+    VkBaseOutStructure **next;
+
+    TRACE( "device %p, create_info %p, allocator %p, ret %p\n", device, create_info, allocator, ret );
+
+    for (next = (VkBaseOutStructure **)&create_info->pNext; *next; next = &(*next)->pNext)
+    {
+        switch ((*next)->sType)
+        {
+        case VK_STRUCTURE_TYPE_EXPORT_FENCE_CREATE_INFO:
+            FIXME( "VK_STRUCTURE_TYPE_EXPORT_FENCE_CREATE_INFO not implemented.\n" );
+            *next = (*next)->pNext;
+            break;
+        case VK_STRUCTURE_TYPE_EXPORT_FENCE_WIN32_HANDLE_INFO_KHR:
+            FIXME( "VK_STRUCTURE_TYPE_EXPORT_FENCE_WIN32_HANDLE_INFO_KHR not implemented.\n" );
+            *next = (*next)->pNext;
+            break;
+        default: FIXME( "Unhandled sType %u.\n", (*next)->sType ); break;
+        }
+    }
+
+    return device->host_vkCreateFence( device->host.device, create_info, NULL /* allocator */, ret );
+}
+
+static void win32u_vkDestroyFence( VkDevice client_device, VkFence fence, const VkAllocationCallbacks *allocator )
+{
+    struct vulkan_device *device = vulkan_device_from_handle( client_device );
+
+    TRACE( "device %p, fence %s, allocator %p\n", device, wine_dbgstr_longlong(fence), allocator );
+
+    return device->host_vkDestroyFence( device->host.device, fence, allocator );
+}
+
+static VkResult win32u_vkGetFenceWin32HandleKHR( VkDevice client_device, const VkFenceGetWin32HandleInfoKHR *handle_info, HANDLE *handle )
+{
+    struct vulkan_device *device = vulkan_device_from_handle( client_device );
+
+    FIXME( "device %p, handle_info %p, handle %p stub!\n", device, handle_info, handle );
+
+    return VK_ERROR_INCOMPATIBLE_DRIVER;
+}
+
+static VkResult win32u_vkImportFenceWin32HandleKHR( VkDevice client_device, const VkImportFenceWin32HandleInfoKHR *handle_info )
+{
+    struct vulkan_device *device = vulkan_device_from_handle( client_device );
+
+    FIXME( "device %p, handle_info %p stub!\n", device, handle_info );
+
+    return VK_ERROR_INCOMPATIBLE_DRIVER;
+}
+
+static void win32u_vkGetPhysicalDeviceExternalFenceProperties( VkPhysicalDevice client_physical_device, const VkPhysicalDeviceExternalFenceInfo *fence_info,
+                                                               VkExternalFenceProperties *fence_properties )
+{
+    struct vulkan_physical_device *physical_device = vulkan_physical_device_from_handle( client_physical_device );
+    struct vulkan_instance *instance = physical_device->instance;
+
+    TRACE( "physical_device %p, fence_info %p, fence_properties %p\n", physical_device, fence_info, fence_properties );
+
+    instance->host_vkGetPhysicalDeviceExternalFenceProperties( physical_device->host.physical_device, fence_info, fence_properties );
+}
+
+static void win32u_vkGetPhysicalDeviceExternalFencePropertiesKHR( VkPhysicalDevice client_physical_device, const VkPhysicalDeviceExternalFenceInfo *fence_info,
+                                                                  VkExternalFenceProperties *fence_properties )
+{
+    return win32u_vkGetPhysicalDeviceExternalFenceProperties( client_physical_device, fence_info, fence_properties );
+}
+
 static const char *win32u_get_host_surface_extension(void)
 {
     return driver_funcs->p_get_host_surface_extension();
