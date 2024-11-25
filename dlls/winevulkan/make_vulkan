@@ -1700,6 +1700,8 @@ class VkMember(VkVariable):
         if self.is_handle():
             if unwrap != Unwrap.NONE and self.handle.is_wrapped():
                 return True
+            if self.is_dynamic_array() and self.handle.is_wrapped():
+                return True
             if conv and self.handle.is_dispatchable():
                 return True
         elif self.is_generic_handle():
@@ -2295,6 +2297,7 @@ class VkStruct(Sequence):
             if not e.required:
                 continue
             conversions.extend(e.get_conversions(Unwrap.HOST, parent_const))
+            conversions.extend(e.get_conversions(Unwrap.NONE, parent_const))
 
         # Collect any conversion for any member structs.
         for m in self:
