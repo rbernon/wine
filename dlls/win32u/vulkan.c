@@ -56,6 +56,10 @@ static const UINT EXTERNAL_MEMORY_WIN32_BITS = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OP
 struct device_memory
 {
     struct vulkan_device_memory obj;
+    D3DKMT_HANDLE d3dkmt_local;
+    D3DKMT_HANDLE d3dkmt_global;
+    HANDLE shared_handle;
+
     VkDeviceSize size;
     void *vm_map;
 };
@@ -208,7 +212,11 @@ static VkResult win32u_vkAllocateMemory( VkDevice client_device, const VkMemoryA
     struct vulkan_device *device = vulkan_device_from_handle( client_device );
     struct vulkan_physical_device *physical_device = device->physical_device;
     struct vulkan_instance *instance = device->physical_device->instance;
-    VkImportMemoryHostPointerInfoEXT host_pointer_info;
+    VkExportMemoryWin32HandleInfoKHR *export_handle_info = NULL;
+    VkImportMemoryWin32HandleInfoKHR *import_handle_info = NULL;
+    VkImportMemoryHostPointerInfoEXT host_pointer_info = {0};
+    VkExportMemoryAllocateInfo *export_info = NULL;
+    VkImportMemoryFdInfoKHR host_import_info;
     VkDeviceMemory host_device_memory;
     struct device_memory *memory;
     VkBaseOutStructure **next;
@@ -222,21 +230,19 @@ static VkResult win32u_vkAllocateMemory( VkDevice client_device, const VkMemoryA
         {
         case VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_MEMORY_ALLOCATE_INFO_NV: break;
         case VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO:
-        {
-            VkExportMemoryAllocateInfo *export_info = (VkExportMemoryAllocateInfo *)*next;
+            export_info = (VkExportMemoryAllocateInfo *)*next;
             if (export_info->handleTypes & EXTERNAL_MEMORY_WIN32_BITS)
             {
                 FIXME( "VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO not implemented!\n" );
-                *next = (*next)->pNext;
+                export_info->handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
             }
             break;
-        }
         case VK_STRUCTURE_TYPE_IMPORT_MEMORY_WIN32_HANDLE_INFO_KHR:
-            FIXME( "VK_STRUCTURE_TYPE_IMPORT_MEMORY_WIN32_HANDLE_INFO_KHR not implemented!\n" );
+            import_handle_info = (VkImportMemoryWin32HandleInfoKHR *)*next;
             *next = (*next)->pNext;
             break;
         case VK_STRUCTURE_TYPE_EXPORT_MEMORY_WIN32_HANDLE_INFO_KHR:
-            FIXME( "VK_STRUCTURE_TYPE_EXPORT_MEMORY_WIN32_HANDLE_INFO_KHR not implemented!\n" );
+            export_handle_info = (VkExportMemoryWin32HandleInfoKHR *)*next;
             *next = (*next)->pNext;
             break;
         case VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR:
@@ -262,8 +268,46 @@ static VkResult win32u_vkAllocateMemory( VkDevice client_device, const VkMemoryA
 
     if (!(memory = malloc( sizeof(*memory) ))) return VK_ERROR_OUT_OF_HOST_MEMORY;
 
+    if (import_handle_info)
+    {
+        struct d3dkmt_desc desc = {0};
+        int fd = -1;
+
+        if (import_handle_info->handleType == VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT)
+        {
+            D3DKMT_OPENRESOURCEFROMNTHANDLE open_params = {.hNtHandle = import_handle_info->handle};
+
+            NtGdiDdDDIOpenResourceFromNtHandle( &open_params );
+            NtDuplicateObject( GetCurrentProcess(), import_handle_info->handle, GetCurrentProcess(), &memory->shared_handle,
+                               0, 0, DUPLICATE_SAME_ACCESS );
+
+            memory->d3dkmt_local = open_params.hSyncObject;
+            d3dkmt_get_object_fd( memory->d3dkmt_local, &desc, &fd );
+        }
+        if (import_handle_info->handleType == VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT)
+        {
+            D3DKMT_OPENRESOURCE open_params = {.hGlobalShare = HandleToULong(import_handle_info->handle)};
+            NtGdiDdDDIOpenResource2( &open_params );
+
+            memory->d3dkmt_global = open_params.hGlobalShare;
+            memory->d3dkmt_local = open_params.hResource;
+            d3dkmt_get_object_fd( memory->d3dkmt_local, &desc, &fd );
+        }
+
+        host_import_info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
+        host_import_info.fd = fd;
+        host_import_info.pNext = alloc_info->pNext;
+        ((VkMemoryAllocateInfo *)alloc_info)->pNext = &host_import_info; /* cast away const, it has been copied in the thunks */
+    }
+
     if ((res = device->host_vkAllocateMemory( device->host.device, alloc_info, NULL, &host_device_memory )))
     {
+        if (memory->shared_handle) NtClose( memory->shared_handle );
+        if (memory->d3dkmt_local)
+        {
+            D3DKMT_DESTROYSYNCHRONIZATIONOBJECT destroy_params = {.hSyncObject = memory->d3dkmt_local};
+            NtGdiDdDDIDestroySynchronizationObject( &destroy_params );
+        }
         free( memory );
         return res;
     }
@@ -272,6 +316,37 @@ static VkResult win32u_vkAllocateMemory( VkDevice client_device, const VkMemoryA
     memory->size = alloc_info->allocationSize;
     memory->vm_map = mapping;
     instance->p_insert_object( instance, &memory->obj.obj );
+
+    if (export_info)
+    {
+        D3DKMT_CREATEALLOCATION create_params;
+        VkMemoryGetFdInfoKHR get_info = {.sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR};
+        PFN_vkGetMemoryFdKHR p_vkGetMemoryFdKHR;
+        int fd;
+
+        create_params.hDevice = 0 /* FIXME */;
+        create_params.Flags.CreateShared = 1;
+        create_params.Flags.NtSecuritySharing = !!export_handle_info;
+        NtGdiDdDDICreateAllocation2( &create_params );
+
+        get_info.memory = memory->obj.host.device_memory;
+        get_info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
+        p_vkGetMemoryFdKHR = (void *)p_vkGetDeviceProcAddr( device->host.device, "vkGetMemoryFdKHR" );
+        p_vkGetMemoryFdKHR( device->host.device, &get_info, &fd );
+
+        if (export_handle_info)
+        {
+            OBJECT_ATTRIBUTES attr;
+            UNICODE_STRING str;
+
+            init_unicode_string( &str, export_handle_info->name );
+            InitializeObjectAttributes( &attr, &str, 0, 0, (void *)export_handle_info->pAttributes );
+            NtGdiDdDDIShareObjects( 1, &create_params.hResource, &attr, export_handle_info->dwAccess, &memory->shared_handle );
+        }
+
+        memory->d3dkmt_local = create_params.hResource;
+        memory->d3dkmt_global = create_params.hGlobalShare;
+    }
 
     *ret = memory->obj.client.device_memory;
     return VK_SUCCESS;
@@ -298,6 +373,13 @@ static void win32u_vkFreeMemory( VkDevice client_device, VkDeviceMemory client_d
         device->host_vkUnmapMemory2KHR( device->host.device, &info );
     }
 
+    if (memory->shared_handle) NtClose( memory->shared_handle );
+    if (memory->d3dkmt_local)
+    {
+        D3DKMT_DESTROYSYNCHRONIZATIONOBJECT destroy_params = {.hSyncObject = memory->d3dkmt_local};
+        NtGdiDdDDIDestroySynchronizationObject( &destroy_params );
+    }
+
     device->host_vkFreeMemory( device->host.device, memory->obj.host.device_memory, NULL );
     instance->p_remove_object( instance, &memory->obj.obj );
 
@@ -313,10 +395,17 @@ static void win32u_vkFreeMemory( VkDevice client_device, VkDeviceMemory client_d
 static VkResult win32u_vkGetMemoryWin32HandleKHR( VkDevice client_device, const VkMemoryGetWin32HandleInfoKHR *handle_info, HANDLE *handle )
 {
     struct vulkan_device *device = vulkan_device_from_handle( client_device );
+    struct device_memory *device_memory = device_memory_from_handle( handle_info->memory );
 
     FIXME( "device %p, handle_info %p, handle %p stub!\n", device, handle_info, handle );
 
-    return VK_ERROR_INCOMPATIBLE_DRIVER;
+    if (handle_info->handleType == VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT)
+        NtDuplicateObject( GetCurrentProcess(), device_memory->shared_handle, GetCurrentProcess(), handle,
+                           0, 0, DUPLICATE_SAME_ACCESS );
+    if (handle_info->handleType == VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT)
+        *handle = UlongToHandle( device_memory->d3dkmt_global );
+
+    return VK_SUCCESS;
 }
 
 static VkResult win32u_vkGetMemoryWin32HandlePropertiesKHR( VkDevice client_device, VkExternalMemoryHandleTypeFlagBits handle_type, HANDLE handle,
@@ -479,7 +568,7 @@ static VkResult win32u_vkCreateBuffer( VkDevice client_device, const VkBufferCre
             if (external_info->handleTypes & EXTERNAL_MEMORY_WIN32_BITS)
             {
                 FIXME( "VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO not implemented!\n" );
-                *next = (*next)->pNext;
+                external_info->handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
             }
             break;
         case VK_STRUCTURE_TYPE_BUFFER_OPAQUE_CAPTURE_ADDRESS_CREATE_INFO: break;
@@ -521,7 +610,7 @@ static void win32u_vkGetDeviceBufferMemoryRequirements( VkDevice client_device, 
             if (external_info->handleTypes & EXTERNAL_MEMORY_WIN32_BITS)
             {
                 FIXME( "VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO not implemented!\n" );
-                *next = (*next)->pNext;
+                external_info->handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
             }
             break;
         case VK_STRUCTURE_TYPE_BUFFER_OPAQUE_CAPTURE_ADDRESS_CREATE_INFO: break;
@@ -546,7 +635,7 @@ static void win32u_vkGetPhysicalDeviceExternalBufferProperties( VkPhysicalDevice
     if (buffer_info->handleType & EXTERNAL_MEMORY_WIN32_BITS)
     {
         FIXME( "VkPhysicalDeviceExternalBufferInfo Win32 handleType not implemented!\n" );
-        ((VkPhysicalDeviceExternalBufferInfo *)buffer_info)->handleType = 0; /* cast away const, it has been copied in the thunks */
+        ((VkPhysicalDeviceExternalBufferInfo *)buffer_info)->handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT; /* cast away const, it has been copied in the thunks */
     }
 
     return instance->host_vkGetPhysicalDeviceExternalBufferProperties( physical_device->host.physical_device, buffer_info, buffer_properies );
@@ -576,7 +665,7 @@ static VkResult win32u_vkCreateImage( VkDevice client_device, const VkImageCreat
             if (external_info->handleTypes & EXTERNAL_MEMORY_WIN32_BITS)
             {
                 FIXME( "VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO not implemented!\n" );
-                *next = (*next)->pNext;
+                external_info->handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
             }
             break;
         case VK_STRUCTURE_TYPE_IMAGE_SWAPCHAIN_CREATE_INFO_KHR: break;
@@ -623,7 +712,7 @@ static void win32u_vkGetDeviceImageMemoryRequirements( VkDevice client_device, c
             if (external_info->handleTypes & EXTERNAL_MEMORY_WIN32_BITS)
             {
                 FIXME( "VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO not implemented!\n" );
-                *next = (*next)->pNext;
+                external_info->handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
             }
             break;
         case VK_STRUCTURE_TYPE_IMAGE_SWAPCHAIN_CREATE_INFO_KHR: break;
@@ -662,7 +751,7 @@ static VkResult win32u_vkGetPhysicalDeviceImageFormatProperties2( VkPhysicalDevi
             if (external_info->handleType & EXTERNAL_MEMORY_WIN32_BITS)
             {
                 FIXME( "VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO not implemented!\n" );
-                *next = (*next)->pNext;
+                external_info->handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
             }
             break;
         case VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO: break;
@@ -1143,6 +1232,7 @@ static VkResult win32u_vkQueueSubmit( VkQueue client_queue, uint32_t count, cons
 
     for (i = 0; i < count; i++)
     {
+        VkWin32KeyedMutexAcquireReleaseInfoKHR *mutex_info = NULL;
         VkSubmitInfo *submit = (VkSubmitInfo *)submits + i; /* cast away const, it has been copied in the thunks */
         VkBaseOutStructure **next;
 
@@ -1172,14 +1262,19 @@ static VkResult win32u_vkQueueSubmit( VkQueue client_queue, uint32_t count, cons
             switch ((*next)->sType)
             {
             case VK_STRUCTURE_TYPE_WIN32_KEYED_MUTEX_ACQUIRE_RELEASE_INFO_KHR:
+                mutex_info = (VkWin32KeyedMutexAcquireReleaseInfoKHR *)*next;
                 FIXME( "VK_STRUCTURE_TYPE_WIN32_KEYED_MUTEX_ACQUIRE_RELEASE_INFO_KHR not implemented!\n" );
                 *next = (*next)->pNext;
                 break;
             case VK_STRUCTURE_TYPE_D3D12_FENCE_SUBMIT_INFO_KHR:
+            {
+                VkD3D12FenceSubmitInfoKHR *submit_info = (VkD3D12FenceSubmitInfoKHR *)*next;
                 FIXME( "VK_STRUCTURE_TYPE_D3D12_FENCE_SUBMIT_INFO_KHR not implemented!\n" );
                 /* FIXME: convert to VkTimelineSemaphoreSubmitInfo? */
                 *next = (*next)->pNext;
+                (void)submit_info;
                 break;
+            }
             case VK_STRUCTURE_TYPE_DEVICE_GROUP_SUBMIT_INFO: break;
             case VK_STRUCTURE_TYPE_PROTECTED_SUBMIT_INFO: break;
             case VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO: break;
@@ -1188,6 +1283,19 @@ static VkResult win32u_vkQueueSubmit( VkQueue client_queue, uint32_t count, cons
             case VK_STRUCTURE_TYPE_LATENCY_SUBMISSION_PRESENT_ID_NV: break;
             default: FIXME( "Unhandled sType %u.\n", (*next)->sType ); break;
             }
+        }
+
+        for (i = 0; mutex_info && i < mutex_info->acquireCount; i++)
+        {
+            (void)mutex_info->pAcquireSyncs[i];
+            (void)mutex_info->pAcquireKeys[i];
+            (void)mutex_info->pAcquireTimeouts[i];
+        }
+
+        for (i = 0; mutex_info && i < mutex_info->releaseCount; i++)
+        {
+            (void)mutex_info->pReleaseSyncs[i];
+            (void)mutex_info->pReleaseKeys[i];
         }
     }
 
@@ -1203,6 +1311,7 @@ static VkResult win32u_vkQueueSubmit2( VkQueue client_queue, uint32_t count, con
 
     for (i = 0; i < count; i++)
     {
+        VkWin32KeyedMutexAcquireReleaseInfoKHR *mutex_info = NULL;
         VkSubmitInfo2 *submit = (VkSubmitInfo2 *)submits + i; /* cast away const, it has been copied in the thunks */
         VkBaseOutStructure **next;
 
@@ -1235,6 +1344,7 @@ static VkResult win32u_vkQueueSubmit2( VkQueue client_queue, uint32_t count, con
             switch ((*next)->sType)
             {
             case VK_STRUCTURE_TYPE_WIN32_KEYED_MUTEX_ACQUIRE_RELEASE_INFO_KHR:
+                mutex_info = (VkWin32KeyedMutexAcquireReleaseInfoKHR *)*next;
                 FIXME( "VK_STRUCTURE_TYPE_WIN32_KEYED_MUTEX_ACQUIRE_RELEASE_INFO_KHR not implemented!\n" );
                 *next = (*next)->pNext;
                 break;
@@ -1243,6 +1353,19 @@ static VkResult win32u_vkQueueSubmit2( VkQueue client_queue, uint32_t count, con
             case VK_STRUCTURE_TYPE_LATENCY_SUBMISSION_PRESENT_ID_NV: break;
             default: FIXME( "Unhandled sType %u.\n", (*next)->sType ); break;
             }
+        }
+
+        for (i = 0; mutex_info && i < mutex_info->acquireCount; i++)
+        {
+            (void)mutex_info->pAcquireSyncs[i];
+            (void)mutex_info->pAcquireKeys[i];
+            (void)mutex_info->pAcquireTimeouts[i];
+        }
+
+        for (i = 0; mutex_info && i < mutex_info->releaseCount; i++)
+        {
+            (void)mutex_info->pReleaseSyncs[i];
+            (void)mutex_info->pReleaseKeys[i];
         }
     }
 
