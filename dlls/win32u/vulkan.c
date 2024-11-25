@@ -736,9 +736,8 @@ static VkResult win32u_vkAcquireNextImageKHR( VkDevice client_device, VkSwapchai
 
 static VkResult win32u_vkQueuePresentKHR( VkQueue client_queue, const VkPresentInfoKHR *present_info )
 {
+    VkSwapchainKHR swapchains_buffer[16], *client_swapchains = swapchains_buffer;
     struct vulkan_queue *queue = vulkan_queue_from_handle( client_queue );
-    VkSwapchainKHR swapchains_buffer[16], *swapchains = swapchains_buffer;
-    VkPresentInfoKHR present_info_host = *present_info;
     struct vulkan_device *device = queue->device;
     VkResult res;
     UINT i;
@@ -746,22 +745,22 @@ static VkResult win32u_vkQueuePresentKHR( VkQueue client_queue, const VkPresentI
     TRACE( "queue %p, present_info %p\n", queue, present_info );
 
     if (present_info->swapchainCount > ARRAY_SIZE(swapchains_buffer) &&
-        !(swapchains = malloc( present_info->swapchainCount * sizeof(*swapchains) )))
+        !(client_swapchains = malloc( present_info->swapchainCount * sizeof(*client_swapchains) )))
         return VK_ERROR_OUT_OF_HOST_MEMORY;
+    memcpy( client_swapchains, present_info->pSwapchains, present_info->swapchainCount * sizeof(*client_swapchains) );
 
     for (i = 0; i < present_info->swapchainCount; i++)
     {
-        struct swapchain *swapchain = swapchain_from_handle( present_info->pSwapchains[i] );
+        VkSwapchainKHR *swapchains = (VkSwapchainKHR *)present_info->pSwapchains; /* cast away const, it has been copied in the thunks */
+        struct swapchain *swapchain = swapchain_from_handle( swapchains[i] );
         swapchains[i] = swapchain->obj.host.swapchain;
     }
 
-    present_info_host.pSwapchains = swapchains;
-
-    res = device->p_vkQueuePresentKHR( queue->host.queue, &present_info_host );
+    res = device->p_vkQueuePresentKHR( queue->host.queue, present_info );
 
     for (i = 0; i < present_info->swapchainCount; i++)
     {
-        struct swapchain *swapchain = swapchain_from_handle( present_info->pSwapchains[i] );
+        struct swapchain *swapchain = swapchain_from_handle( client_swapchains[i] );
         VkResult swapchain_res = present_info->pResults ? present_info->pResults[i] : res;
         struct surface *surface = swapchain->surface;
         RECT client_rect;
@@ -787,7 +786,7 @@ static VkResult win32u_vkQueuePresentKHR( VkQueue client_queue, const VkPresentI
         }
     }
 
-    if (swapchains != swapchains_buffer) free( swapchains );
+    if (client_swapchains != swapchains_buffer) free( client_swapchains );
 
     if (TRACE_ON( fps ))
     {
