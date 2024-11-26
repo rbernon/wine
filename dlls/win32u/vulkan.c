@@ -746,7 +746,7 @@ static VkResult win32u_vkGetPhysicalDeviceImageFormatProperties2( VkPhysicalDevi
     {
         switch ((*next)->sType)
         {
-        case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO:;
+        case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO:
             external_info = (VkPhysicalDeviceExternalImageFormatInfo *)*next;
             if (external_info->handleType & EXTERNAL_MEMORY_WIN32_BITS)
             {
