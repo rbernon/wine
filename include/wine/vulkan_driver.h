@@ -79,10 +79,17 @@ static inline void vulkan_object_init( struct vulkan_object *obj, UINT64 host_ha
     USE_VK_FUNC(vkCreateSwapchainKHR) \
     USE_VK_FUNC(vkDestroySwapchainKHR) \
     USE_VK_FUNC(vkFreeMemory) \
+    USE_VK_FUNC(vkGetDeviceBufferMemoryRequirements) \
+    USE_VK_FUNC(vkGetDeviceImageMemoryRequirements) \
     USE_VK_FUNC(vkGetDeviceProcAddr) \
+    USE_VK_FUNC(vkGetMemoryWin32HandleKHR) \
+    USE_VK_FUNC(vkGetMemoryWin32HandlePropertiesKHR) \
     USE_VK_FUNC(vkMapMemory) \
     USE_VK_FUNC(vkMapMemory2KHR) \
     USE_VK_FUNC(vkQueuePresentKHR) \
+    USE_VK_FUNC(vkQueueSubmit) \
+    USE_VK_FUNC(vkQueueSubmit2) \
+    USE_VK_FUNC(vkQueueSubmit2KHR) \
     USE_VK_FUNC(vkUnmapMemory) \
     USE_VK_FUNC(vkUnmapMemory2KHR) \
 
@@ -90,6 +97,10 @@ static inline void vulkan_object_init( struct vulkan_object *obj, UINT64 host_ha
     USE_VK_FUNC(vkCreateWin32SurfaceKHR) \
     USE_VK_FUNC(vkDestroySurfaceKHR) \
     USE_VK_FUNC(vkGetInstanceProcAddr) \
+    USE_VK_FUNC(vkGetPhysicalDeviceExternalBufferProperties) \
+    USE_VK_FUNC(vkGetPhysicalDeviceExternalBufferPropertiesKHR) \
+    USE_VK_FUNC(vkGetPhysicalDeviceImageFormatProperties2) \
+    USE_VK_FUNC(vkGetPhysicalDeviceImageFormatProperties2KHR) \
     USE_VK_FUNC(vkGetPhysicalDevicePresentRectanglesKHR) \
     USE_VK_FUNC(vkGetPhysicalDeviceSurfaceCapabilities2KHR) \
     USE_VK_FUNC(vkGetPhysicalDeviceSurfaceCapabilitiesKHR) \
@@ -168,6 +179,18 @@ static inline struct vulkan_queue *vulkan_queue_from_handle( VkQueue handle )
 {
     struct vulkan_client_object *client = (struct vulkan_client_object *)handle;
     return (struct vulkan_queue *)(UINT_PTR)client->unix_handle;
+}
+
+struct vulkan_command_buffer
+{
+    VULKAN_OBJECT_HEADER( VkCommandBuffer, command_buffer );
+    struct vulkan_device *device;
+};
+
+static inline struct vulkan_command_buffer *vulkan_command_buffer_from_handle( VkCommandBuffer handle )
+{
+    struct vulkan_client_object *client = (struct vulkan_client_object *)handle;
+    return (struct vulkan_command_buffer *)(UINT_PTR)client->unix_handle;
 }
 
 struct vulkan_device_memory
