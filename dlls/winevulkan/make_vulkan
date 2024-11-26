@@ -218,7 +218,9 @@ USER_DRIVER_FUNCS = {
     "vkCreateSemaphore",
     "vkCreateSwapchainKHR",
     "vkCreateWin32SurfaceKHR",
+    "vkDestroyBuffer",
     "vkDestroyFence",
+    "vkDestroyImage",
     "vkDestroySemaphore",
     "vkDestroySurfaceKHR",
     "vkDestroySwapchainKHR",
@@ -1221,6 +1223,10 @@ class VkHandle(object):
             return "vulkan_instance_from_handle({0})->host.instance".format(name)
         if self.name == "VkDeviceMemory":
             return "vulkan_device_memory_from_handle({0})->host.device_memory".format(name)
+        if self.name == "VkBuffer":
+            return "vulkan_buffer_from_handle({0})->host.buffer".format(name)
+        if self.name == "VkImage":
+            return "vulkan_image_from_handle({0})->host.image".format(name)
         if self.name == "VkPhysicalDevice":
             return "vulkan_physical_device_from_handle({0})->host.physical_device".format(name)
         if self.name == "VkQueue":
