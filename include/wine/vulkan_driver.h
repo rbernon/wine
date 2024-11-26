@@ -230,6 +230,16 @@ static inline struct vulkan_swapchain *vulkan_swapchain_from_handle( VkSwapchain
     return (struct vulkan_swapchain *)(UINT_PTR)handle;
 }
 
+struct vulkan_semaphore
+{
+    VULKAN_OBJECT_HEADER( VkSemaphore, semaphore );
+};
+
+static inline struct vulkan_semaphore *vulkan_semaphore_from_handle( VkSemaphore handle )
+{
+    return (struct vulkan_semaphore *)(UINT_PTR)handle;
+}
+
 struct vulkan_funcs
 {
     /* Vulkan global functions. These are the only calls at this point a graphics driver
