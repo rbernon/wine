@@ -119,11 +119,20 @@ static struct surface *surface_from_handle( VkSurfaceKHR handle )
     return CONTAINING_RECORD( obj, struct surface, obj );
 }
 
+struct compositor_image
+{
+    VkDeviceMemory client_memory;
+    D3DKMT_HANDLE d3dkmt_global;
+    VkImage image;
+};
+
 struct swapchain
 {
     struct vulkan_swapchain obj;
     struct surface *surface;
     VkExtent2D extents;
+
+    struct compositor_image images[3];
 };
 
 static struct swapchain *swapchain_from_handle( VkSwapchainKHR handle )
@@ -1190,6 +1199,58 @@ static VkBool32 win32u_vkGetPhysicalDeviceWin32PresentationSupportKHR( VkPhysica
 {
     struct vulkan_physical_device *physical_device = vulkan_physical_device_from_handle( client_physical_device );
     return driver_funcs->p_vkGetPhysicalDeviceWin32PresentationSupportKHR( physical_device->host.physical_device, queue );
+}
+
+static VkResult win32u_vkBindImageMemory2( VkDevice client_device, uint32_t count, const VkBindImageMemoryInfo *bind_infos );
+
+static inline void create_compositor_images( VkDevice client_device, struct compositor_image *images, UINT count )
+{
+    UINT i;
+
+    for (i = 0; i < count; i++)
+    {
+        VkMemoryDedicatedAllocateInfo dedicated_info = {.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO};
+        VkExportMemoryAllocateInfo export_info = {.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO, .pNext = &dedicated_info};
+        VkMemoryAllocateInfo alloc_info = {.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, .pNext = &export_info};
+        VkExternalMemoryImageCreateInfo external_info = {.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO};
+        VkImageCreateInfo create_info = {.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO, .pNext = &external_info};
+        VkDeviceImageMemoryRequirements image_requirements = {.sType = VK_STRUCTURE_TYPE_DEVICE_IMAGE_MEMORY_REQUIREMENTS, .pCreateInfo = &create_info};
+        VkMemoryGetWin32HandleInfoKHR handle_info = {.sType = VK_STRUCTURE_TYPE_MEMORY_GET_WIN32_HANDLE_INFO_KHR};
+        VkMemoryRequirements2 requirements = {.sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2};
+        VkBindImageMemoryInfo bind_info = {.sType = VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_INFO};
+        HANDLE handle;
+
+        external_info.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT;
+        win32u_vkGetDeviceImageMemoryRequirements( client_device, &image_requirements, &requirements );
+        win32u_vkCreateImage( client_device, &create_info, NULL, &images[i].image );
+
+        dedicated_info.image = images[i].image;
+        export_info.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT;
+        alloc_info.allocationSize = requirements.memoryRequirements.size;
+        win32u_vkAllocateMemory( client_device, &alloc_info, NULL, &images[i].client_memory );
+
+        bind_info.image = images[i].image;
+        bind_info.memory = images[i].client_memory;
+        bind_info.memoryOffset = 0;
+        win32u_vkBindImageMemory2( client_device, 1, &bind_info );
+
+        handle_info.memory = images[i].client_memory;
+        handle_info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT;
+        win32u_vkGetMemoryWin32HandleKHR( client_device, &handle_info, &handle );
+        images[i].d3dkmt_global = HandleToUlong( handle );
+    }
+}
+
+static inline void destroy_compositor_images( VkDevice client_device, struct compositor_image *images, UINT count )
+{
+    UINT i;
+
+    for (i = 0; i < count; i++)
+    {
+        images[i].d3dkmt_global = 0;
+        win32u_vkDestroyImage( client_device, images[i].image, NULL );
+        win32u_vkFreeMemory( client_device, images[i].client_memory, NULL );
+    }
 }
 
 static VkResult win32u_vkCreateSwapchainKHR( VkDevice client_device, const VkSwapchainCreateInfoKHR *create_info,
