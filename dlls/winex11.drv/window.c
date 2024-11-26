@@ -1336,7 +1336,12 @@ static void window_set_config( struct x11drv_win_data *data, const RECT *new_rec
         mask |= CWStackMode;
     }
 
-    data->pending_state.rect = *new_rect;
+    if (mask & (CWX | CWY)) OffsetRect( &data->pending_state.rect, new_rect->left - old_rect->left, new_rect->top - old_rect->top );
+    if (mask & (CWWidth | CWHeight))
+    {
+        data->pending_state.rect.right = data->pending_state.rect.left + new_rect->right - new_rect->left;
+        data->pending_state.rect.bottom = data->pending_state.rect.top + new_rect->bottom - new_rect->top;
+    }
     data->configure_serial = NextRequest( data->display );
     ERR( "window %p/%lx, requesting config %s above %u, serial %lu\n", data->hwnd, data->whole_window,
            wine_dbgstr_rect(new_rect), above, data->configure_serial );
