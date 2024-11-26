@@ -282,7 +282,7 @@ static VkResult win32u_vkAllocateMemory( VkDevice client_device, const VkMemoryA
     {
         switch ((*next)->sType)
         {
-        case VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_MEMORY_ALLOCATE_INFO_NV:
+        case VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_MEMORY_ALLOCATE_INFO_NV: /* VkDedicatedAllocationMemoryAllocateInfoNV */
         {
             VkDedicatedAllocationMemoryAllocateInfoNV *dedicated_info_nv = (VkDedicatedAllocationMemoryAllocateInfoNV *)*next;
             if (dedicated_info_nv->image)
@@ -297,7 +297,7 @@ static VkResult win32u_vkAllocateMemory( VkDevice client_device, const VkMemoryA
             }
             break;
         }
-        case VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO:
+        case VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO: /* VkExportMemoryAllocateInfo */
             export_info = (VkExportMemoryAllocateInfo *)*next;
             if (export_info->handleTypes & EXTERNAL_MEMORY_WIN32_BITS)
             {
@@ -305,20 +305,20 @@ static VkResult win32u_vkAllocateMemory( VkDevice client_device, const VkMemoryA
                 export_info->handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
             }
             break;
-        case VK_STRUCTURE_TYPE_IMPORT_MEMORY_WIN32_HANDLE_INFO_KHR:
+        case VK_STRUCTURE_TYPE_IMPORT_MEMORY_WIN32_HANDLE_INFO_KHR: /* VkImportMemoryWin32HandleInfoKHR */
             import_handle_info = (VkImportMemoryWin32HandleInfoKHR *)*next;
             *next = (*next)->pNext;
             break;
-        case VK_STRUCTURE_TYPE_EXPORT_MEMORY_WIN32_HANDLE_INFO_KHR:
+        case VK_STRUCTURE_TYPE_EXPORT_MEMORY_WIN32_HANDLE_INFO_KHR: /* VkExportMemoryWin32HandleInfoKHR */
             export_handle_info = (VkExportMemoryWin32HandleInfoKHR *)*next;
             *next = (*next)->pNext;
             break;
-        case VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR:
+        case VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR: /* VkImportMemoryFdInfoKHR */
             ERR( "VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR not supported!\n" );
             *next = (*next)->pNext;
             break;
-        case VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO: break;
-        case VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO:
+        case VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO: /* VkMemoryAllocateFlagsInfo */ break;
+        case VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO: /* VkMemoryDedicatedAllocateInfo */
         {
             VkMemoryDedicatedAllocateInfo *dedicated_info = (VkMemoryDedicatedAllocateInfo *)*next;
             if (dedicated_info->image)
@@ -333,11 +333,11 @@ static VkResult win32u_vkAllocateMemory( VkDevice client_device, const VkMemoryA
             }
             break;
         }
-        case VK_STRUCTURE_TYPE_IMPORT_MEMORY_HOST_POINTER_INFO_EXT:
+        case VK_STRUCTURE_TYPE_IMPORT_MEMORY_HOST_POINTER_INFO_EXT: /* VkImportMemoryHostPointerInfoEXT */
             host_pointer_info = *(VkImportMemoryHostPointerInfoEXT *)*next;
             break;
-        case VK_STRUCTURE_TYPE_MEMORY_PRIORITY_ALLOCATE_INFO_EXT: break;
-        case VK_STRUCTURE_TYPE_MEMORY_OPAQUE_CAPTURE_ADDRESS_ALLOCATE_INFO: break;
+        case VK_STRUCTURE_TYPE_MEMORY_PRIORITY_ALLOCATE_INFO_EXT: /* VkMemoryPriorityAllocateInfoEXT */ break;
+        case VK_STRUCTURE_TYPE_MEMORY_OPAQUE_CAPTURE_ADDRESS_ALLOCATE_INFO: /* VkMemoryOpaqueCaptureAddressAllocateInfo */ break;
         default: FIXME( "Unhandled sType %u.\n", (*next)->sType ); break;
         }
     }
@@ -654,9 +654,9 @@ static VkResult win32u_vkCreateBuffer( VkDevice client_device, const VkBufferCre
     {
         switch ((*next)->sType)
         {
-        case VK_STRUCTURE_TYPE_BUFFER_USAGE_FLAGS_2_CREATE_INFO_KHR: break;
-        case VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_BUFFER_CREATE_INFO_NV: break;
-        case VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO:
+        case VK_STRUCTURE_TYPE_BUFFER_USAGE_FLAGS_2_CREATE_INFO_KHR: /* VkBufferUsageFlags2CreateInfoKHR */ break;
+        case VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_BUFFER_CREATE_INFO_NV: /* VkDedicatedAllocationBufferCreateInfoNV */ break;
+        case VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO: /* VkExternalMemoryBufferCreateInfo */
             external_info = (VkExternalMemoryBufferCreateInfo *)*next;
             if (external_info->handleTypes & EXTERNAL_MEMORY_WIN32_BITS)
             {
@@ -664,10 +664,10 @@ static VkResult win32u_vkCreateBuffer( VkDevice client_device, const VkBufferCre
                 external_info->handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
             }
             break;
-        case VK_STRUCTURE_TYPE_BUFFER_OPAQUE_CAPTURE_ADDRESS_CREATE_INFO: break;
-        case VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_CREATE_INFO_EXT: break;
-        case VK_STRUCTURE_TYPE_VIDEO_PROFILE_LIST_INFO_KHR: break;
-        case VK_STRUCTURE_TYPE_OPAQUE_CAPTURE_DESCRIPTOR_DATA_CREATE_INFO_EXT: break;
+        case VK_STRUCTURE_TYPE_BUFFER_OPAQUE_CAPTURE_ADDRESS_CREATE_INFO: /* VkBufferOpaqueCaptureAddressCreateInfo */ break;
+        case VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_CREATE_INFO_EXT: /* VkBufferDeviceAddressCreateInfoEXT */ break;
+        case VK_STRUCTURE_TYPE_VIDEO_PROFILE_LIST_INFO_KHR: /* VkVideoProfileListInfoKHR */ break;
+        case VK_STRUCTURE_TYPE_OPAQUE_CAPTURE_DESCRIPTOR_DATA_CREATE_INFO_EXT: /* VkOpaqueCaptureDescriptorDataCreateInfoEXT */ break;
         default: FIXME( "Unhandled sType %u.\n", (*next)->sType ); break;
         }
     }
@@ -726,9 +726,9 @@ static void win32u_vkGetDeviceBufferMemoryRequirements( VkDevice client_device, 
     {
         switch ((*next)->sType)
         {
-        case VK_STRUCTURE_TYPE_BUFFER_USAGE_FLAGS_2_CREATE_INFO_KHR: break;
-        case VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_BUFFER_CREATE_INFO_NV: break;
-        case VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO:
+        case VK_STRUCTURE_TYPE_BUFFER_USAGE_FLAGS_2_CREATE_INFO_KHR: /* VkBufferUsageFlags2CreateInfoKHR */ break;
+        case VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_BUFFER_CREATE_INFO_NV: /* VkDedicatedAllocationBufferCreateInfoNV */ break;
+        case VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO: /* VkExternalMemoryBufferCreateInfo */
             external_info = (VkExternalMemoryBufferCreateInfo *)*next;
             if (external_info->handleTypes & EXTERNAL_MEMORY_WIN32_BITS)
             {
@@ -736,10 +736,10 @@ static void win32u_vkGetDeviceBufferMemoryRequirements( VkDevice client_device, 
                 external_info->handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
             }
             break;
-        case VK_STRUCTURE_TYPE_BUFFER_OPAQUE_CAPTURE_ADDRESS_CREATE_INFO: break;
-        case VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_CREATE_INFO_EXT: break;
-        case VK_STRUCTURE_TYPE_VIDEO_PROFILE_LIST_INFO_KHR: break;
-        case VK_STRUCTURE_TYPE_OPAQUE_CAPTURE_DESCRIPTOR_DATA_CREATE_INFO_EXT: break;
+        case VK_STRUCTURE_TYPE_BUFFER_OPAQUE_CAPTURE_ADDRESS_CREATE_INFO: /* VkBufferOpaqueCaptureAddressCreateInfo */ break;
+        case VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_CREATE_INFO_EXT: /* VkBufferDeviceAddressCreateInfoEXT */ break;
+        case VK_STRUCTURE_TYPE_VIDEO_PROFILE_LIST_INFO_KHR: /* VkVideoProfileListInfoKHR */ break;
+        case VK_STRUCTURE_TYPE_OPAQUE_CAPTURE_DESCRIPTOR_DATA_CREATE_INFO_EXT: /* VkOpaqueCaptureDescriptorDataCreateInfoEXT */ break;
         default: FIXME( "Unhandled sType %u.\n", (*next)->sType ); break;
         }
     }
@@ -786,8 +786,8 @@ static VkResult win32u_vkCreateImage( VkDevice client_device, const VkImageCreat
     {
         switch ((*next)->sType)
         {
-        case VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_IMAGE_CREATE_INFO_NV: break;
-        case VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO:
+        case VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_IMAGE_CREATE_INFO_NV: /* VkDedicatedAllocationImageCreateInfoNV */ break;
+        case VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO: /* VkExternalMemoryImageCreateInfo */
             external_info = (VkExternalMemoryImageCreateInfo *)*next;
             if (external_info->handleTypes & EXTERNAL_MEMORY_WIN32_BITS)
             {
@@ -795,22 +795,22 @@ static VkResult win32u_vkCreateImage( VkDevice client_device, const VkImageCreat
                 external_info->handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
             }
             break;
-        case VK_STRUCTURE_TYPE_IMAGE_SWAPCHAIN_CREATE_INFO_KHR:
+        case VK_STRUCTURE_TYPE_IMAGE_SWAPCHAIN_CREATE_INFO_KHR: /* VkImageSwapchainCreateInfoKHR */
         {
             VkImageSwapchainCreateInfoKHR *swapchain_info = (VkImageSwapchainCreateInfoKHR *)*next;
             struct swapchain *swapchain = swapchain_from_handle( swapchain_info->swapchain );
             swapchain_info->swapchain = swapchain->obj.host.swapchain;
             break;
         }
-        case VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO: break;
-        case VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT: break;
-        case VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_EXPLICIT_CREATE_INFO_EXT: break;
-        case VK_STRUCTURE_TYPE_IMAGE_STENCIL_USAGE_CREATE_INFO: break;
-        case VK_STRUCTURE_TYPE_VIDEO_PROFILE_LIST_INFO_KHR: break;
-        case VK_STRUCTURE_TYPE_OPAQUE_CAPTURE_DESCRIPTOR_DATA_CREATE_INFO_EXT: break;
-        case VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_CONTROL_EXT: break;
-        case VK_STRUCTURE_TYPE_OPTICAL_FLOW_IMAGE_FORMAT_INFO_NV: break;
-        case VK_STRUCTURE_TYPE_IMAGE_ALIGNMENT_CONTROL_CREATE_INFO_MESA: break;
+        case VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO: /* VkImageFormatListCreateInfo */ break;
+        case VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT: /* VkImageDrmFormatModifierListCreateInfoEXT */ break;
+        case VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_EXPLICIT_CREATE_INFO_EXT: /* VkImageDrmFormatModifierExplicitCreateInfoEXT */ break;
+        case VK_STRUCTURE_TYPE_IMAGE_STENCIL_USAGE_CREATE_INFO: /* VkImageStencilUsageCreateInfo */ break;
+        case VK_STRUCTURE_TYPE_VIDEO_PROFILE_LIST_INFO_KHR: /* VkVideoProfileListInfoKHR */ break;
+        case VK_STRUCTURE_TYPE_OPAQUE_CAPTURE_DESCRIPTOR_DATA_CREATE_INFO_EXT: /* VkOpaqueCaptureDescriptorDataCreateInfoEXT */ break;
+        case VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_CONTROL_EXT: /* VkImageCompressionControlEXT */ break;
+        case VK_STRUCTURE_TYPE_OPTICAL_FLOW_IMAGE_FORMAT_INFO_NV: /* VkOpticalFlowImageFormatInfoNV */ break;
+        case VK_STRUCTURE_TYPE_IMAGE_ALIGNMENT_CONTROL_CREATE_INFO_MESA: /* VkImageAlignmentControlCreateInfoMESA */ break;
         default: FIXME( "Unhandled sType %u.\n", (*next)->sType ); break;
         }
     }
@@ -869,8 +869,8 @@ static void win32u_vkGetDeviceImageMemoryRequirements( VkDevice client_device, c
     {
         switch ((*next)->sType)
         {
-        case VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_IMAGE_CREATE_INFO_NV: break;
-        case VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO:
+        case VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_IMAGE_CREATE_INFO_NV: /* VkDedicatedAllocationImageCreateInfoNV */ break;
+        case VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO: /* VkExternalMemoryImageCreateInfo */
             external_info = (VkExternalMemoryImageCreateInfo *)*next;
             if (external_info->handleTypes & EXTERNAL_MEMORY_WIN32_BITS)
             {
@@ -878,22 +878,22 @@ static void win32u_vkGetDeviceImageMemoryRequirements( VkDevice client_device, c
                 external_info->handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
             }
             break;
-        case VK_STRUCTURE_TYPE_IMAGE_SWAPCHAIN_CREATE_INFO_KHR:
+        case VK_STRUCTURE_TYPE_IMAGE_SWAPCHAIN_CREATE_INFO_KHR: /* VkImageSwapchainCreateInfoKHR */
         {
             VkImageSwapchainCreateInfoKHR *swapchain_info = (VkImageSwapchainCreateInfoKHR *)*next;
             struct swapchain *swapchain = swapchain_from_handle( swapchain_info->swapchain );
             swapchain_info->swapchain = swapchain->obj.host.swapchain;
             break;
         }
-        case VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO: break;
-        case VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT: break;
-        case VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_EXPLICIT_CREATE_INFO_EXT: break;
-        case VK_STRUCTURE_TYPE_IMAGE_STENCIL_USAGE_CREATE_INFO: break;
-        case VK_STRUCTURE_TYPE_VIDEO_PROFILE_LIST_INFO_KHR: break;
-        case VK_STRUCTURE_TYPE_OPAQUE_CAPTURE_DESCRIPTOR_DATA_CREATE_INFO_EXT: break;
-        case VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_CONTROL_EXT: break;
-        case VK_STRUCTURE_TYPE_OPTICAL_FLOW_IMAGE_FORMAT_INFO_NV: break;
-        case VK_STRUCTURE_TYPE_IMAGE_ALIGNMENT_CONTROL_CREATE_INFO_MESA: break;
+        case VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO: /* VkImageFormatListCreateInfo */ break;
+        case VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT: /* VkImageDrmFormatModifierListCreateInfoEXT */ break;
+        case VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_EXPLICIT_CREATE_INFO_EXT: /* VkImageDrmFormatModifierExplicitCreateInfoEXT */ break;
+        case VK_STRUCTURE_TYPE_IMAGE_STENCIL_USAGE_CREATE_INFO: /* VkImageStencilUsageCreateInfo */ break;
+        case VK_STRUCTURE_TYPE_VIDEO_PROFILE_LIST_INFO_KHR: /* VkVideoProfileListInfoKHR */ break;
+        case VK_STRUCTURE_TYPE_OPAQUE_CAPTURE_DESCRIPTOR_DATA_CREATE_INFO_EXT: /* VkOpaqueCaptureDescriptorDataCreateInfoEXT */ break;
+        case VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_CONTROL_EXT: /* VkImageCompressionControlEXT */ break;
+        case VK_STRUCTURE_TYPE_OPTICAL_FLOW_IMAGE_FORMAT_INFO_NV: /* VkOpticalFlowImageFormatInfoNV */ break;
+        case VK_STRUCTURE_TYPE_IMAGE_ALIGNMENT_CONTROL_CREATE_INFO_MESA: /* VkImageAlignmentControlCreateInfoMESA */ break;
         default: FIXME( "Unhandled sType %u.\n", (*next)->sType ); break;
         }
     }
@@ -915,7 +915,7 @@ static VkResult win32u_vkGetPhysicalDeviceImageFormatProperties2( VkPhysicalDevi
     {
         switch ((*next)->sType)
         {
-        case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO:
+        case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO: /* VkPhysicalDeviceExternalImageFormatInfo*/;
             external_info = (VkPhysicalDeviceExternalImageFormatInfo *)*next;
             if (external_info->handleType & EXTERNAL_MEMORY_WIN32_BITS)
             {
@@ -923,13 +923,13 @@ static VkResult win32u_vkGetPhysicalDeviceImageFormatProperties2( VkPhysicalDevi
                 external_info->handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
             }
             break;
-        case VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO: break;
-        case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_DRM_FORMAT_MODIFIER_INFO_EXT: break;
-        case VK_STRUCTURE_TYPE_IMAGE_STENCIL_USAGE_CREATE_INFO: break;
-        case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_VIEW_IMAGE_FORMAT_INFO_EXT: break;
-        case VK_STRUCTURE_TYPE_VIDEO_PROFILE_LIST_INFO_KHR: break;
-        case VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_CONTROL_EXT: break;
-        case VK_STRUCTURE_TYPE_OPTICAL_FLOW_IMAGE_FORMAT_INFO_NV: break;
+        case VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO: /* VkImageFormatListCreateInfo */ break;
+        case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_DRM_FORMAT_MODIFIER_INFO_EXT: /* VkPhysicalDeviceImageDrmFormatModifierInfoEXT */ break;
+        case VK_STRUCTURE_TYPE_IMAGE_STENCIL_USAGE_CREATE_INFO: /* VkImageStencilUsageCreateInfo */ break;
+        case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_VIEW_IMAGE_FORMAT_INFO_EXT: /* VkPhysicalDeviceImageViewImageFormatInfoEXT */ break;
+        case VK_STRUCTURE_TYPE_VIDEO_PROFILE_LIST_INFO_KHR: /* VkVideoProfileListInfoKHR */ break;
+        case VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_CONTROL_EXT: /* VkImageCompressionControlEXT */ break;
+        case VK_STRUCTURE_TYPE_OPTICAL_FLOW_IMAGE_FORMAT_INFO_NV: /* VkOpticalFlowImageFormatInfoNV */ break;
         default: FIXME( "Unhandled sType %u.\n", (*next)->sType ); break;
         }
     }
@@ -1328,16 +1328,16 @@ static VkResult win32u_vkBindImageMemory2( VkDevice client_device, uint32_t coun
         {
             switch ((*next)->sType)
             {
-            case VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_DEVICE_GROUP_INFO: break;
-            case VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_SWAPCHAIN_INFO_KHR:
+            case VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_DEVICE_GROUP_INFO: /* VkBindImageMemoryDeviceGroupInfo */ break;
+            case VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_SWAPCHAIN_INFO_KHR: /* VkBindImageMemorySwapchainInfoKHR */
             {
                 VkBindImageMemorySwapchainInfoKHR *swapchain_info = (VkBindImageMemorySwapchainInfoKHR *)*next;
                 swapchain = swapchain_from_handle( swapchain_info->swapchain );
                 swapchain_info->swapchain = swapchain->obj.host.swapchain;
                 break;
             }
-            case VK_STRUCTURE_TYPE_BIND_IMAGE_PLANE_MEMORY_INFO: break;
-            case VK_STRUCTURE_TYPE_BIND_MEMORY_STATUS_KHR: break;
+            case VK_STRUCTURE_TYPE_BIND_IMAGE_PLANE_MEMORY_INFO: /* VkBindImagePlaneMemoryInfo */ break;
+            case VK_STRUCTURE_TYPE_BIND_MEMORY_STATUS_KHR: /* VkBindMemoryStatusKHR */ break;
             default: FIXME( "Unhandled sType %u.\n", (*next)->sType ); break;
             }
         }
@@ -1401,10 +1401,10 @@ static VkResult win32u_vkQueuePresentKHR( VkQueue client_queue, const VkPresentI
     {
         switch ((*next)->sType)
         {
-        case VK_STRUCTURE_TYPE_PRESENT_REGIONS_KHR: break;
-        case VK_STRUCTURE_TYPE_DEVICE_GROUP_PRESENT_INFO_KHR: break;
-        case VK_STRUCTURE_TYPE_PRESENT_ID_KHR: break;
-        case VK_STRUCTURE_TYPE_FRAME_BOUNDARY_EXT:
+        case VK_STRUCTURE_TYPE_PRESENT_REGIONS_KHR: /* VkPresentRegionsKHR */ break;
+        case VK_STRUCTURE_TYPE_DEVICE_GROUP_PRESENT_INFO_KHR: /* VkDeviceGroupPresentInfoKHR */ break;
+        case VK_STRUCTURE_TYPE_PRESENT_ID_KHR: /* VkPresentIdKHR */ break;
+        case VK_STRUCTURE_TYPE_FRAME_BOUNDARY_EXT: /* VkFrameBoundaryEXT */
         {
             VkFrameBoundaryEXT *boundary = (VkFrameBoundaryEXT *)*next;
             for (i = 0; i < boundary->bufferCount; i++)
@@ -1419,7 +1419,7 @@ static VkResult win32u_vkQueuePresentKHR( VkQueue client_queue, const VkPresentI
             }
             break;
         }
-        case VK_STRUCTURE_TYPE_SWAPCHAIN_PRESENT_FENCE_INFO_EXT:
+        case VK_STRUCTURE_TYPE_SWAPCHAIN_PRESENT_FENCE_INFO_EXT: /* VkSwapchainPresentFenceInfoEXT */
         {
             VkSwapchainPresentFenceInfoEXT *fence_info = (VkSwapchainPresentFenceInfoEXT *)*next;
             for (i = 0; i < fence_info->swapchainCount; i++)
@@ -1430,7 +1430,7 @@ static VkResult win32u_vkQueuePresentKHR( VkQueue client_queue, const VkPresentI
             }
             break;
         }
-        case VK_STRUCTURE_TYPE_SWAPCHAIN_PRESENT_MODE_INFO_EXT: break;
+        case VK_STRUCTURE_TYPE_SWAPCHAIN_PRESENT_MODE_INFO_EXT: /* VkSwapchainPresentModeInfoEXT */ break;
         default: FIXME( "Unhandled sType %u.\n", (*next)->sType ); break;
         }
     }
@@ -1529,12 +1529,12 @@ static VkResult win32u_vkQueueSubmit( VkQueue client_queue, uint32_t count, cons
         {
             switch ((*next)->sType)
             {
-            case VK_STRUCTURE_TYPE_WIN32_KEYED_MUTEX_ACQUIRE_RELEASE_INFO_KHR:
+            case VK_STRUCTURE_TYPE_WIN32_KEYED_MUTEX_ACQUIRE_RELEASE_INFO_KHR: /* VkWin32KeyedMutexAcquireReleaseInfoKHR */
                 mutex_info = (VkWin32KeyedMutexAcquireReleaseInfoKHR *)*next;
                 FIXME( "VK_STRUCTURE_TYPE_WIN32_KEYED_MUTEX_ACQUIRE_RELEASE_INFO_KHR not implemented!\n" );
                 *next = (*next)->pNext;
                 break;
-            case VK_STRUCTURE_TYPE_D3D12_FENCE_SUBMIT_INFO_KHR:
+            case VK_STRUCTURE_TYPE_D3D12_FENCE_SUBMIT_INFO_KHR: /* VkD3D12FenceSubmitInfoKHR */
             {
                 VkD3D12FenceSubmitInfoKHR *submit_info = (VkD3D12FenceSubmitInfoKHR *)*next;
                 FIXME( "VK_STRUCTURE_TYPE_D3D12_FENCE_SUBMIT_INFO_KHR not implemented!\n" );
@@ -1543,11 +1543,11 @@ static VkResult win32u_vkQueueSubmit( VkQueue client_queue, uint32_t count, cons
                 (void)submit_info;
                 break;
             }
-            case VK_STRUCTURE_TYPE_DEVICE_GROUP_SUBMIT_INFO: break;
-            case VK_STRUCTURE_TYPE_PROTECTED_SUBMIT_INFO: break;
-            case VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO: break;
-            case VK_STRUCTURE_TYPE_PERFORMANCE_QUERY_SUBMIT_INFO_KHR: break;
-            case VK_STRUCTURE_TYPE_FRAME_BOUNDARY_EXT:
+            case VK_STRUCTURE_TYPE_DEVICE_GROUP_SUBMIT_INFO: /* VkDeviceGroupSubmitInfo */ break;
+            case VK_STRUCTURE_TYPE_PROTECTED_SUBMIT_INFO: /* VkProtectedSubmitInfo */ break;
+            case VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO: /* VkTimelineSemaphoreSubmitInfo */ break;
+            case VK_STRUCTURE_TYPE_PERFORMANCE_QUERY_SUBMIT_INFO_KHR: /* VkPerformanceQuerySubmitInfoKHR */ break;
+            case VK_STRUCTURE_TYPE_FRAME_BOUNDARY_EXT: /* VkFrameBoundaryEXT */
             {
                 VkFrameBoundaryEXT *boundary = (VkFrameBoundaryEXT *)*next;
                 for (i = 0; i < boundary->bufferCount; i++)
@@ -1562,7 +1562,7 @@ static VkResult win32u_vkQueueSubmit( VkQueue client_queue, uint32_t count, cons
                 }
                 break;
             }
-            case VK_STRUCTURE_TYPE_LATENCY_SUBMISSION_PRESENT_ID_NV: break;
+            case VK_STRUCTURE_TYPE_LATENCY_SUBMISSION_PRESENT_ID_NV: /* VkLatencySubmissionPresentIdNV */ break;
             default: FIXME( "Unhandled sType %u.\n", (*next)->sType ); break;
             }
         }
@@ -1625,13 +1625,13 @@ static VkResult win32u_vkQueueSubmit2( VkQueue client_queue, uint32_t count, con
         {
             switch ((*next)->sType)
             {
-            case VK_STRUCTURE_TYPE_WIN32_KEYED_MUTEX_ACQUIRE_RELEASE_INFO_KHR:
+            case VK_STRUCTURE_TYPE_WIN32_KEYED_MUTEX_ACQUIRE_RELEASE_INFO_KHR: /* VkWin32KeyedMutexAcquireReleaseInfoKHR */
                 mutex_info = (VkWin32KeyedMutexAcquireReleaseInfoKHR *)*next;
                 FIXME( "VK_STRUCTURE_TYPE_WIN32_KEYED_MUTEX_ACQUIRE_RELEASE_INFO_KHR not implemented!\n" );
                 *next = (*next)->pNext;
                 break;
-            case VK_STRUCTURE_TYPE_PERFORMANCE_QUERY_SUBMIT_INFO_KHR: break;
-            case VK_STRUCTURE_TYPE_FRAME_BOUNDARY_EXT:
+            case VK_STRUCTURE_TYPE_PERFORMANCE_QUERY_SUBMIT_INFO_KHR: /* VkPerformanceQuerySubmitInfoKHR */ break;
+            case VK_STRUCTURE_TYPE_FRAME_BOUNDARY_EXT: /* VkFrameBoundaryEXT */
             {
                 VkFrameBoundaryEXT *boundary = (VkFrameBoundaryEXT *)*next;
                 for (i = 0; i < boundary->bufferCount; i++)
@@ -1646,7 +1646,7 @@ static VkResult win32u_vkQueueSubmit2( VkQueue client_queue, uint32_t count, con
                 }
                 break;
             }
-            case VK_STRUCTURE_TYPE_LATENCY_SUBMISSION_PRESENT_ID_NV: break;
+            case VK_STRUCTURE_TYPE_LATENCY_SUBMISSION_PRESENT_ID_NV: /* VkLatencySubmissionPresentIdNV */ break;
             default: FIXME( "Unhandled sType %u.\n", (*next)->sType ); break;
             }
         }
@@ -1710,16 +1710,16 @@ static VkResult win32u_vkCreateSemaphore( VkDevice client_device, const VkSemaph
     {
         switch ((*next)->sType)
         {
-        case VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO:
+        case VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO: /* VkExportSemaphoreCreateInfo */
             export_info = (VkExportSemaphoreCreateInfo *)*next;
             export_info->handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
             break;
-        case VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_WIN32_HANDLE_INFO_KHR:
+        case VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_WIN32_HANDLE_INFO_KHR: /* VkExportSemaphoreWin32HandleInfoKHR */
             handle_info = (VkExportSemaphoreWin32HandleInfoKHR *)*next;
             *next = (*next)->pNext;
             break;
-        case VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO: break;
-        case VK_STRUCTURE_TYPE_QUERY_LOW_LATENCY_SUPPORT_NV: break;
+        case VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO: /* VkSemaphoreTypeCreateInfo */ break;
+        case VK_STRUCTURE_TYPE_QUERY_LOW_LATENCY_SUPPORT_NV: /* VkQueryLowLatencySupportNV */ break;
         default: FIXME( "Unhandled sType %u.\n", (*next)->sType ); break;
         }
     }
@@ -1922,11 +1922,11 @@ static VkResult win32u_vkCreateFence( VkDevice client_device, const VkFenceCreat
     {
         switch ((*next)->sType)
         {
-        case VK_STRUCTURE_TYPE_EXPORT_FENCE_CREATE_INFO:
+        case VK_STRUCTURE_TYPE_EXPORT_FENCE_CREATE_INFO: /* VkExportFenceCreateInfo */
             export_info = (VkExportFenceCreateInfo *)*next;
             export_info->handleTypes = VK_EXTERNAL_FENCE_HANDLE_TYPE_OPAQUE_FD_BIT;
             break;
-        case VK_STRUCTURE_TYPE_EXPORT_FENCE_WIN32_HANDLE_INFO_KHR:
+        case VK_STRUCTURE_TYPE_EXPORT_FENCE_WIN32_HANDLE_INFO_KHR: /* VkExportFenceWin32HandleInfoKHR */
             handle_info = (VkExportFenceWin32HandleInfoKHR *)*next;
             *next = (*next)->pNext;
             break;
