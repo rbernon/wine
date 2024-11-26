@@ -1280,7 +1280,7 @@ static void window_set_config( struct x11drv_win_data *data, const RECT *new_rec
 {
     static const UINT fullscreen_mask = (1 << NET_WM_STATE_MAXIMIZED) | (1 << NET_WM_STATE_FULLSCREEN);
     UINT style = NtUserGetWindowLongW( data->hwnd, GWL_STYLE ), mask = 0, net_wm_state = -1;
-    const RECT *old_rect = &data->pending_state.rect;
+    RECT *old_rect = &data->pending_state.rect;
     XWindowChanges changes;
     BOOL is_maximized;
 
@@ -1338,7 +1338,12 @@ static void window_set_config( struct x11drv_win_data *data, const RECT *new_rec
         mask |= CWStackMode;
     }
 
-    data->pending_state.rect = *new_rect;
+    if (mask & CWX) OffsetRect( old_rect, new_rect->left - old_rect->left, 0 );
+    if (mask & CWY) OffsetRect( old_rect, 0, new_rect->top - old_rect->top );
+    if (mask & CWWidth) old_rect->right = old_rect->left + new_rect->right - new_rect->left;
+    if (mask & CWHeight) old_rect->bottom = old_rect->top + new_rect->bottom - new_rect->top;
+
+    data->pending_state.rect = *old_rect;
     data->configure_serial = NextRequest( data->display );
     TRACE( "window %p/%lx, requesting config %s above %u, serial %lu\n", data->hwnd, data->whole_window,
            wine_dbgstr_rect(new_rect), above, data->configure_serial );
