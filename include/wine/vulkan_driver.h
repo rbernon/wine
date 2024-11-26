@@ -81,7 +81,9 @@ static inline void vulkan_object_init( struct vulkan_object *obj, UINT64 host_ha
     USE_VK_FUNC(vkCreateImage) \
     USE_VK_FUNC(vkCreateSemaphore) \
     USE_VK_FUNC(vkCreateSwapchainKHR) \
+    USE_VK_FUNC(vkDestroyBuffer) \
     USE_VK_FUNC(vkDestroyFence) \
+    USE_VK_FUNC(vkDestroyImage) \
     USE_VK_FUNC(vkDestroySemaphore) \
     USE_VK_FUNC(vkDestroySwapchainKHR) \
     USE_VK_FUNC(vkFreeMemory) \
@@ -219,6 +221,26 @@ struct vulkan_device_memory
 static inline struct vulkan_device_memory *vulkan_device_memory_from_handle( VkDeviceMemory handle )
 {
     return (struct vulkan_device_memory *)(UINT_PTR)handle;
+}
+
+struct vulkan_buffer
+{
+    VULKAN_OBJECT_HEADER( VkBuffer, buffer, struct vulkan_device, device );
+};
+
+static inline struct vulkan_buffer *vulkan_buffer_from_handle( VkBuffer handle )
+{
+    return (struct vulkan_buffer *)(UINT_PTR)handle;
+}
+
+struct vulkan_image
+{
+    VULKAN_OBJECT_HEADER( VkImage, image, struct vulkan_device, device );
+};
+
+static inline struct vulkan_image *vulkan_image_from_handle( VkImage handle )
+{
+    return (struct vulkan_image *)(UINT_PTR)handle;
 }
 
 struct vulkan_surface
