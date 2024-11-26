@@ -81,7 +81,9 @@ static inline void vulkan_object_init( struct vulkan_object *obj, UINT64 host_ha
     USE_VK_FUNC(vkCreateImage) \
     USE_VK_FUNC(vkCreateSemaphore) \
     USE_VK_FUNC(vkCreateSwapchainKHR) \
+    USE_VK_FUNC(vkDestroyBuffer) \
     USE_VK_FUNC(vkDestroyFence) \
+    USE_VK_FUNC(vkDestroyImage) \
     USE_VK_FUNC(vkDestroySemaphore) \
     USE_VK_FUNC(vkDestroySwapchainKHR) \
     USE_VK_FUNC(vkFreeMemory) \
