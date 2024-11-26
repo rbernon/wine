@@ -46,6 +46,13 @@ WINE_DECLARE_DEBUG_CHANNEL(fps);
 
 static const struct vulkan_driver_funcs *driver_funcs;
 
+static const UINT EXTERNAL_MEMORY_WIN32_BITS = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT |
+                                               VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT |
+                                               VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_BIT |
+                                               VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_KMT_BIT |
+                                               VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_HEAP_BIT |
+                                               VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_RESOURCE_BIT;
+
 struct device_memory
 {
     struct vulkan_device_memory obj;
@@ -167,30 +174,67 @@ static VkResult win32u_vkAllocateMemory( VkDevice client_device, const VkMemoryA
     struct vulkan_physical_device *physical_device = device->physical_device;
     struct vulkan_instance *instance = device->physical_device->instance;
     VkImportMemoryHostPointerInfoEXT host_pointer_info;
-    VkMemoryAllocateInfo info = *alloc_info;
     VkDeviceMemory host_device_memory;
     struct device_memory *memory;
+    VkBaseOutStructure **next;
     uint32_t mem_flags;
     void *mapping = NULL;
     VkResult res;
 
+    for (next = (VkBaseOutStructure **)&alloc_info->pNext; *next; next = &(*next)->pNext)
+    {
+        switch ((*next)->sType)
+        {
+        case VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_MEMORY_ALLOCATE_INFO_NV: break;
+        case VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO:
+        {
+            VkExportMemoryAllocateInfo *export_info = (VkExportMemoryAllocateInfo *)*next;
+            if (export_info->handleTypes & EXTERNAL_MEMORY_WIN32_BITS)
+            {
+                FIXME( "VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO not implemented!\n" );
+                *next = (*next)->pNext;
+            }
+            break;
+        }
+        case VK_STRUCTURE_TYPE_IMPORT_MEMORY_WIN32_HANDLE_INFO_KHR:
+            FIXME( "VK_STRUCTURE_TYPE_IMPORT_MEMORY_WIN32_HANDLE_INFO_KHR not implemented!\n" );
+            *next = (*next)->pNext;
+            break;
+        case VK_STRUCTURE_TYPE_EXPORT_MEMORY_WIN32_HANDLE_INFO_KHR:
+            FIXME( "VK_STRUCTURE_TYPE_EXPORT_MEMORY_WIN32_HANDLE_INFO_KHR not implemented!\n" );
+            *next = (*next)->pNext;
+            break;
+        case VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR:
+            ERR( "VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR not supported!\n" );
+            *next = (*next)->pNext;
+            break;
+        case VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO: break;
+        case VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO: break;
+        case VK_STRUCTURE_TYPE_IMPORT_MEMORY_HOST_POINTER_INFO_EXT:
+            host_pointer_info = *(VkImportMemoryHostPointerInfoEXT *)*next;
+            break;
+        case VK_STRUCTURE_TYPE_MEMORY_PRIORITY_ALLOCATE_INFO_EXT: break;
+        case VK_STRUCTURE_TYPE_MEMORY_OPAQUE_CAPTURE_ADDRESS_ALLOCATE_INFO: break;
+        default: FIXME( "Unhandled sType %u.\n", (*next)->sType ); break;
+        }
+    }
+
     /* For host visible memory, we try to use VK_EXT_external_memory_host on wow64 to ensure that mapped pointer is 32-bit. */
     mem_flags = physical_device->memory_properties.memoryTypes[alloc_info->memoryTypeIndex].propertyFlags;
-    if (physical_device->external_memory_align && (mem_flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) &&
-        !find_next_struct( alloc_info->pNext, VK_STRUCTURE_TYPE_IMPORT_MEMORY_HOST_POINTER_INFO_EXT ) &&
-        (res = allocate_external_host_memory( device, &info, &host_pointer_info )))
+    if (physical_device->external_memory_align && (mem_flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) && !host_pointer_info.sType &&
+        (res = allocate_external_host_memory( device, (VkMemoryAllocateInfo *)alloc_info, &host_pointer_info )))
         return res;
 
     if (!(memory = malloc( sizeof(*memory) ))) return VK_ERROR_OUT_OF_HOST_MEMORY;
 
-    if ((res = device->host_vkAllocateMemory( device->host.device, &info, NULL, &host_device_memory )))
+    if ((res = device->host_vkAllocateMemory( device->host.device, alloc_info, NULL, &host_device_memory )))
     {
         free( memory );
         return res;
     }
 
     vulkan_object_init( &memory->obj.obj, host_device_memory, NULL );
-    memory->size = info.allocationSize;
+    memory->size = alloc_info->allocationSize;
     memory->vm_map = mapping;
     instance->p_insert_object( instance, &memory->obj.obj );
 
@@ -229,6 +273,25 @@ static void win32u_vkFreeMemory( VkDevice client_device, VkDeviceMemory client_d
     }
 
     free( memory );
+}
+
+static VkResult win32u_vkGetMemoryWin32HandleKHR( VkDevice client_device, const VkMemoryGetWin32HandleInfoKHR *handle_info, HANDLE *handle )
+{
+    struct vulkan_device *device = vulkan_device_from_handle( client_device );
+
+    FIXME( "device %p, handle_info %p, handle %p stub!\n", device, handle_info, handle );
+
+    return VK_ERROR_INCOMPATIBLE_DRIVER;
+}
+
+static VkResult win32u_vkGetMemoryWin32HandlePropertiesKHR( VkDevice client_device, VkExternalMemoryHandleTypeFlagBits handle_type, HANDLE handle,
+                                                            VkMemoryWin32HandlePropertiesKHR *handle_properties )
+{
+    struct vulkan_device *device = vulkan_device_from_handle( client_device );
+
+    FIXME( "device %p, handle_type %#x, handle %p, handle_properties %p stub!\n", device, handle_type, handle, handle_properties );
+
+    return VK_ERROR_INCOMPATIBLE_DRIVER;
 }
 
 static VkResult win32u_vkMapMemory2KHR( VkDevice client_device, const VkMemoryMapInfoKHR *map_info, void **data )
@@ -367,19 +430,97 @@ static VkResult win32u_vkCreateBuffer( VkDevice client_device, const VkBufferCre
 {
     struct vulkan_device *device = vulkan_device_from_handle( client_device );
     struct vulkan_physical_device *physical_device = device->physical_device;
-    VkExternalMemoryBufferCreateInfo external_memory_info;
-    VkBufferCreateInfo info = *create_info;
+    VkExternalMemoryBufferCreateInfo host_external_info, *external_info = NULL;
+    VkBaseOutStructure **next;
 
-    if (physical_device->external_memory_align &&
-        !find_next_struct( info.pNext, VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO ))
+    for (next = (VkBaseOutStructure **)&create_info->pNext; *next; next = &(*next)->pNext)
     {
-        external_memory_info.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO;
-        external_memory_info.pNext = info.pNext;
-        external_memory_info.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT;
-        info.pNext = &external_memory_info;
+        switch ((*next)->sType)
+        {
+        case VK_STRUCTURE_TYPE_BUFFER_USAGE_FLAGS_2_CREATE_INFO_KHR: break;
+        case VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_BUFFER_CREATE_INFO_NV: break;
+        case VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO:
+            external_info = (VkExternalMemoryBufferCreateInfo *)*next;
+            if (external_info->handleTypes & EXTERNAL_MEMORY_WIN32_BITS)
+            {
+                FIXME( "VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO not implemented!\n" );
+                *next = (*next)->pNext;
+            }
+            break;
+        case VK_STRUCTURE_TYPE_BUFFER_OPAQUE_CAPTURE_ADDRESS_CREATE_INFO: break;
+        case VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_CREATE_INFO_EXT: break;
+        case VK_STRUCTURE_TYPE_VIDEO_PROFILE_LIST_INFO_KHR: break;
+        case VK_STRUCTURE_TYPE_OPAQUE_CAPTURE_DESCRIPTOR_DATA_CREATE_INFO_EXT: break;
+        default: FIXME( "Unhandled sType %u.\n", (*next)->sType ); break;
+        }
     }
 
-    return device->host_vkCreateBuffer( device->host.device, &info, NULL, buffer );
+    if (physical_device->external_memory_align && !external_info)
+    {
+        host_external_info.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO;
+        host_external_info.pNext = create_info->pNext;
+        host_external_info.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT;
+        ((VkBufferCreateInfo *)create_info)->pNext = &host_external_info; /* cast away const, it has been copied in the thunks */
+    }
+
+    return device->host_vkCreateBuffer( device->host.device, create_info, NULL, buffer );
+}
+
+static void win32u_vkGetDeviceBufferMemoryRequirements( VkDevice client_device, const VkDeviceBufferMemoryRequirements *buffer_requirements,
+                                                        VkMemoryRequirements2 *memory_requirements )
+{
+    struct vulkan_device *device = vulkan_device_from_handle( client_device );
+    VkExternalMemoryBufferCreateInfo *external_info;
+    VkBaseOutStructure **next;
+
+    TRACE( "device %p, buffer_requirements %p, memory_requirements %p\n", device, buffer_requirements, memory_requirements );
+
+    for (next = (VkBaseOutStructure **)&buffer_requirements->pCreateInfo->pNext; *next; next = &(*next)->pNext)
+    {
+        switch ((*next)->sType)
+        {
+        case VK_STRUCTURE_TYPE_BUFFER_USAGE_FLAGS_2_CREATE_INFO_KHR: break;
+        case VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_BUFFER_CREATE_INFO_NV: break;
+        case VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO:
+            external_info = (VkExternalMemoryBufferCreateInfo *)*next;
+            if (external_info->handleTypes & EXTERNAL_MEMORY_WIN32_BITS)
+            {
+                FIXME( "VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO not implemented!\n" );
+                *next = (*next)->pNext;
+            }
+            break;
+        case VK_STRUCTURE_TYPE_BUFFER_OPAQUE_CAPTURE_ADDRESS_CREATE_INFO: break;
+        case VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_CREATE_INFO_EXT: break;
+        case VK_STRUCTURE_TYPE_VIDEO_PROFILE_LIST_INFO_KHR: break;
+        case VK_STRUCTURE_TYPE_OPAQUE_CAPTURE_DESCRIPTOR_DATA_CREATE_INFO_EXT: break;
+        default: FIXME( "Unhandled sType %u.\n", (*next)->sType ); break;
+        }
+    }
+
+    device->host_vkGetDeviceBufferMemoryRequirements( device->host.device, buffer_requirements, memory_requirements );
+}
+
+static void win32u_vkGetPhysicalDeviceExternalBufferProperties( VkPhysicalDevice client_physical_device, const VkPhysicalDeviceExternalBufferInfo *buffer_info,
+                                                                VkExternalBufferProperties *buffer_properies )
+{
+    struct vulkan_physical_device *physical_device = vulkan_physical_device_from_handle( client_physical_device );
+    struct vulkan_instance *instance = physical_device->instance;
+
+    TRACE( "physical_device %p, buffer_info %p, buffer_properies %p\n", physical_device, buffer_info, buffer_properies );
+
+    if (buffer_info->handleType & EXTERNAL_MEMORY_WIN32_BITS)
+    {
+        FIXME( "VkPhysicalDeviceExternalBufferInfo Win32 handleType not implemented!\n" );
+        ((VkPhysicalDeviceExternalBufferInfo *)buffer_info)->handleType = 0; /* cast away const, it has been copied in the thunks */
+    }
+
+    return instance->host_vkGetPhysicalDeviceExternalBufferProperties( physical_device->host.physical_device, buffer_info, buffer_properies );
+}
+
+static void win32u_vkGetPhysicalDeviceExternalBufferPropertiesKHR( VkPhysicalDevice client_physical_device, const VkPhysicalDeviceExternalBufferInfo *buffer_info,
+                                                                   VkExternalBufferProperties *buffer_properies )
+{
+    win32u_vkGetPhysicalDeviceExternalBufferProperties( client_physical_device, buffer_info, buffer_properies );
 }
 
 static VkResult win32u_vkCreateImage( VkDevice client_device, const VkImageCreateInfo *create_info,
@@ -387,19 +528,126 @@ static VkResult win32u_vkCreateImage( VkDevice client_device, const VkImageCreat
 {
     struct vulkan_device *device = vulkan_device_from_handle( client_device );
     struct vulkan_physical_device *physical_device = device->physical_device;
-    VkExternalMemoryImageCreateInfo external_memory_info;
-    VkImageCreateInfo info = *create_info;
+    VkExternalMemoryImageCreateInfo host_external_info, *external_info = NULL;
+    VkBaseOutStructure **next;
 
-    if (physical_device->external_memory_align &&
-        !find_next_struct( info.pNext, VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO ))
+    for (next = (VkBaseOutStructure **)&create_info->pNext; *next; next = &(*next)->pNext)
     {
-        external_memory_info.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO;
-        external_memory_info.pNext = info.pNext;
-        external_memory_info.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT;
-        info.pNext = &external_memory_info;
+        switch ((*next)->sType)
+        {
+        case VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_IMAGE_CREATE_INFO_NV: break;
+        case VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO:
+            external_info = (VkExternalMemoryImageCreateInfo *)*next;
+            if (external_info->handleTypes & EXTERNAL_MEMORY_WIN32_BITS)
+            {
+                FIXME( "VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO not implemented!\n" );
+                *next = (*next)->pNext;
+            }
+            break;
+        case VK_STRUCTURE_TYPE_IMAGE_SWAPCHAIN_CREATE_INFO_KHR: break;
+        case VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO: break;
+        case VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT: break;
+        case VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_EXPLICIT_CREATE_INFO_EXT: break;
+        case VK_STRUCTURE_TYPE_IMAGE_STENCIL_USAGE_CREATE_INFO: break;
+        case VK_STRUCTURE_TYPE_VIDEO_PROFILE_LIST_INFO_KHR: break;
+        case VK_STRUCTURE_TYPE_OPAQUE_CAPTURE_DESCRIPTOR_DATA_CREATE_INFO_EXT: break;
+        case VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_CONTROL_EXT: break;
+        case VK_STRUCTURE_TYPE_OPTICAL_FLOW_IMAGE_FORMAT_INFO_NV: break;
+        case VK_STRUCTURE_TYPE_IMAGE_ALIGNMENT_CONTROL_CREATE_INFO_MESA: break;
+        default: FIXME( "Unhandled sType %u.\n", (*next)->sType ); break;
+        }
     }
 
-    return device->host_vkCreateImage( device->host.device, &info, NULL, image );
+    if (physical_device->external_memory_align && !external_info)
+    {
+        host_external_info.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO;
+        host_external_info.pNext = create_info->pNext;
+        host_external_info.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT;
+        ((VkBufferCreateInfo *)create_info)->pNext = &host_external_info; /* cast away const, it has been copied in the thunks */
+    }
+
+    return device->host_vkCreateImage( device->host.device, create_info, NULL, image );
+}
+
+static void win32u_vkGetDeviceImageMemoryRequirements( VkDevice client_device, const VkDeviceImageMemoryRequirements *image_requirements,
+                                                       VkMemoryRequirements2 *memory_requirements )
+{
+    struct vulkan_device *device = vulkan_device_from_handle( client_device );
+    VkExternalMemoryImageCreateInfo *external_info;
+    VkBaseOutStructure **next;
+
+    TRACE( "device %p, image_requirements %p, memory_requirements %p\n", device, image_requirements, memory_requirements );
+
+    for (next = (VkBaseOutStructure **)&image_requirements->pCreateInfo->pNext; *next; next = &(*next)->pNext)
+    {
+        switch ((*next)->sType)
+        {
+        case VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_IMAGE_CREATE_INFO_NV: break;
+        case VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO:
+            external_info = (VkExternalMemoryImageCreateInfo *)*next;
+            if (external_info->handleTypes & EXTERNAL_MEMORY_WIN32_BITS)
+            {
+                FIXME( "VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO not implemented!\n" );
+                *next = (*next)->pNext;
+            }
+            break;
+        case VK_STRUCTURE_TYPE_IMAGE_SWAPCHAIN_CREATE_INFO_KHR: break;
+        case VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO: break;
+        case VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT: break;
+        case VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_EXPLICIT_CREATE_INFO_EXT: break;
+        case VK_STRUCTURE_TYPE_IMAGE_STENCIL_USAGE_CREATE_INFO: break;
+        case VK_STRUCTURE_TYPE_VIDEO_PROFILE_LIST_INFO_KHR: break;
+        case VK_STRUCTURE_TYPE_OPAQUE_CAPTURE_DESCRIPTOR_DATA_CREATE_INFO_EXT: break;
+        case VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_CONTROL_EXT: break;
+        case VK_STRUCTURE_TYPE_OPTICAL_FLOW_IMAGE_FORMAT_INFO_NV: break;
+        case VK_STRUCTURE_TYPE_IMAGE_ALIGNMENT_CONTROL_CREATE_INFO_MESA: break;
+        default: FIXME( "Unhandled sType %u.\n", (*next)->sType ); break;
+        }
+    }
+
+    device->host_vkGetDeviceImageMemoryRequirements( device->host.device, image_requirements, memory_requirements );
+}
+
+static VkResult win32u_vkGetPhysicalDeviceImageFormatProperties2( VkPhysicalDevice client_physical_device, const VkPhysicalDeviceImageFormatInfo2 *format_info,
+                                                                  VkImageFormatProperties2 *format_properies )
+{
+    struct vulkan_physical_device *physical_device = vulkan_physical_device_from_handle( client_physical_device );
+    struct vulkan_instance *instance = physical_device->instance;
+    VkPhysicalDeviceExternalImageFormatInfo *external_info;
+    VkBaseOutStructure **next;
+
+    TRACE( "physical_device %p, format_info %p, format_properies %p\n", physical_device, format_info, format_properies );
+
+    for (next = (VkBaseOutStructure **)&format_info->pNext; *next; next = &(*next)->pNext)
+    {
+        switch ((*next)->sType)
+        {
+        case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO:;
+            external_info = (VkPhysicalDeviceExternalImageFormatInfo *)*next;
+            if (external_info->handleType & EXTERNAL_MEMORY_WIN32_BITS)
+            {
+                FIXME( "VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO not implemented!\n" );
+                *next = (*next)->pNext;
+            }
+            break;
+        case VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO: break;
+        case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_DRM_FORMAT_MODIFIER_INFO_EXT: break;
+        case VK_STRUCTURE_TYPE_IMAGE_STENCIL_USAGE_CREATE_INFO: break;
+        case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_VIEW_IMAGE_FORMAT_INFO_EXT: break;
+        case VK_STRUCTURE_TYPE_VIDEO_PROFILE_LIST_INFO_KHR: break;
+        case VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_CONTROL_EXT: break;
+        case VK_STRUCTURE_TYPE_OPTICAL_FLOW_IMAGE_FORMAT_INFO_NV: break;
+        default: FIXME( "Unhandled sType %u.\n", (*next)->sType ); break;
+        }
+    }
+
+    return instance->host_vkGetPhysicalDeviceImageFormatProperties2( physical_device->host.physical_device, format_info, format_properies );
+}
+
+static VkResult win32u_vkGetPhysicalDeviceImageFormatProperties2KHR( VkPhysicalDevice client_physical_device, const VkPhysicalDeviceImageFormatInfo2 *format_info,
+                                                                     VkImageFormatProperties2 *format_properies )
+{
+    return win32u_vkGetPhysicalDeviceImageFormatProperties2( client_physical_device, format_info, format_properies );
 }
 
 static VkResult win32u_vkCreateWin32SurfaceKHR( VkInstance client_instance, const VkWin32SurfaceCreateInfoKHR *create_info,
@@ -810,6 +1058,89 @@ static VkResult win32u_vkQueuePresentKHR( VkQueue client_queue, const VkPresentI
     }
 
     return res;
+}
+
+static VkResult win32u_vkQueueSubmit( VkQueue client_queue, uint32_t count, const VkSubmitInfo *submits, VkFence fence )
+{
+    struct vulkan_queue *queue = vulkan_queue_from_handle( client_queue );
+    struct vulkan_device *device = queue->device;
+    uint32_t i, j;
+
+    for (i = 0; i < count; i++)
+    {
+        VkSubmitInfo *submit = (VkSubmitInfo *)submits + i; /* cast away const, it has been copied in the thunks */
+        VkBaseOutStructure **next;
+
+        for (j = 0; j < submit->commandBufferCount; j++)
+        {
+            VkCommandBuffer *command_buffers = (VkCommandBuffer *)submit->pCommandBuffers; /* cast away const, it has been copied in the thunks */
+            struct vulkan_command_buffer *command_buffer = vulkan_command_buffer_from_handle( command_buffers[j] );
+            command_buffers[j] = command_buffer->host.command_buffer;
+        }
+
+        for (next = (VkBaseOutStructure **)&submit->pNext; *next; next = &(*next)->pNext)
+        {
+            switch ((*next)->sType)
+            {
+            case VK_STRUCTURE_TYPE_WIN32_KEYED_MUTEX_ACQUIRE_RELEASE_INFO_KHR:
+                FIXME( "VK_STRUCTURE_TYPE_WIN32_KEYED_MUTEX_ACQUIRE_RELEASE_INFO_KHR not implemented!\n" );
+                *next = (*next)->pNext;
+                break;
+            case VK_STRUCTURE_TYPE_DEVICE_GROUP_SUBMIT_INFO: break;
+            case VK_STRUCTURE_TYPE_PROTECTED_SUBMIT_INFO: break;
+            case VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO: break;
+            case VK_STRUCTURE_TYPE_PERFORMANCE_QUERY_SUBMIT_INFO_KHR: break;
+            case VK_STRUCTURE_TYPE_FRAME_BOUNDARY_EXT: break;
+            case VK_STRUCTURE_TYPE_LATENCY_SUBMISSION_PRESENT_ID_NV: break;
+            default: FIXME( "Unhandled sType %u.\n", (*next)->sType ); break;
+            }
+        }
+    }
+
+    return device->host_vkQueueSubmit( queue->host.queue, count, submits, fence );
+}
+
+static VkResult win32u_vkQueueSubmit2( VkQueue client_queue, uint32_t count, const VkSubmitInfo2 *submits, VkFence fence )
+{
+    struct vulkan_queue *queue = vulkan_queue_from_handle( client_queue );
+    struct vulkan_device *device = queue->device;
+    uint32_t i, j;
+
+    for (i = 0; i < count; i++)
+    {
+        VkSubmitInfo2 *submit = (VkSubmitInfo2 *)submits + i; /* cast away const, it has been copied in the thunks */
+        VkBaseOutStructure **next;
+
+        for (j = 0; j < submit->commandBufferInfoCount; j++)
+        {
+            VkCommandBufferSubmitInfo *command_buffer_infos = (VkCommandBufferSubmitInfo *)submit->pCommandBufferInfos; /* cast away const, it has been copied in the thunks */
+            struct vulkan_command_buffer *command_buffer = vulkan_command_buffer_from_handle( command_buffer_infos[j].commandBuffer );
+            command_buffer_infos[j].commandBuffer = command_buffer->host.command_buffer;
+            if (command_buffer_infos->pNext) FIXME( "Unhandled struct chain\n" );
+        }
+
+        for (next = (VkBaseOutStructure **)&submit->pNext; *next; next = &(*next)->pNext)
+        {
+            switch ((*next)->sType)
+            {
+            case VK_STRUCTURE_TYPE_WIN32_KEYED_MUTEX_ACQUIRE_RELEASE_INFO_KHR:
+                FIXME( "VK_STRUCTURE_TYPE_WIN32_KEYED_MUTEX_ACQUIRE_RELEASE_INFO_KHR not implemented!\n" );
+                *next = (*next)->pNext;
+                break;
+            case VK_STRUCTURE_TYPE_PERFORMANCE_QUERY_SUBMIT_INFO_KHR: break;
+            case VK_STRUCTURE_TYPE_FRAME_BOUNDARY_EXT: break;
+            case VK_STRUCTURE_TYPE_LATENCY_SUBMISSION_PRESENT_ID_NV: break;
+            default: FIXME( "Unhandled sType %u.\n", (*next)->sType ); break;
+            }
+        }
+    }
+
+    return device->host_vkQueueSubmit2( queue->host.queue, count, submits, fence );
+}
+
+static VkResult win32u_vkQueueSubmit2KHR( VkQueue client_queue, uint32_t count, const VkSubmitInfo2 *submits, VkFence fence )
+{
+    return win32u_vkQueueSubmit2( client_queue, count, submits, fence );
 }
 
 static const char *win32u_get_host_surface_extension(void)
