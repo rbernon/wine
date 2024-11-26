@@ -53,7 +53,7 @@ static const UINT EXTERNAL_MEMORY_WIN32_BITS = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OP
                                                VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_KMT_BIT |
                                                VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_HEAP_BIT |
                                                VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_RESOURCE_BIT;
-struct d3dkmt_runtime_data
+struct resource_desc
 {
     UINT size;
     UINT id;
@@ -65,7 +65,7 @@ struct d3dkmt_runtime_data
     UINT sync;
     D3DKMT_HANDLE keyed_mutex;
     UINT unknown_0;
-    UINT share_handle;
+    UINT shared_handle;
     UINT unknown[3];
     D3D11_RESOURCE_DIMENSION type;
     union
@@ -77,7 +77,14 @@ struct d3dkmt_runtime_data
     };
 };
 
-C_ASSERT( sizeof(struct d3dkmt_runtime_data) == 0x68 );
+C_ASSERT( sizeof(struct resource_desc) == 0x68 );
+
+struct resource_entry
+{
+    struct rb_entry entry;
+    UINT64 handle;
+    struct resource_desc desc;
+};
 
 struct device_memory
 {
@@ -158,6 +165,74 @@ static void init_unicode_string( UNICODE_STRING *str, const WCHAR *data )
     str->Length = wcslen(data) * sizeof(WCHAR);
     str->MaximumLength = str->Length + sizeof(WCHAR);
     str->Buffer = (WCHAR *)data;
+}
+
+static int resource_entry_compare( const void *key, const struct rb_entry *entry )
+{
+    const struct resource_entry *info = RB_ENTRY_VALUE( entry, struct resource_entry, entry );
+    UINT64 handle = *(UINT64 *)key;
+
+    if (handle < info->handle) return -1;
+    if (handle > info->handle) return 1;
+    return 0;
+}
+
+static pthread_mutex_t resource_entries_lock = PTHREAD_MUTEX_INITIALIZER;
+static struct rb_tree resource_entries = {.compare = resource_entry_compare};
+
+static void resource_entries_put( UINT64 handle, struct resource_desc *desc )
+{
+    struct resource_entry *entry, *previous = NULL;
+    struct rb_entry *ptr;
+
+    if (!(entry = malloc( sizeof(*entry) ))) return;
+    entry->handle = handle;
+    entry->desc = *desc;
+
+    pthread_mutex_lock( &resource_entries_lock );
+
+    if (!(ptr = rb_get( &resource_entries, &entry->handle )))
+        rb_put( &resource_entries, &entry->handle, &entry->entry );
+    else
+    {
+        previous = RB_ENTRY_VALUE( ptr, struct resource_entry, entry );
+        rb_replace( &resource_entries, &previous->entry, &entry->entry );
+    }
+
+    pthread_mutex_unlock( &resource_entries_lock );
+    free( previous );
+}
+
+static BOOL resource_entries_get( UINT64 handle, struct resource_desc *desc )
+{
+    struct rb_entry *ptr;
+
+    pthread_mutex_lock( &resource_entries_lock );
+    if ((ptr = rb_get( &resource_entries, &handle )))
+    {
+        struct resource_entry *entry = RB_ENTRY_VALUE( ptr, struct resource_entry, entry );
+        *desc = entry->desc;
+    }
+    pthread_mutex_unlock( &resource_entries_lock );
+
+    return !!ptr;
+}
+
+static void resource_entries_remove( UINT64 handle )
+{
+    struct resource_entry *entry;
+    struct rb_entry *ptr;
+
+    pthread_mutex_lock( &resource_entries_lock );
+    if (!(ptr = rb_get( &resource_entries, &handle ))) entry = NULL;
+    else
+    {
+        entry = RB_ENTRY_VALUE( ptr, struct resource_entry, entry );
+        rb_remove( &resource_entries, ptr );
+    }
+    pthread_mutex_unlock( &resource_entries_lock );
+
+    free( entry );
 }
 
 static inline const void *find_next_struct( const void *head, VkStructureType type )
@@ -241,7 +316,7 @@ static VkResult win32u_vkAllocateMemory( VkDevice client_device, const VkMemoryA
     VkExportMemoryWin32HandleInfoKHR *export_handle_info = NULL;
     VkImportMemoryWin32HandleInfoKHR *import_handle_info = NULL;
     VkImportMemoryHostPointerInfoEXT host_pointer_info = {0};
-    VkMemoryDedicatedAllocateInfo *dedicated_info = NULL;
+    VkMemoryDedicatedAllocateInfo dedicated_info = {0};
     VkExportMemoryAllocateInfo *export_info = NULL;
     VkImportMemoryFdInfoKHR host_import_info;
     VkDeviceMemory host_device_memory;
@@ -255,7 +330,13 @@ static VkResult win32u_vkAllocateMemory( VkDevice client_device, const VkMemoryA
     {
         switch ((*next)->sType)
         {
-        case VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_MEMORY_ALLOCATE_INFO_NV: break;
+        case VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_MEMORY_ALLOCATE_INFO_NV:
+        {
+            VkDedicatedAllocationMemoryAllocateInfoNV *info_nv = (VkDedicatedAllocationMemoryAllocateInfoNV *)*next;
+            dedicated_info.image = info_nv->image;
+            dedicated_info.buffer = info_nv->buffer;
+            break;
+        }
         case VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO:
             export_info = (VkExportMemoryAllocateInfo *)*next;
             if (export_info->handleTypes & EXTERNAL_MEMORY_WIN32_BITS)
@@ -278,7 +359,7 @@ static VkResult win32u_vkAllocateMemory( VkDevice client_device, const VkMemoryA
             break;
         case VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO: break;
         case VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO:
-            dedicated_info = (VkMemoryDedicatedAllocateInfo *)*next;
+            dedicated_info = *(VkMemoryDedicatedAllocateInfo *)*next;
             break;
         case VK_STRUCTURE_TYPE_IMPORT_MEMORY_HOST_POINTER_INFO_EXT:
             host_pointer_info = *(VkImportMemoryHostPointerInfoEXT *)*next;
@@ -350,16 +431,19 @@ static VkResult win32u_vkAllocateMemory( VkDevice client_device, const VkMemoryA
     {
         D3DKMT_CREATEALLOCATION create_params;
         VkMemoryGetFdInfoKHR get_info = {.sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR};
-        struct d3dkmt_runtime_data runtime_data = {.size = sizeof(runtime_data)};
         PFN_vkGetMemoryFdKHR p_vkGetMemoryFdKHR;
+        struct resource_desc runtime_data;
         int fd;
 
-        if (dedicated_info)
+        if (dedicated_info.buffer && resource_entries_get( dedicated_info.buffer, &runtime_data ))
         {
             create_params.pPrivateRuntimeData = &runtime_data;
             create_params.PrivateRuntimeDataSize = sizeof(runtime_data);
-
-            runtime_data.array_size = dedicated_info->image;
+        }
+        if (dedicated_info.image && resource_entries_get( dedicated_info.image, &runtime_data ))
+        {
+            create_params.pPrivateRuntimeData = &runtime_data;
+            create_params.PrivateRuntimeDataSize = sizeof(runtime_data);
         }
 
         create_params.hDevice = 0 /* FIXME */;
@@ -593,7 +677,14 @@ static VkResult win32u_vkCreateBuffer( VkDevice client_device, const VkBufferCre
     struct vulkan_device *device = vulkan_device_from_handle( client_device );
     struct vulkan_physical_device *physical_device = device->physical_device;
     VkExternalMemoryBufferCreateInfo host_external_info, *external_info = NULL;
+    struct resource_desc desc = {.size = sizeof(desc)};
     VkBaseOutStructure **next;
+    VkResult result;
+
+    desc.width = create_info->size;
+    desc.height = 1;
+    desc.type = D3D11_RESOURCE_DIMENSION_BUFFER;
+    desc.desc_buffer.ByteWidth = create_info->size;
 
     for (next = (VkBaseOutStructure **)&create_info->pNext; *next; next = &(*next)->pNext)
     {
@@ -625,7 +716,18 @@ static VkResult win32u_vkCreateBuffer( VkDevice client_device, const VkBufferCre
         ((VkBufferCreateInfo *)create_info)->pNext = &host_external_info; /* cast away const, it has been copied in the thunks */
     }
 
-    return device->host_vkCreateBuffer( device->host.device, create_info, NULL, buffer );
+    result = device->host_vkCreateBuffer( device->host.device, create_info, NULL, buffer );
+    if (!result) resource_entries_put( *buffer, &desc );
+
+    return result;
+}
+
+static void win32u_vkDestroyBuffer( VkDevice client_device, VkBuffer buffer, const VkAllocationCallbacks *allocator )
+{
+    struct vulkan_device *device = vulkan_device_from_handle( client_device );
+
+    device->host_vkDestroyBuffer( device->host.device, buffer, NULL );
+    resource_entries_remove( buffer );
 }
 
 static void win32u_vkGetDeviceBufferMemoryRequirements( VkDevice client_device, const VkDeviceBufferMemoryRequirements *buffer_requirements,
@@ -691,7 +793,9 @@ static VkResult win32u_vkCreateImage( VkDevice client_device, const VkImageCreat
     struct vulkan_device *device = vulkan_device_from_handle( client_device );
     struct vulkan_physical_device *physical_device = device->physical_device;
     VkExternalMemoryImageCreateInfo host_external_info, *external_info = NULL;
+    struct resource_desc desc = {.size = sizeof(desc)};
     VkBaseOutStructure **next;
+    VkResult result;
 
     for (next = (VkBaseOutStructure **)&create_info->pNext; *next; next = &(*next)->pNext)
     {
@@ -734,7 +838,51 @@ static VkResult win32u_vkCreateImage( VkDevice client_device, const VkImageCreat
         ((VkBufferCreateInfo *)create_info)->pNext = &host_external_info; /* cast away const, it has been copied in the thunks */
     }
 
-    return device->host_vkCreateImage( device->host.device, create_info, NULL, image );
+    desc.width = create_info->extent.width;
+    desc.height = create_info->extent.height;
+    desc.array_size = create_info->arrayLayers;
+    switch (create_info->imageType)
+    {
+    case VK_IMAGE_TYPE_1D:
+        desc.type = D3D11_RESOURCE_DIMENSION_TEXTURE1D;
+        desc.desc_1d.Width = create_info->extent.width;
+        desc.desc_1d.MipLevels = create_info->mipLevels;
+        desc.desc_1d.ArraySize = create_info->arrayLayers;
+        desc.desc_1d.Format = /* FIXME */ (DXGI_FORMAT)create_info->format;
+        break;
+    case VK_IMAGE_TYPE_2D:
+        desc.type = D3D11_RESOURCE_DIMENSION_TEXTURE2D;
+        desc.desc_2d.Width = create_info->extent.width;
+        desc.desc_2d.Height = create_info->extent.height;
+        desc.desc_2d.MipLevels = create_info->mipLevels;
+        desc.desc_2d.ArraySize = create_info->arrayLayers;
+        desc.desc_2d.Format = /* FIXME */ (DXGI_FORMAT)create_info->format;
+        break;
+    case VK_IMAGE_TYPE_3D:
+        desc.type = D3D11_RESOURCE_DIMENSION_TEXTURE3D;
+        desc.desc_3d.Width = create_info->extent.width;
+        desc.desc_3d.Height = create_info->extent.height;
+        desc.desc_3d.Depth = create_info->extent.depth;
+        desc.desc_3d.MipLevels = create_info->mipLevels;
+        desc.desc_3d.Format = /* FIXME */ (DXGI_FORMAT)create_info->format;
+        break;
+    default:
+        FIXME( "Unsupported image type %#x\n", create_info->imageType );
+        break;
+    }
+
+    result = device->host_vkCreateImage( device->host.device, create_info, NULL, image );
+    if (!result) resource_entries_put( *image, &desc );
+
+    return result;
+}
+
+static void win32u_vkDestroyImage( VkDevice client_device, VkImage image, const VkAllocationCallbacks *allocator )
+{
+    struct vulkan_device *device = vulkan_device_from_handle( client_device );
+
+    device->host_vkDestroyImage( device->host.device, image, NULL );
+    resource_entries_remove( image );
 }
 
 static void win32u_vkGetDeviceImageMemoryRequirements( VkDevice client_device, const VkDeviceImageMemoryRequirements *image_requirements,
