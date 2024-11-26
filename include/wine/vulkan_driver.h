@@ -246,6 +246,16 @@ static inline struct vulkan_semaphore *vulkan_semaphore_from_handle( VkSemaphore
     return (struct vulkan_semaphore *)(UINT_PTR)handle;
 }
 
+struct vulkan_fence
+{
+    VULKAN_OBJECT_HEADER( VkFence, fence );
+};
+
+static inline struct vulkan_fence *vulkan_fence_from_handle( VkFence handle )
+{
+    return (struct vulkan_fence *)(UINT_PTR)handle;
+}
+
 struct vulkan_funcs
 {
     /* Vulkan global functions. These are the only calls at this point a graphics driver
