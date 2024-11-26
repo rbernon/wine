@@ -467,7 +467,7 @@ static void wine_vk_free_command_buffers(struct vulkan_device *device,
 
     for (i = 0; i < count; i++)
     {
-        struct wine_cmd_buffer *buffer = wine_cmd_buffer_from_handle(buffers[i]);
+        struct vulkan_command_buffer *buffer = vulkan_command_buffer_from_handle(buffers[i]);
 
         if (!buffer)
             continue;
@@ -812,7 +812,7 @@ VkResult wine_vkAllocateCommandBuffers(VkDevice client_device, const VkCommandBu
 {
     struct vulkan_device *device = vulkan_device_from_handle(client_device);
     struct vulkan_instance *instance = device->physical_device->instance;
-    struct wine_cmd_buffer *buffer;
+    struct vulkan_command_buffer *buffer;
     struct wine_cmd_pool *pool;
     VkResult res = VK_SUCCESS;
     unsigned int i;
