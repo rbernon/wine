@@ -1294,14 +1294,13 @@ static void window_set_config( struct x11drv_win_data *data, const RECT *new_rec
     if (EqualRect( old_rect, new_rect ) && !above) return; /* rects are the same, no need to be raised, nothing to update */
 
     if (data->pending_state.wm_state == NormalState && data->net_wm_state_serial &&
-        !(data->pending_state.net_wm_state & fullscreen_mask) &&
-        (data->current_state.net_wm_state & fullscreen_mask))
+        !(data->pending_state.net_wm_state & fullscreen_mask) ^ !(data->current_state.net_wm_state & fullscreen_mask))
     {
         /* Some window managers are sending a ConfigureNotify event with the fullscreen size when
          * exiting a fullscreen window, with a serial that we cannot predict. Handling that event
          * will override the Win32 window size and make the window fullscreen again.
          */
-        WARN( "window %p/%lx is exiting maximize/fullscreen, delaying request\n", data->hwnd, data->whole_window );
+        WARN( "window %p/%lx is entering/exiting maximize/fullscreen, delaying request\n", data->hwnd, data->whole_window );
         return;
     }
 
