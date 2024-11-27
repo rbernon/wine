@@ -122,6 +122,9 @@ UNSUPPORTED_EXTENSIONS = [
     # Deprecated extensions
     "VK_NV_external_memory_capabilities",
     "VK_NV_external_memory_win32",
+
+    # Causes a warning
+    "VK_INTEL_performance_query",
 ]
 
 # Either internal extensions which aren't present on the win32 platform which
