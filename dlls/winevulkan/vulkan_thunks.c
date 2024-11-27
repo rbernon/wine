@@ -38,13 +38,6 @@ typedef struct VkAcquireNextImageInfoKHR32
     uint32_t deviceMask;
 } VkAcquireNextImageInfoKHR32;
 
-typedef struct VkPerformanceConfigurationAcquireInfoINTEL32
-{
-    VkStructureType sType;
-    PTR32 pNext;
-    VkPerformanceConfigurationTypeINTEL type;
-} VkPerformanceConfigurationAcquireInfoINTEL32;
-
 typedef struct VkAcquireProfilingLockInfoKHR32
 {
     VkStructureType sType;
@@ -2203,29 +2196,6 @@ typedef struct VkSetDescriptorBufferOffsetsInfoEXT32
     PTR32 pBufferIndices;
     PTR32 pOffsets;
 } VkSetDescriptorBufferOffsetsInfoEXT32;
-
-typedef struct VkPerformanceMarkerInfoINTEL32
-{
-    VkStructureType sType;
-    PTR32 pNext;
-    uint64_t DECLSPEC_ALIGN(8) marker;
-} VkPerformanceMarkerInfoINTEL32;
-
-typedef struct VkPerformanceOverrideInfoINTEL32
-{
-    VkStructureType sType;
-    PTR32 pNext;
-    VkPerformanceOverrideTypeINTEL type;
-    VkBool32 enable;
-    uint64_t DECLSPEC_ALIGN(8) parameter;
-} VkPerformanceOverrideInfoINTEL32;
-
-typedef struct VkPerformanceStreamMarkerInfoINTEL32
-{
-    VkStructureType sType;
-    PTR32 pNext;
-    uint32_t marker;
-} VkPerformanceStreamMarkerInfoINTEL32;
 
 typedef struct VkVertexInputBindingDescription2EXT32
 {
@@ -5469,14 +5439,6 @@ typedef struct VkQueryPoolPerformanceCreateInfoKHR32
     PTR32 pCounterIndices;
 } VkQueryPoolPerformanceCreateInfoKHR32;
 
-typedef struct VkQueryPoolPerformanceQueryCreateInfoINTEL32
-{
-    VkStructureType sType;
-    PTR32 pNext;
-    VkQueryPoolSamplingModeINTEL performanceCountersSampling;
-} VkQueryPoolPerformanceQueryCreateInfoINTEL32;
-typedef VkQueryPoolPerformanceQueryCreateInfoINTEL32 VkQueryPoolCreateInfoINTEL32;
-
 typedef struct VkQueryPoolVideoEncodeFeedbackCreateInfoKHR32
 {
     VkStructureType sType;
@@ -6666,21 +6628,6 @@ typedef struct VkMicromapBuildSizesInfoEXT32
     VkDeviceSize DECLSPEC_ALIGN(8) buildScratchSize;
     VkBool32 discardable;
 } VkMicromapBuildSizesInfoEXT32;
-
-typedef union VkPerformanceValueDataINTEL32
-{
-    uint32_t value32;
-    uint64_t DECLSPEC_ALIGN(8) value64;
-    float valueFloat;
-    VkBool32 valueBool;
-    PTR32 valueString;
-} VkPerformanceValueDataINTEL32;
-
-typedef struct VkPerformanceValueINTEL32
-{
-    VkPerformanceValueTypeINTEL type;
-    VkPerformanceValueDataINTEL32 DECLSPEC_ALIGN(8) data;
-} VkPerformanceValueINTEL32;
 
 typedef struct VkCooperativeMatrixFlexibleDimensionsPropertiesNV32
 {
@@ -8764,13 +8711,6 @@ typedef struct VkVideoSessionMemoryRequirementsKHR32
     VkMemoryRequirements32 DECLSPEC_ALIGN(8) memoryRequirements;
 } VkVideoSessionMemoryRequirementsKHR32;
 
-typedef struct VkInitializePerformanceApiInfoINTEL32
-{
-    VkStructureType sType;
-    PTR32 pNext;
-    PTR32 pUserData;
-} VkInitializePerformanceApiInfoINTEL32;
-
 typedef struct VkLatencySleepInfoNV32
 {
     VkStructureType sType;
@@ -9255,17 +9195,6 @@ static inline void convert_VkAcquireNextImageInfoKHR_win32_to_unwrapped_host(con
     out->semaphore = in->semaphore;
     out->fence = in->fence;
     out->deviceMask = in->deviceMask;
-    if (in->pNext)
-        FIXME("Unexpected pNext\n");
-}
-
-static inline void convert_VkPerformanceConfigurationAcquireInfoINTEL_win32_to_host(const VkPerformanceConfigurationAcquireInfoINTEL32 *in, VkPerformanceConfigurationAcquireInfoINTEL *out)
-{
-    if (!in) return;
-
-    out->sType = in->sType;
-    out->pNext = NULL;
-    out->type = in->type;
     if (in->pNext)
         FIXME("Unexpected pNext\n");
 }
@@ -14175,41 +14104,6 @@ static inline void convert_VkSetDescriptorBufferOffsetsInfoEXT_win32_to_host(str
             break;
         }
     }
-}
-
-static inline void convert_VkPerformanceMarkerInfoINTEL_win32_to_host(const VkPerformanceMarkerInfoINTEL32 *in, VkPerformanceMarkerInfoINTEL *out)
-{
-    if (!in) return;
-
-    out->sType = in->sType;
-    out->pNext = NULL;
-    out->marker = in->marker;
-    if (in->pNext)
-        FIXME("Unexpected pNext\n");
-}
-
-static inline void convert_VkPerformanceOverrideInfoINTEL_win32_to_host(const VkPerformanceOverrideInfoINTEL32 *in, VkPerformanceOverrideInfoINTEL *out)
-{
-    if (!in) return;
-
-    out->sType = in->sType;
-    out->pNext = NULL;
-    out->type = in->type;
-    out->enable = in->enable;
-    out->parameter = in->parameter;
-    if (in->pNext)
-        FIXME("Unexpected pNext\n");
-}
-
-static inline void convert_VkPerformanceStreamMarkerInfoINTEL_win32_to_host(const VkPerformanceStreamMarkerInfoINTEL32 *in, VkPerformanceStreamMarkerInfoINTEL *out)
-{
-    if (!in) return;
-
-    out->sType = in->sType;
-    out->pNext = NULL;
-    out->marker = in->marker;
-    if (in->pNext)
-        FIXME("Unexpected pNext\n");
 }
 
 static inline void convert_VkRenderingAttachmentLocationInfo_win32_to_host(const VkRenderingAttachmentLocationInfo32 *in, VkRenderingAttachmentLocationInfo *out)
@@ -23489,17 +23383,6 @@ static inline void convert_VkQueryPoolCreateInfo_win32_to_host(struct conversion
             out_header = (void *)out_ext;
             break;
         }
-        case VK_STRUCTURE_TYPE_QUERY_POOL_PERFORMANCE_QUERY_CREATE_INFO_INTEL:
-        {
-            VkQueryPoolPerformanceQueryCreateInfoINTEL *out_ext = conversion_context_alloc(ctx, sizeof(*out_ext));
-            const VkQueryPoolPerformanceQueryCreateInfoINTEL32 *in_ext = (const VkQueryPoolPerformanceQueryCreateInfoINTEL32 *)in_header;
-            out_ext->sType = VK_STRUCTURE_TYPE_QUERY_POOL_PERFORMANCE_QUERY_CREATE_INFO_INTEL;
-            out_ext->pNext = NULL;
-            out_ext->performanceCountersSampling = in_ext->performanceCountersSampling;
-            out_header->pNext = (void *)out_ext;
-            out_header = (void *)out_ext;
-            break;
-        }
         case VK_STRUCTURE_TYPE_VIDEO_PROFILE_INFO_KHR:
         {
             VkVideoProfileInfoKHR *out_ext = conversion_context_alloc(ctx, sizeof(*out_ext));
@@ -26911,44 +26794,6 @@ static inline void convert_VkMicromapBuildSizesInfoEXT_host_to_win32(const VkMic
     out->micromapSize = in->micromapSize;
     out->buildScratchSize = in->buildScratchSize;
     out->discardable = in->discardable;
-}
-
-static inline void convert_VkPerformanceValueDataINTEL_win32_to_host(const VkPerformanceValueDataINTEL32 *in, VkPerformanceValueDataINTEL *out, VkFlags selector)
-{
-    if (!in) return;
-
-    if (selector == VK_PERFORMANCE_VALUE_TYPE_UINT32_INTEL)
-        out->value32 = in->value32;
-    if (selector == VK_PERFORMANCE_VALUE_TYPE_UINT64_INTEL)
-        out->value64 = in->value64;
-    if (selector == VK_PERFORMANCE_VALUE_TYPE_FLOAT_INTEL)
-        out->valueFloat = in->valueFloat;
-    if (selector == VK_PERFORMANCE_VALUE_TYPE_BOOL_INTEL)
-        out->valueBool = in->valueBool;
-    if (selector == VK_PERFORMANCE_VALUE_TYPE_STRING_INTEL)
-        out->valueString = UlongToPtr(in->valueString);
-}
-
-static inline void convert_VkPerformanceValueDataINTEL_host_to_win32(const VkPerformanceValueDataINTEL *in, VkPerformanceValueDataINTEL32 *out, VkFlags selector)
-{
-    if (!in) return;
-
-    if (selector == VK_PERFORMANCE_VALUE_TYPE_UINT32_INTEL)
-        out->value32 = in->value32;
-    if (selector == VK_PERFORMANCE_VALUE_TYPE_UINT64_INTEL)
-        out->value64 = in->value64;
-    if (selector == VK_PERFORMANCE_VALUE_TYPE_FLOAT_INTEL)
-        out->valueFloat = in->valueFloat;
-    if (selector == VK_PERFORMANCE_VALUE_TYPE_BOOL_INTEL)
-        out->valueBool = in->valueBool;
-}
-
-static inline void convert_VkPerformanceValueINTEL_host_to_win32(const VkPerformanceValueINTEL *in, VkPerformanceValueINTEL32 *out)
-{
-    if (!in) return;
-
-    out->type = in->type;
-    convert_VkPerformanceValueDataINTEL_host_to_win32(&in->data, &out->data, in->type);
 }
 
 static inline void convert_VkCooperativeMatrixFlexibleDimensionsPropertiesNV_win32_to_host(const VkCooperativeMatrixFlexibleDimensionsPropertiesNV32 *in, VkCooperativeMatrixFlexibleDimensionsPropertiesNV *out)
@@ -36406,17 +36251,6 @@ static inline void convert_VkVideoSessionMemoryRequirementsKHR_array_host_to_win
     }
 }
 
-static inline void convert_VkInitializePerformanceApiInfoINTEL_win32_to_host(const VkInitializePerformanceApiInfoINTEL32 *in, VkInitializePerformanceApiInfoINTEL *out)
-{
-    if (!in) return;
-
-    out->sType = in->sType;
-    out->pNext = NULL;
-    out->pUserData = UlongToPtr(in->pUserData);
-    if (in->pNext)
-        FIXME("Unexpected pNext\n");
-}
-
 static inline void convert_VkLatencySleepInfoNV_win32_to_host(const VkLatencySleepInfoNV32 *in, VkLatencySleepInfoNV *out)
 {
     if (!in) return;
@@ -38104,36 +37938,6 @@ static NTSTATUS thunk32_vkAcquireNextImageKHR(void *args)
     TRACE("%#x, 0x%s, 0x%s, 0x%s, 0x%s, %#x\n", params->device, wine_dbgstr_longlong(params->swapchain), wine_dbgstr_longlong(params->timeout), wine_dbgstr_longlong(params->semaphore), wine_dbgstr_longlong(params->fence), params->pImageIndex);
 
     params->result = vk_funcs->p_vkAcquireNextImageKHR((VkDevice)UlongToPtr(params->device), params->swapchain, params->timeout, params->semaphore, params->fence, (uint32_t *)UlongToPtr(params->pImageIndex));
-    return STATUS_SUCCESS;
-}
-
-#ifdef _WIN64
-static NTSTATUS thunk64_vkAcquirePerformanceConfigurationINTEL(void *args)
-{
-    struct vkAcquirePerformanceConfigurationINTEL_params *params = args;
-
-    TRACE("%p, %p, %p\n", params->device, params->pAcquireInfo, params->pConfiguration);
-
-    params->result = vulkan_device_from_handle(params->device)->p_vkAcquirePerformanceConfigurationINTEL(vulkan_device_from_handle(params->device)->host.device, params->pAcquireInfo, params->pConfiguration);
-    return STATUS_SUCCESS;
-}
-#endif /* _WIN64 */
-
-static NTSTATUS thunk32_vkAcquirePerformanceConfigurationINTEL(void *args)
-{
-    struct
-    {
-        PTR32 device;
-        PTR32 pAcquireInfo;
-        PTR32 pConfiguration;
-        VkResult result;
-    } *params = args;
-    VkPerformanceConfigurationAcquireInfoINTEL pAcquireInfo_host;
-
-    TRACE("%#x, %#x, %#x\n", params->device, params->pAcquireInfo, params->pConfiguration);
-
-    convert_VkPerformanceConfigurationAcquireInfoINTEL_win32_to_host((const VkPerformanceConfigurationAcquireInfoINTEL32 *)UlongToPtr(params->pAcquireInfo), &pAcquireInfo_host);
-    params->result = vulkan_device_from_handle((VkDevice)UlongToPtr(params->device))->p_vkAcquirePerformanceConfigurationINTEL(vulkan_device_from_handle((VkDevice)UlongToPtr(params->device))->host.device, &pAcquireInfo_host, (VkPerformanceConfigurationINTEL *)UlongToPtr(params->pConfiguration));
     return STATUS_SUCCESS;
 }
 
@@ -43554,93 +43358,6 @@ static void thunk32_vkCmdSetPatchControlPointsEXT(void *args)
     } *params = args;
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->p_vkCmdSetPatchControlPointsEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host.command_buffer, params->patchControlPoints);
-}
-
-#ifdef _WIN64
-static NTSTATUS thunk64_vkCmdSetPerformanceMarkerINTEL(void *args)
-{
-    struct vkCmdSetPerformanceMarkerINTEL_params *params = args;
-
-    TRACE("%p, %p\n", params->commandBuffer, params->pMarkerInfo);
-
-    params->result = wine_cmd_buffer_from_handle(params->commandBuffer)->device->p_vkCmdSetPerformanceMarkerINTEL(wine_cmd_buffer_from_handle(params->commandBuffer)->host.command_buffer, params->pMarkerInfo);
-    return STATUS_SUCCESS;
-}
-#endif /* _WIN64 */
-
-static NTSTATUS thunk32_vkCmdSetPerformanceMarkerINTEL(void *args)
-{
-    struct
-    {
-        PTR32 commandBuffer;
-        PTR32 pMarkerInfo;
-        VkResult result;
-    } *params = args;
-    VkPerformanceMarkerInfoINTEL pMarkerInfo_host;
-
-    TRACE("%#x, %#x\n", params->commandBuffer, params->pMarkerInfo);
-
-    convert_VkPerformanceMarkerInfoINTEL_win32_to_host((const VkPerformanceMarkerInfoINTEL32 *)UlongToPtr(params->pMarkerInfo), &pMarkerInfo_host);
-    params->result = wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->p_vkCmdSetPerformanceMarkerINTEL(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host.command_buffer, &pMarkerInfo_host);
-    return STATUS_SUCCESS;
-}
-
-#ifdef _WIN64
-static NTSTATUS thunk64_vkCmdSetPerformanceOverrideINTEL(void *args)
-{
-    struct vkCmdSetPerformanceOverrideINTEL_params *params = args;
-
-    TRACE("%p, %p\n", params->commandBuffer, params->pOverrideInfo);
-
-    params->result = wine_cmd_buffer_from_handle(params->commandBuffer)->device->p_vkCmdSetPerformanceOverrideINTEL(wine_cmd_buffer_from_handle(params->commandBuffer)->host.command_buffer, params->pOverrideInfo);
-    return STATUS_SUCCESS;
-}
-#endif /* _WIN64 */
-
-static NTSTATUS thunk32_vkCmdSetPerformanceOverrideINTEL(void *args)
-{
-    struct
-    {
-        PTR32 commandBuffer;
-        PTR32 pOverrideInfo;
-        VkResult result;
-    } *params = args;
-    VkPerformanceOverrideInfoINTEL pOverrideInfo_host;
-
-    TRACE("%#x, %#x\n", params->commandBuffer, params->pOverrideInfo);
-
-    convert_VkPerformanceOverrideInfoINTEL_win32_to_host((const VkPerformanceOverrideInfoINTEL32 *)UlongToPtr(params->pOverrideInfo), &pOverrideInfo_host);
-    params->result = wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->p_vkCmdSetPerformanceOverrideINTEL(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host.command_buffer, &pOverrideInfo_host);
-    return STATUS_SUCCESS;
-}
-
-#ifdef _WIN64
-static NTSTATUS thunk64_vkCmdSetPerformanceStreamMarkerINTEL(void *args)
-{
-    struct vkCmdSetPerformanceStreamMarkerINTEL_params *params = args;
-
-    TRACE("%p, %p\n", params->commandBuffer, params->pMarkerInfo);
-
-    params->result = wine_cmd_buffer_from_handle(params->commandBuffer)->device->p_vkCmdSetPerformanceStreamMarkerINTEL(wine_cmd_buffer_from_handle(params->commandBuffer)->host.command_buffer, params->pMarkerInfo);
-    return STATUS_SUCCESS;
-}
-#endif /* _WIN64 */
-
-static NTSTATUS thunk32_vkCmdSetPerformanceStreamMarkerINTEL(void *args)
-{
-    struct
-    {
-        PTR32 commandBuffer;
-        PTR32 pMarkerInfo;
-        VkResult result;
-    } *params = args;
-    VkPerformanceStreamMarkerInfoINTEL pMarkerInfo_host;
-
-    TRACE("%#x, %#x\n", params->commandBuffer, params->pMarkerInfo);
-
-    convert_VkPerformanceStreamMarkerInfoINTEL_win32_to_host((const VkPerformanceStreamMarkerInfoINTEL32 *)UlongToPtr(params->pMarkerInfo), &pMarkerInfo_host);
-    params->result = wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->p_vkCmdSetPerformanceStreamMarkerINTEL(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host.command_buffer, &pMarkerInfo_host);
-    return STATUS_SUCCESS;
 }
 
 #ifdef _WIN64
@@ -51496,36 +51213,6 @@ static NTSTATUS thunk32_vkGetPartitionedAccelerationStructuresBuildSizesNV(void 
 }
 
 #ifdef _WIN64
-static NTSTATUS thunk64_vkGetPerformanceParameterINTEL(void *args)
-{
-    struct vkGetPerformanceParameterINTEL_params *params = args;
-
-    TRACE("%p, %#x, %p\n", params->device, params->parameter, params->pValue);
-
-    params->result = vulkan_device_from_handle(params->device)->p_vkGetPerformanceParameterINTEL(vulkan_device_from_handle(params->device)->host.device, params->parameter, params->pValue);
-    return STATUS_SUCCESS;
-}
-#endif /* _WIN64 */
-
-static NTSTATUS thunk32_vkGetPerformanceParameterINTEL(void *args)
-{
-    struct
-    {
-        PTR32 device;
-        VkPerformanceParameterTypeINTEL parameter;
-        PTR32 pValue;
-        VkResult result;
-    } *params = args;
-    VkPerformanceValueINTEL pValue_host;
-
-    TRACE("%#x, %#x, %#x\n", params->device, params->parameter, params->pValue);
-
-    params->result = vulkan_device_from_handle((VkDevice)UlongToPtr(params->device))->p_vkGetPerformanceParameterINTEL(vulkan_device_from_handle((VkDevice)UlongToPtr(params->device))->host.device, params->parameter, &pValue_host);
-    convert_VkPerformanceValueINTEL_host_to_win32(&pValue_host, (VkPerformanceValueINTEL32 *)UlongToPtr(params->pValue));
-    return STATUS_SUCCESS;
-}
-
-#ifdef _WIN64
 static NTSTATUS thunk64_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT(void *args)
 {
     struct vkGetPhysicalDeviceCalibrateableTimeDomainsEXT_params *params = args;
@@ -54217,35 +53904,6 @@ static NTSTATUS thunk32_vkGetVideoSessionMemoryRequirementsKHR(void *args)
 }
 
 #ifdef _WIN64
-static NTSTATUS thunk64_vkInitializePerformanceApiINTEL(void *args)
-{
-    struct vkInitializePerformanceApiINTEL_params *params = args;
-
-    TRACE("%p, %p\n", params->device, params->pInitializeInfo);
-
-    params->result = vulkan_device_from_handle(params->device)->p_vkInitializePerformanceApiINTEL(vulkan_device_from_handle(params->device)->host.device, params->pInitializeInfo);
-    return STATUS_SUCCESS;
-}
-#endif /* _WIN64 */
-
-static NTSTATUS thunk32_vkInitializePerformanceApiINTEL(void *args)
-{
-    struct
-    {
-        PTR32 device;
-        PTR32 pInitializeInfo;
-        VkResult result;
-    } *params = args;
-    VkInitializePerformanceApiInfoINTEL pInitializeInfo_host;
-
-    TRACE("%#x, %#x\n", params->device, params->pInitializeInfo);
-
-    convert_VkInitializePerformanceApiInfoINTEL_win32_to_host((const VkInitializePerformanceApiInfoINTEL32 *)UlongToPtr(params->pInitializeInfo), &pInitializeInfo_host);
-    params->result = vulkan_device_from_handle((VkDevice)UlongToPtr(params->device))->p_vkInitializePerformanceApiINTEL(vulkan_device_from_handle((VkDevice)UlongToPtr(params->device))->host.device, &pInitializeInfo_host);
-    return STATUS_SUCCESS;
-}
-
-#ifdef _WIN64
 static NTSTATUS thunk64_vkInvalidateMappedMemoryRanges(void *args)
 {
     struct vkInvalidateMappedMemoryRanges_params *params = args;
@@ -54667,33 +54325,6 @@ static NTSTATUS thunk32_vkQueuePresentKHR(void *args)
 }
 
 #ifdef _WIN64
-static NTSTATUS thunk64_vkQueueSetPerformanceConfigurationINTEL(void *args)
-{
-    struct vkQueueSetPerformanceConfigurationINTEL_params *params = args;
-
-    TRACE("%p, 0x%s\n", params->queue, wine_dbgstr_longlong(params->configuration));
-
-    params->result = vulkan_queue_from_handle(params->queue)->device->p_vkQueueSetPerformanceConfigurationINTEL(vulkan_queue_from_handle(params->queue)->host.queue, params->configuration);
-    return STATUS_SUCCESS;
-}
-#endif /* _WIN64 */
-
-static NTSTATUS thunk32_vkQueueSetPerformanceConfigurationINTEL(void *args)
-{
-    struct
-    {
-        PTR32 queue;
-        VkPerformanceConfigurationINTEL DECLSPEC_ALIGN(8) configuration;
-        VkResult result;
-    } *params = args;
-
-    TRACE("%#x, 0x%s\n", params->queue, wine_dbgstr_longlong(params->configuration));
-
-    params->result = vulkan_queue_from_handle((VkQueue)UlongToPtr(params->queue))->device->p_vkQueueSetPerformanceConfigurationINTEL(vulkan_queue_from_handle((VkQueue)UlongToPtr(params->queue))->host.queue, params->configuration);
-    return STATUS_SUCCESS;
-}
-
-#ifdef _WIN64
 static NTSTATUS thunk64_vkQueueSubmit(void *args)
 {
     struct vkQueueSubmit_params *params = args;
@@ -54869,33 +54500,6 @@ static NTSTATUS thunk32_vkReleaseCapturedPipelineDataKHR(void *args)
 
     convert_VkReleaseCapturedPipelineDataInfoKHR_win32_to_host((const VkReleaseCapturedPipelineDataInfoKHR32 *)UlongToPtr(params->pInfo), &pInfo_host);
     params->result = vulkan_device_from_handle((VkDevice)UlongToPtr(params->device))->p_vkReleaseCapturedPipelineDataKHR(vulkan_device_from_handle((VkDevice)UlongToPtr(params->device))->host.device, &pInfo_host, NULL);
-    return STATUS_SUCCESS;
-}
-
-#ifdef _WIN64
-static NTSTATUS thunk64_vkReleasePerformanceConfigurationINTEL(void *args)
-{
-    struct vkReleasePerformanceConfigurationINTEL_params *params = args;
-
-    TRACE("%p, 0x%s\n", params->device, wine_dbgstr_longlong(params->configuration));
-
-    params->result = vulkan_device_from_handle(params->device)->p_vkReleasePerformanceConfigurationINTEL(vulkan_device_from_handle(params->device)->host.device, params->configuration);
-    return STATUS_SUCCESS;
-}
-#endif /* _WIN64 */
-
-static NTSTATUS thunk32_vkReleasePerformanceConfigurationINTEL(void *args)
-{
-    struct
-    {
-        PTR32 device;
-        VkPerformanceConfigurationINTEL DECLSPEC_ALIGN(8) configuration;
-        VkResult result;
-    } *params = args;
-
-    TRACE("%#x, 0x%s\n", params->device, wine_dbgstr_longlong(params->configuration));
-
-    params->result = vulkan_device_from_handle((VkDevice)UlongToPtr(params->device))->p_vkReleasePerformanceConfigurationINTEL(vulkan_device_from_handle((VkDevice)UlongToPtr(params->device))->host.device, params->configuration);
     return STATUS_SUCCESS;
 }
 
@@ -55647,31 +55251,6 @@ static NTSTATUS thunk32_vkTrimCommandPoolKHR(void *args)
 }
 
 #ifdef _WIN64
-static NTSTATUS thunk64_vkUninitializePerformanceApiINTEL(void *args)
-{
-    struct vkUninitializePerformanceApiINTEL_params *params = args;
-
-    TRACE("%p\n", params->device);
-
-    vulkan_device_from_handle(params->device)->p_vkUninitializePerformanceApiINTEL(vulkan_device_from_handle(params->device)->host.device);
-    return STATUS_SUCCESS;
-}
-#endif /* _WIN64 */
-
-static NTSTATUS thunk32_vkUninitializePerformanceApiINTEL(void *args)
-{
-    struct
-    {
-        PTR32 device;
-    } *params = args;
-
-    TRACE("%#x\n", params->device);
-
-    vulkan_device_from_handle((VkDevice)UlongToPtr(params->device))->p_vkUninitializePerformanceApiINTEL(vulkan_device_from_handle((VkDevice)UlongToPtr(params->device))->host.device);
-    return STATUS_SUCCESS;
-}
-
-#ifdef _WIN64
 static NTSTATUS thunk64_vkUnmapMemory(void *args)
 {
     struct vkUnmapMemory_params *params = args;
@@ -56273,7 +55852,6 @@ static const char * const vk_device_extensions[] =
     "VK_IMG_filter_cubic",
     "VK_IMG_format_pvrtc",
     "VK_IMG_relaxed_line_rasterization",
-    "VK_INTEL_performance_query",
     "VK_INTEL_shader_integer_functions2",
     "VK_KHR_16bit_storage",
     "VK_KHR_8bit_storage",
@@ -56542,7 +56120,6 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     vk_is_available_device_function,
     thunk64_vkAcquireNextImage2KHR,
     thunk64_vkAcquireNextImageKHR,
-    thunk64_vkAcquirePerformanceConfigurationINTEL,
     thunk64_vkAcquireProfilingLockKHR,
     thunk64_vkAllocateCommandBuffers,
     thunk64_vkAllocateDescriptorSets,
@@ -56765,9 +56342,6 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     (void *)thunk64_vkCmdSetLogicOpEXT,
     (void *)thunk64_vkCmdSetLogicOpEnableEXT,
     (void *)thunk64_vkCmdSetPatchControlPointsEXT,
-    thunk64_vkCmdSetPerformanceMarkerINTEL,
-    thunk64_vkCmdSetPerformanceOverrideINTEL,
-    thunk64_vkCmdSetPerformanceStreamMarkerINTEL,
     (void *)thunk64_vkCmdSetPolygonModeEXT,
     (void *)thunk64_vkCmdSetPrimitiveRestartEnable,
     (void *)thunk64_vkCmdSetPrimitiveRestartEnableEXT,
@@ -57030,7 +56604,6 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     thunk64_vkGetMemoryHostPointerPropertiesEXT,
     thunk64_vkGetMicromapBuildSizesEXT,
     thunk64_vkGetPartitionedAccelerationStructuresBuildSizesNV,
-    thunk64_vkGetPerformanceParameterINTEL,
     thunk64_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT,
     thunk64_vkGetPhysicalDeviceCalibrateableTimeDomainsKHR,
     thunk64_vkGetPhysicalDeviceCooperativeMatrixFlexibleDimensionsPropertiesNV,
@@ -57113,7 +56686,6 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     thunk64_vkGetSwapchainImagesKHR,
     thunk64_vkGetValidationCacheDataEXT,
     thunk64_vkGetVideoSessionMemoryRequirementsKHR,
-    thunk64_vkInitializePerformanceApiINTEL,
     thunk64_vkInvalidateMappedMemoryRanges,
     thunk64_vkLatencySleepNV,
     thunk64_vkMapMemory,
@@ -57127,13 +56699,11 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     thunk64_vkQueueInsertDebugUtilsLabelEXT,
     thunk64_vkQueueNotifyOutOfBandNV,
     thunk64_vkQueuePresentKHR,
-    thunk64_vkQueueSetPerformanceConfigurationINTEL,
     thunk64_vkQueueSubmit,
     thunk64_vkQueueSubmit2,
     thunk64_vkQueueSubmit2KHR,
     thunk64_vkQueueWaitIdle,
     thunk64_vkReleaseCapturedPipelineDataKHR,
-    thunk64_vkReleasePerformanceConfigurationINTEL,
     thunk64_vkReleaseProfilingLockKHR,
     thunk64_vkReleaseSwapchainImagesEXT,
     thunk64_vkResetCommandBuffer,
@@ -57159,7 +56729,6 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     thunk64_vkTransitionImageLayoutEXT,
     thunk64_vkTrimCommandPool,
     thunk64_vkTrimCommandPoolKHR,
-    thunk64_vkUninitializePerformanceApiINTEL,
     thunk64_vkUnmapMemory,
     thunk64_vkUnmapMemory2,
     thunk64_vkUnmapMemory2KHR,
@@ -57191,7 +56760,6 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     vk_is_available_device_function32,
     thunk32_vkAcquireNextImage2KHR,
     thunk32_vkAcquireNextImageKHR,
-    thunk32_vkAcquirePerformanceConfigurationINTEL,
     thunk32_vkAcquireProfilingLockKHR,
     thunk32_vkAllocateCommandBuffers,
     thunk32_vkAllocateDescriptorSets,
@@ -57414,9 +56982,6 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     (void *)thunk32_vkCmdSetLogicOpEXT,
     (void *)thunk32_vkCmdSetLogicOpEnableEXT,
     (void *)thunk32_vkCmdSetPatchControlPointsEXT,
-    thunk32_vkCmdSetPerformanceMarkerINTEL,
-    thunk32_vkCmdSetPerformanceOverrideINTEL,
-    thunk32_vkCmdSetPerformanceStreamMarkerINTEL,
     (void *)thunk32_vkCmdSetPolygonModeEXT,
     (void *)thunk32_vkCmdSetPrimitiveRestartEnable,
     (void *)thunk32_vkCmdSetPrimitiveRestartEnableEXT,
@@ -57679,7 +57244,6 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     thunk32_vkGetMemoryHostPointerPropertiesEXT,
     thunk32_vkGetMicromapBuildSizesEXT,
     thunk32_vkGetPartitionedAccelerationStructuresBuildSizesNV,
-    thunk32_vkGetPerformanceParameterINTEL,
     thunk32_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT,
     thunk32_vkGetPhysicalDeviceCalibrateableTimeDomainsKHR,
     thunk32_vkGetPhysicalDeviceCooperativeMatrixFlexibleDimensionsPropertiesNV,
@@ -57762,7 +57326,6 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     thunk32_vkGetSwapchainImagesKHR,
     thunk32_vkGetValidationCacheDataEXT,
     thunk32_vkGetVideoSessionMemoryRequirementsKHR,
-    thunk32_vkInitializePerformanceApiINTEL,
     thunk32_vkInvalidateMappedMemoryRanges,
     thunk32_vkLatencySleepNV,
     thunk32_vkMapMemory,
@@ -57776,13 +57339,11 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     thunk32_vkQueueInsertDebugUtilsLabelEXT,
     thunk32_vkQueueNotifyOutOfBandNV,
     thunk32_vkQueuePresentKHR,
-    thunk32_vkQueueSetPerformanceConfigurationINTEL,
     thunk32_vkQueueSubmit,
     thunk32_vkQueueSubmit2,
     thunk32_vkQueueSubmit2KHR,
     thunk32_vkQueueWaitIdle,
     thunk32_vkReleaseCapturedPipelineDataKHR,
-    thunk32_vkReleasePerformanceConfigurationINTEL,
     thunk32_vkReleaseProfilingLockKHR,
     thunk32_vkReleaseSwapchainImagesEXT,
     thunk32_vkResetCommandBuffer,
@@ -57808,7 +57369,6 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     thunk32_vkTransitionImageLayoutEXT,
     thunk32_vkTrimCommandPool,
     thunk32_vkTrimCommandPoolKHR,
-    thunk32_vkUninitializePerformanceApiINTEL,
     thunk32_vkUnmapMemory,
     thunk32_vkUnmapMemory2,
     thunk32_vkUnmapMemory2KHR,

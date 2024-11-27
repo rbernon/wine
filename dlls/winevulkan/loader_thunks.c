@@ -46,18 +46,6 @@ VkResult WINAPI vkAcquireNextImageKHR(VkDevice device, VkSwapchainKHR swapchain,
     return params.result;
 }
 
-VkResult WINAPI vkAcquirePerformanceConfigurationINTEL(VkDevice device, const VkPerformanceConfigurationAcquireInfoINTEL *pAcquireInfo, VkPerformanceConfigurationINTEL *pConfiguration)
-{
-    struct vkAcquirePerformanceConfigurationINTEL_params params;
-    NTSTATUS status;
-    params.device = device;
-    params.pAcquireInfo = pAcquireInfo;
-    params.pConfiguration = pConfiguration;
-    status = UNIX_CALL(vkAcquirePerformanceConfigurationINTEL, &params);
-    assert(!status && "vkAcquirePerformanceConfigurationINTEL");
-    return params.result;
-}
-
 VkResult WINAPI vkAcquireProfilingLockKHR(VkDevice device, const VkAcquireProfilingLockInfoKHR *pInfo)
 {
     struct vkAcquireProfilingLockKHR_params params;
@@ -2184,39 +2172,6 @@ void WINAPI vkCmdSetPatchControlPointsEXT(VkCommandBuffer commandBuffer, uint32_
     params.commandBuffer = commandBuffer;
     params.patchControlPoints = patchControlPoints;
     UNIX_CALL(vkCmdSetPatchControlPointsEXT, &params);
-}
-
-VkResult WINAPI vkCmdSetPerformanceMarkerINTEL(VkCommandBuffer commandBuffer, const VkPerformanceMarkerInfoINTEL *pMarkerInfo)
-{
-    struct vkCmdSetPerformanceMarkerINTEL_params params;
-    NTSTATUS status;
-    params.commandBuffer = commandBuffer;
-    params.pMarkerInfo = pMarkerInfo;
-    status = UNIX_CALL(vkCmdSetPerformanceMarkerINTEL, &params);
-    assert(!status && "vkCmdSetPerformanceMarkerINTEL");
-    return params.result;
-}
-
-VkResult WINAPI vkCmdSetPerformanceOverrideINTEL(VkCommandBuffer commandBuffer, const VkPerformanceOverrideInfoINTEL *pOverrideInfo)
-{
-    struct vkCmdSetPerformanceOverrideINTEL_params params;
-    NTSTATUS status;
-    params.commandBuffer = commandBuffer;
-    params.pOverrideInfo = pOverrideInfo;
-    status = UNIX_CALL(vkCmdSetPerformanceOverrideINTEL, &params);
-    assert(!status && "vkCmdSetPerformanceOverrideINTEL");
-    return params.result;
-}
-
-VkResult WINAPI vkCmdSetPerformanceStreamMarkerINTEL(VkCommandBuffer commandBuffer, const VkPerformanceStreamMarkerInfoINTEL *pMarkerInfo)
-{
-    struct vkCmdSetPerformanceStreamMarkerINTEL_params params;
-    NTSTATUS status;
-    params.commandBuffer = commandBuffer;
-    params.pMarkerInfo = pMarkerInfo;
-    status = UNIX_CALL(vkCmdSetPerformanceStreamMarkerINTEL, &params);
-    assert(!status && "vkCmdSetPerformanceStreamMarkerINTEL");
-    return params.result;
 }
 
 void WINAPI vkCmdSetPolygonModeEXT(VkCommandBuffer commandBuffer, VkPolygonMode polygonMode)
@@ -5095,18 +5050,6 @@ void WINAPI vkGetPartitionedAccelerationStructuresBuildSizesNV(VkDevice device, 
     assert(!status && "vkGetPartitionedAccelerationStructuresBuildSizesNV");
 }
 
-VkResult WINAPI vkGetPerformanceParameterINTEL(VkDevice device, VkPerformanceParameterTypeINTEL parameter, VkPerformanceValueINTEL *pValue)
-{
-    struct vkGetPerformanceParameterINTEL_params params;
-    NTSTATUS status;
-    params.device = device;
-    params.parameter = parameter;
-    params.pValue = pValue;
-    status = UNIX_CALL(vkGetPerformanceParameterINTEL, &params);
-    assert(!status && "vkGetPerformanceParameterINTEL");
-    return params.result;
-}
-
 VkResult WINAPI vkGetPhysicalDeviceCalibrateableTimeDomainsEXT(VkPhysicalDevice physicalDevice, uint32_t *pTimeDomainCount, VkTimeDomainKHR *pTimeDomains)
 {
     struct vkGetPhysicalDeviceCalibrateableTimeDomainsEXT_params params;
@@ -6074,17 +6017,6 @@ VkResult WINAPI vkGetVideoSessionMemoryRequirementsKHR(VkDevice device, VkVideoS
     return params.result;
 }
 
-VkResult WINAPI vkInitializePerformanceApiINTEL(VkDevice device, const VkInitializePerformanceApiInfoINTEL *pInitializeInfo)
-{
-    struct vkInitializePerformanceApiINTEL_params params;
-    NTSTATUS status;
-    params.device = device;
-    params.pInitializeInfo = pInitializeInfo;
-    status = UNIX_CALL(vkInitializePerformanceApiINTEL, &params);
-    assert(!status && "vkInitializePerformanceApiINTEL");
-    return params.result;
-}
-
 VkResult WINAPI vkInvalidateMappedMemoryRanges(VkDevice device, uint32_t memoryRangeCount, const VkMappedMemoryRange *pMemoryRanges)
 {
     struct vkInvalidateMappedMemoryRanges_params params;
@@ -6237,17 +6169,6 @@ VkResult WINAPI vkQueuePresentKHR(VkQueue queue, const VkPresentInfoKHR *pPresen
     return params.result;
 }
 
-VkResult WINAPI vkQueueSetPerformanceConfigurationINTEL(VkQueue queue, VkPerformanceConfigurationINTEL configuration)
-{
-    struct vkQueueSetPerformanceConfigurationINTEL_params params;
-    NTSTATUS status;
-    params.queue = queue;
-    params.configuration = configuration;
-    status = UNIX_CALL(vkQueueSetPerformanceConfigurationINTEL, &params);
-    assert(!status && "vkQueueSetPerformanceConfigurationINTEL");
-    return params.result;
-}
-
 VkResult WINAPI vkQueueSubmit(VkQueue queue, uint32_t submitCount, const VkSubmitInfo *pSubmits, VkFence fence)
 {
     struct vkQueueSubmit_params params;
@@ -6306,17 +6227,6 @@ VkResult WINAPI vkReleaseCapturedPipelineDataKHR(VkDevice device, const VkReleas
     params.pAllocator = pAllocator;
     status = UNIX_CALL(vkReleaseCapturedPipelineDataKHR, &params);
     assert(!status && "vkReleaseCapturedPipelineDataKHR");
-    return params.result;
-}
-
-VkResult WINAPI vkReleasePerformanceConfigurationINTEL(VkDevice device, VkPerformanceConfigurationINTEL configuration)
-{
-    struct vkReleasePerformanceConfigurationINTEL_params params;
-    NTSTATUS status;
-    params.device = device;
-    params.configuration = configuration;
-    status = UNIX_CALL(vkReleasePerformanceConfigurationINTEL, &params);
-    assert(!status && "vkReleasePerformanceConfigurationINTEL");
     return params.result;
 }
 
@@ -6609,15 +6519,6 @@ void WINAPI vkTrimCommandPoolKHR(VkDevice device, VkCommandPool commandPool, VkC
     assert(!status && "vkTrimCommandPoolKHR");
 }
 
-void WINAPI vkUninitializePerformanceApiINTEL(VkDevice device)
-{
-    struct vkUninitializePerformanceApiINTEL_params params;
-    NTSTATUS status;
-    params.device = device;
-    status = UNIX_CALL(vkUninitializePerformanceApiINTEL, &params);
-    assert(!status && "vkUninitializePerformanceApiINTEL");
-}
-
 void WINAPI vkUnmapMemory(VkDevice device, VkDeviceMemory memory)
 {
     struct vkUnmapMemory_params params;
@@ -6806,7 +6707,6 @@ static const struct vulkan_func vk_device_dispatch_table[] =
 {
     {"vkAcquireNextImage2KHR", vkAcquireNextImage2KHR},
     {"vkAcquireNextImageKHR", vkAcquireNextImageKHR},
-    {"vkAcquirePerformanceConfigurationINTEL", vkAcquirePerformanceConfigurationINTEL},
     {"vkAcquireProfilingLockKHR", vkAcquireProfilingLockKHR},
     {"vkAllocateCommandBuffers", vkAllocateCommandBuffers},
     {"vkAllocateDescriptorSets", vkAllocateDescriptorSets},
@@ -7029,9 +6929,6 @@ static const struct vulkan_func vk_device_dispatch_table[] =
     {"vkCmdSetLogicOpEXT", vkCmdSetLogicOpEXT},
     {"vkCmdSetLogicOpEnableEXT", vkCmdSetLogicOpEnableEXT},
     {"vkCmdSetPatchControlPointsEXT", vkCmdSetPatchControlPointsEXT},
-    {"vkCmdSetPerformanceMarkerINTEL", vkCmdSetPerformanceMarkerINTEL},
-    {"vkCmdSetPerformanceOverrideINTEL", vkCmdSetPerformanceOverrideINTEL},
-    {"vkCmdSetPerformanceStreamMarkerINTEL", vkCmdSetPerformanceStreamMarkerINTEL},
     {"vkCmdSetPolygonModeEXT", vkCmdSetPolygonModeEXT},
     {"vkCmdSetPrimitiveRestartEnable", vkCmdSetPrimitiveRestartEnable},
     {"vkCmdSetPrimitiveRestartEnableEXT", vkCmdSetPrimitiveRestartEnableEXT},
@@ -7277,7 +7174,6 @@ static const struct vulkan_func vk_device_dispatch_table[] =
     {"vkGetMemoryHostPointerPropertiesEXT", vkGetMemoryHostPointerPropertiesEXT},
     {"vkGetMicromapBuildSizesEXT", vkGetMicromapBuildSizesEXT},
     {"vkGetPartitionedAccelerationStructuresBuildSizesNV", vkGetPartitionedAccelerationStructuresBuildSizesNV},
-    {"vkGetPerformanceParameterINTEL", vkGetPerformanceParameterINTEL},
     {"vkGetPipelineBinaryDataKHR", vkGetPipelineBinaryDataKHR},
     {"vkGetPipelineCacheData", vkGetPipelineCacheData},
     {"vkGetPipelineExecutableInternalRepresentationsKHR", vkGetPipelineExecutableInternalRepresentationsKHR},
@@ -7309,7 +7205,6 @@ static const struct vulkan_func vk_device_dispatch_table[] =
     {"vkGetSwapchainImagesKHR", vkGetSwapchainImagesKHR},
     {"vkGetValidationCacheDataEXT", vkGetValidationCacheDataEXT},
     {"vkGetVideoSessionMemoryRequirementsKHR", vkGetVideoSessionMemoryRequirementsKHR},
-    {"vkInitializePerformanceApiINTEL", vkInitializePerformanceApiINTEL},
     {"vkInvalidateMappedMemoryRanges", vkInvalidateMappedMemoryRanges},
     {"vkLatencySleepNV", vkLatencySleepNV},
     {"vkMapMemory", vkMapMemory},
@@ -7323,13 +7218,11 @@ static const struct vulkan_func vk_device_dispatch_table[] =
     {"vkQueueInsertDebugUtilsLabelEXT", vkQueueInsertDebugUtilsLabelEXT},
     {"vkQueueNotifyOutOfBandNV", vkQueueNotifyOutOfBandNV},
     {"vkQueuePresentKHR", vkQueuePresentKHR},
-    {"vkQueueSetPerformanceConfigurationINTEL", vkQueueSetPerformanceConfigurationINTEL},
     {"vkQueueSubmit", vkQueueSubmit},
     {"vkQueueSubmit2", vkQueueSubmit2},
     {"vkQueueSubmit2KHR", vkQueueSubmit2KHR},
     {"vkQueueWaitIdle", vkQueueWaitIdle},
     {"vkReleaseCapturedPipelineDataKHR", vkReleaseCapturedPipelineDataKHR},
-    {"vkReleasePerformanceConfigurationINTEL", vkReleasePerformanceConfigurationINTEL},
     {"vkReleaseProfilingLockKHR", vkReleaseProfilingLockKHR},
     {"vkReleaseSwapchainImagesEXT", vkReleaseSwapchainImagesEXT},
     {"vkResetCommandBuffer", vkResetCommandBuffer},
@@ -7354,7 +7247,6 @@ static const struct vulkan_func vk_device_dispatch_table[] =
     {"vkTransitionImageLayoutEXT", vkTransitionImageLayoutEXT},
     {"vkTrimCommandPool", vkTrimCommandPool},
     {"vkTrimCommandPoolKHR", vkTrimCommandPoolKHR},
-    {"vkUninitializePerformanceApiINTEL", vkUninitializePerformanceApiINTEL},
     {"vkUnmapMemory", vkUnmapMemory},
     {"vkUnmapMemory2", vkUnmapMemory2},
     {"vkUnmapMemory2KHR", vkUnmapMemory2KHR},
