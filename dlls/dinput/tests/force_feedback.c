@@ -3036,7 +3036,7 @@ static BOOL test_force_feedback_joystick( DWORD version )
     HWND hwnd;
 
     winetest_push_context( "%#lx", version );
-    cleanup_registry_keys();
+    cleanup_registry_keys( expect_vidpid_str );
 
     desc.report_descriptor_len = sizeof(report_descriptor);
     memcpy( desc.report_descriptor_buf, report_descriptor, sizeof(report_descriptor) );
@@ -3259,7 +3259,7 @@ static BOOL test_force_feedback_joystick( DWORD version )
 
 done:
     hid_device_stop( &desc, 1 );
-    cleanup_registry_keys();
+    cleanup_registry_keys( expect_vidpid_str );
     winetest_pop_context();
 
     return device != NULL;
@@ -4167,7 +4167,7 @@ static void test_device_managed_effect(void)
     HRESULT hr;
     HWND hwnd;
 
-    cleanup_registry_keys();
+    cleanup_registry_keys( expect_vidpid_str );
 
     desc.report_descriptor_len = sizeof(report_descriptor);
     memcpy( desc.report_descriptor_buf, report_descriptor, sizeof(report_descriptor) );
@@ -4584,7 +4584,7 @@ static void test_device_managed_effect(void)
 
 done:
     hid_device_stop( &desc, 1 );
-    cleanup_registry_keys();
+    cleanup_registry_keys( expect_vidpid_str );
     winetest_pop_context();
 }
 
@@ -6102,7 +6102,7 @@ static void test_windows_gaming_input(void)
 
     if (!load_combase_functions()) return;
 
-    cleanup_registry_keys();
+    cleanup_registry_keys( expect_vidpid_str );
 
     hr = pRoInitialize( RO_INIT_MULTITHREADED );
     ok( hr == RPC_E_CHANGED_MODE, "RoInitialize returned %#lx\n", hr );
@@ -6818,7 +6818,7 @@ static void test_windows_gaming_input(void)
 
 done:
     hid_device_stop( &desc, 1 );
-    cleanup_registry_keys();
+    cleanup_registry_keys( expect_vidpid_str );
 }
 
 START_TEST( force_feedback )
