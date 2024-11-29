@@ -2962,7 +2962,7 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, HWND owner_hint, UIN
     if (old_style & WS_VISIBLE)
     {
         if (((swp_flags & SWP_HIDEWINDOW) && !(new_style & WS_VISIBLE)) ||
-            (!(new_style & WS_MINIMIZE) && !is_window_rect_mapped( &new_rects->window ) && is_window_rect_mapped( &old_rects.window )))
+            (!(new_style & WS_MINIMIZE) && !is_window_rect_mapped( &new_rects->window )))
         {
             release_win_data( data );
             unmap_window( hwnd );
