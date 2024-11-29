@@ -3508,7 +3508,7 @@ done:
     hid_device_stop( &desc, 1 );
 }
 
-void cleanup_registry_keys(void)
+void cleanup_registry_keys( const WCHAR *vidpid )
 {
     static const WCHAR joystick_oem_path[] = L"System\\CurrentControlSet\\Control\\MediaProperties\\"
                                               "PrivateProperties\\Joystick\\OEM";
@@ -3525,19 +3525,19 @@ void cleanup_registry_keys(void)
        effects from the PID report changes.
     */
     RegCreateKeyExW( HKEY_CURRENT_USER, joystick_oem_path, 0, NULL, 0, KEY_ALL_ACCESS, NULL, &root_key, NULL );
-    RegDeleteTreeW( root_key, expect_vidpid_str );
+    RegDeleteTreeW( root_key, vidpid );
     RegCloseKey( root_key );
 
     RegCreateKeyExW( HKEY_CURRENT_USER, dinput_path, 0, NULL, 0, KEY_ALL_ACCESS, NULL, &root_key, NULL );
-    RegDeleteTreeW( root_key, expect_vidpid_str );
+    RegDeleteTreeW( root_key, vidpid );
     RegCloseKey( root_key );
 
     RegCreateKeyExW( HKEY_LOCAL_MACHINE, joystick_oem_path, 0, NULL, 0, KEY_ALL_ACCESS, NULL, &root_key, NULL );
-    RegDeleteTreeW( root_key, expect_vidpid_str );
+    RegDeleteTreeW( root_key, vidpid );
     RegCloseKey( root_key );
 
     RegCreateKeyExW( HKEY_LOCAL_MACHINE, dinput_path, 0, NULL, 0, KEY_ALL_ACCESS, NULL, &root_key, NULL );
-    RegDeleteTreeW( root_key, expect_vidpid_str );
+    RegDeleteTreeW( root_key, vidpid );
     RegCloseKey( root_key );
 }
 

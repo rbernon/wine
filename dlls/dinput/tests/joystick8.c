@@ -1916,7 +1916,7 @@ static void test_simple_joystick( DWORD version )
 
     winetest_push_context( "%#lx", version );
 
-    cleanup_registry_keys();
+    cleanup_registry_keys( expect_vidpid_str );
 
     desc.report_descriptor_len = sizeof(report_desc);
     memcpy( desc.report_descriptor_buf, report_desc, sizeof(report_desc) );
@@ -3246,7 +3246,7 @@ static void test_simple_joystick( DWORD version )
 
 done:
     hid_device_stop( &desc, 1 );
-    cleanup_registry_keys();
+    cleanup_registry_keys( expect_vidpid_str );
     winetest_pop_context();
 }
 
@@ -3740,7 +3740,7 @@ static BOOL test_device_types( DWORD version )
     for (i = 0; i < ARRAY_SIZE(device_desc) && success; ++i)
     {
         winetest_push_context( "desc[%ld]", i );
-        cleanup_registry_keys();
+        cleanup_registry_keys( expect_vidpid_str );
 
         desc.caps = device_desc[i].hid_caps;
         desc.report_descriptor_len = device_desc[i].report_desc_len;
@@ -3789,7 +3789,7 @@ static BOOL test_device_types( DWORD version )
 
     done:
         hid_device_stop( &desc, 1 );
-        cleanup_registry_keys();
+        cleanup_registry_keys( expect_vidpid_str );
         winetest_pop_context();
     }
 
@@ -4211,7 +4211,7 @@ static void test_many_axes_joystick(void)
     HRESULT hr;
     ULONG ref;
 
-    cleanup_registry_keys();
+    cleanup_registry_keys( expect_vidpid_str );
 
     desc.report_descriptor_len = sizeof(report_desc);
     memcpy( desc.report_descriptor_buf, report_desc, sizeof(report_desc) );
@@ -4315,7 +4315,7 @@ static void test_many_axes_joystick(void)
 
 done:
     hid_device_stop( &desc, 1 );
-    cleanup_registry_keys();
+    cleanup_registry_keys( expect_vidpid_str );
 }
 
 static void test_driving_wheel_axes(void)
@@ -4479,7 +4479,7 @@ static void test_driving_wheel_axes(void)
     HRESULT hr;
     ULONG ref;
 
-    cleanup_registry_keys();
+    cleanup_registry_keys( expect_vidpid_str );
 
     desc.report_descriptor_len = sizeof(report_desc);
     memcpy( desc.report_descriptor_buf, report_desc, sizeof(report_desc) );
@@ -4534,7 +4534,7 @@ static void test_driving_wheel_axes(void)
 
 done:
     hid_device_stop( &desc, 1 );
-    cleanup_registry_keys();
+    cleanup_registry_keys( expect_vidpid_str );
 }
 
 static void test_winmm_joystick(void)
@@ -4677,7 +4677,7 @@ static void test_winmm_joystick(void)
     HRESULT hr;
     UINT ret;
 
-    cleanup_registry_keys();
+    cleanup_registry_keys( expect_vidpid_str );
 
     ret = joyGetNumDevs();
     ok( ret == 16, "joyGetNumDevs returned %u\n", ret );
@@ -4893,7 +4893,7 @@ static void test_winmm_joystick(void)
 
 done:
     hid_device_stop( &desc, 1 );
-    cleanup_registry_keys();
+    cleanup_registry_keys( expect_vidpid_str );
 }
 
 #define check_interface( a, b, c ) check_interface_( __LINE__, a, b, c )
@@ -5109,7 +5109,7 @@ static void test_windows_gaming_input(void)
 
     if (!load_combase_functions()) return;
 
-    cleanup_registry_keys();
+    cleanup_registry_keys( expect_vidpid_str );
 
     hr = pRoInitialize( RO_INIT_MULTITHREADED );
     ok( hr == RPC_E_CHANGED_MODE, "RoInitialize returned %#lx\n", hr );
@@ -5319,7 +5319,7 @@ static void test_windows_gaming_input(void)
 
 done:
     hid_device_stop( &desc, 1 );
-    cleanup_registry_keys();
+    cleanup_registry_keys( expect_vidpid_str );
 }
 
 static HANDLE rawinput_device_added, rawinput_device_removed, rawinput_event;
@@ -5454,7 +5454,7 @@ static void test_rawinput( char **argv )
     HWND hwnd;
     BOOL ret;
 
-    cleanup_registry_keys();
+    cleanup_registry_keys( expect_vidpid_str );
 
     desc.report_descriptor_len = sizeof(report_desc);
     memcpy( desc.report_descriptor_buf, report_desc, sizeof(report_desc) );
@@ -5747,7 +5747,7 @@ static void test_rawinput( char **argv )
 
 done:
     hid_device_stop( &desc, 1 );
-    cleanup_registry_keys();
+    cleanup_registry_keys( expect_vidpid_str );
 
     DestroyWindow( hwnd );
 }
