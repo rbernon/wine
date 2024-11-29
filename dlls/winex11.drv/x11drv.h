@@ -669,7 +669,6 @@ extern BOOL window_has_pending_wm_state( HWND hwnd, UINT state );
 extern void window_wm_state_notify( struct x11drv_win_data *data, unsigned long serial, UINT value );
 extern void window_net_wm_state_notify( struct x11drv_win_data *data, unsigned long serial, UINT value );
 extern void window_configure_notify( struct x11drv_win_data *data, unsigned long serial, const RECT *rect );
-extern BOOL get_window_state_updates( HWND hwnd, UINT *state_cmd, UINT *config_cmd, RECT *rect );
 
 extern void net_supported_init( struct x11drv_thread_data *data );
 extern void net_supporting_wm_check_init( struct x11drv_thread_data *data );

@@ -2943,17 +2943,19 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, HWND owner_hint, UIN
     if (data->desired_state.wm_state == IconicState) old_style |= WS_MINIMIZE;
     if (data->desired_state.net_wm_state & (1 << NET_WM_STATE_MAXIMIZED)) old_style |= WS_MAXIMIZE;
 
-    /* don't try mapping the window if it is outside of the virtual screen */
-    if (!(new_style & WS_MINIMIZE) && !is_window_rect_mapped( &new_rects->window ))
-    {
-        swp_flags |= SWP_HIDEWINDOW;
-        new_style &= ~WS_VISIBLE;
-    }
-
     old_rects = data->rects;
     was_fullscreen = data->is_fullscreen;
     data->rects = *new_rects;
     data->is_fullscreen = fullscreen;
+
+    if (!(new_style & WS_MINIMIZE))
+    {
+        /* artificially minimize the window if it is outside of the virtual screen */
+        if (is_window_rect_mapped( &old_rects.window ) && !is_window_rect_mapped( &new_rects->window ))
+            window_set_wm_state( data, IconicState );
+        else if (!is_window_rect_mapped( &old_rects.window ) && is_window_rect_mapped( &new_rects->window ))
+            window_set_wm_state( data, NormalState );
+    }
 
     XFlush( gdi_display );  /* make sure painting is done before we move the window */
 
@@ -3156,9 +3158,6 @@ void X11DRV_SetLayeredWindowAttributes( HWND hwnd, COLORREF key, BYTE alpha, DWO
         old_style = new_style & ~(WS_VISIBLE | WS_MINIMIZE | WS_MAXIMIZE);
         if (data->desired_state.wm_state != WithdrawnState) old_style |= WS_VISIBLE;
 
-        /* don't try mapping the window if it is outside of the virtual screen */
-        if (!(new_style & WS_MINIMIZE) && !is_window_rect_mapped( &data->rects.window )) new_style &= ~WS_VISIBLE;
-
         release_win_data( data );
 
         /* layered windows are mapped only once their attributes are set */
@@ -3189,9 +3188,6 @@ void X11DRV_UpdateLayeredWindow( HWND hwnd, UINT flags )
 
     old_style = new_style & ~(WS_VISIBLE | WS_MINIMIZE | WS_MAXIMIZE);
     if (data->desired_state.wm_state != WithdrawnState) old_style |= WS_VISIBLE;
-
-    /* don't try mapping the window if it is outside of the virtual screen */
-    if (!(new_style & WS_MINIMIZE) && !is_window_rect_mapped( &data->rects.window )) new_style &= ~WS_VISIBLE;
 
     release_win_data( data );
 
