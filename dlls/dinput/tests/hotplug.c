@@ -162,7 +162,7 @@ static BOOL test_input_lost( DWORD version )
 
     winetest_push_context( "%#lx", version );
 
-    cleanup_registry_keys();
+    cleanup_registry_keys( expect_vidpid_str );
 
     desc.report_descriptor_len = sizeof(report_desc);
     memcpy( desc.report_descriptor_buf, report_desc, sizeof(report_desc) );
@@ -221,7 +221,7 @@ static BOOL test_input_lost( DWORD version )
 
 done:
     hid_device_stop( &desc, 1 );
-    cleanup_registry_keys();
+    cleanup_registry_keys( expect_vidpid_str );
 
     winetest_pop_context();
     return device != NULL;
