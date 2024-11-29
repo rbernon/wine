@@ -5970,6 +5970,209 @@ static void test_rawinput_desktop( const char *path, BOOL input )
     DestroyWindow( hwnd );
 }
 
+static void test_joystick_id(void)
+{
+#include "psh_hid_macros.h"
+    const unsigned char report_desc[] =
+    {
+        USAGE_PAGE(1, HID_USAGE_PAGE_GENERIC),
+        USAGE(1, HID_USAGE_GENERIC_JOYSTICK),
+        COLLECTION(1, Application),
+            USAGE(1, HID_USAGE_GENERIC_JOYSTICK),
+            COLLECTION(1, Physical),
+                USAGE_PAGE(1, HID_USAGE_PAGE_BUTTON),
+                USAGE_MINIMUM(1, 1),
+                USAGE_MAXIMUM(1, 6),
+                LOGICAL_MINIMUM(1, 0),
+                LOGICAL_MAXIMUM(1, 1),
+                PHYSICAL_MINIMUM(1, 0),
+                PHYSICAL_MAXIMUM(1, 1),
+                REPORT_SIZE(1, 1),
+                REPORT_COUNT(1, 8),
+                INPUT(1, Data|Var|Abs),
+            END_COLLECTION,
+        END_COLLECTION,
+    };
+    C_ASSERT(sizeof(report_desc) < MAX_HID_DESCRIPTOR_LEN);
+#include "pop_hid_macros.h"
+    struct hid_device_desc desc =
+    {
+        .use_report_id = TRUE,
+        .caps = { .InputReportByteLength = 1 },
+    };
+    DIPROPDWORD prop_dword =
+    {
+        .diph =
+        {
+            .dwSize = sizeof(DIPROPDWORD),
+            .dwHeaderSize = sizeof(DIPROPHEADER),
+            .dwHow = DIPH_DEVICE,
+        },
+    };
+    const WCHAR vid_1209_pid_0001[] = L"VID_1209&PID_0001";
+    const WCHAR vid_1209_pid_0002[] = L"VID_1209&PID_0002";
+    GUID product_guid = {0,0x0000,0x0000,{0x00,0x00,'P','I','D','V','I','D'}};
+    IDirectInputDevice8W *device[5] = {0};
+    IDirectInput8W *dinput8;
+    WCHAR path[1024];
+    DWORD id, size;
+    LSTATUS status;
+    HRESULT hr;
+
+    cleanup_registry_keys( vid_1209_pid_0001 );
+    cleanup_registry_keys( vid_1209_pid_0002 );
+
+    if (FAILED(hr = DirectInput8Create( instance, DIRECTINPUT_VERSION, &IID_IDirectInput8W, (void **)&dinput8, NULL )))
+    {
+        win_skip( "DirectInput8Create returned %#lx.\n", hr );
+        return;
+    }
+
+    desc.attributes = default_attributes;
+    desc.report_descriptor_len = sizeof(report_desc);
+    memcpy( desc.report_descriptor_buf, report_desc, sizeof(report_desc) );
+    fill_context( desc.context, ARRAY_SIZE(desc.context) );
+
+    desc.attributes.ProductID = 1;
+    if (!hid_device_start( &desc, 1 )) goto done;
+
+    product_guid.Data1 = MAKELONG(desc.attributes.VendorID, desc.attributes.ProductID);
+    hr = IDirectInput8_CreateDevice( dinput8, &product_guid, &device[0], NULL );
+    ok( hr == DI_OK, "got %#lx.\n", hr );
+    hr = IDirectInputDevice8_GetProperty( device[0], DIPROP_JOYSTICKID, &prop_dword.diph );
+    ok( hr == DI_OK, "got hr %#lx.\n", hr );
+    todo_wine ok( prop_dword.dwData == 0, "got %lu.\n", prop_dword.dwData );
+
+    id = 0xdeadbeef;
+    swprintf( path, ARRAY_SIZE(path), L"System\\CurrentControlSet\\Control\\MediaProperties\\PrivateProperties\\"
+              "DirectInput\\%s\\Calibration\\0", vid_1209_pid_0001 );
+    status = RegGetValueW( HKEY_CURRENT_USER, path, L"Joystick ID", RRF_RT_REG_BINARY, NULL, &id, &size );
+    todo_wine ok( !status, "got %#lx\n", status );
+    todo_wine ok( id == 0, "got %#lx\n", id );
+
+    swprintf( path, ARRAY_SIZE(path), L"System\\CurrentControlSet\\Control\\MediaProperties\\PrivateProperties\\"
+              "DirectInput\\%s\\Calibration\\0", vid_1209_pid_0002 );
+    status = RegGetValueW( HKEY_CURRENT_USER, path, L"Joystick ID", RRF_RT_REG_BINARY, NULL, &id, &size );
+    ok( status == ERROR_FILE_NOT_FOUND, "got %#lx\n", status );
+
+    desc.attributes.ProductID = 1;
+    hid_device_stop( &desc, 1 );
+
+    desc.attributes.ProductID = 2;
+    if (!hid_device_start( &desc, 1 )) goto done;
+
+    product_guid.Data1 = MAKELONG(desc.attributes.VendorID, desc.attributes.ProductID);
+    hr = IDirectInput8_CreateDevice( dinput8, &product_guid, &device[1], NULL );
+    ok( hr == DI_OK, "got %#lx.\n", hr );
+    hr = IDirectInputDevice8_GetProperty( device[0], DIPROP_JOYSTICKID, &prop_dword.diph );
+    ok( hr == DI_OK, "got hr %#lx.\n", hr );
+    todo_wine ok( prop_dword.dwData == 0, "got %lu.\n", prop_dword.dwData );
+    hr = IDirectInputDevice8_GetProperty( device[1], DIPROP_JOYSTICKID, &prop_dword.diph );
+    ok( hr == DI_OK, "got hr %#lx.\n", hr );
+    todo_wine ok( prop_dword.dwData == 0, "got %lu.\n", prop_dword.dwData );
+
+    id = 0xdeadbeef;
+    swprintf( path, ARRAY_SIZE(path), L"System\\CurrentControlSet\\Control\\MediaProperties\\PrivateProperties\\"
+              "DirectInput\\%s\\Calibration\\0", vid_1209_pid_0001 );
+    status = RegGetValueW( HKEY_CURRENT_USER, path, L"Joystick ID", RRF_RT_REG_BINARY, NULL, &id, &size );
+    todo_wine ok( !status, "got %#lx\n", status );
+    todo_wine ok( id == 0, "got %#lx\n", id );
+
+    id = 0xdeadbeef;
+    swprintf( path, ARRAY_SIZE(path), L"System\\CurrentControlSet\\Control\\MediaProperties\\PrivateProperties\\"
+              "DirectInput\\%s\\Calibration\\0", vid_1209_pid_0002 );
+    status = RegGetValueW( HKEY_CURRENT_USER, path, L"Joystick ID", RRF_RT_REG_BINARY, NULL, &id, &size );
+    todo_wine ok( !status, "got %#lx\n", status );
+    todo_wine ok( id == 0, "got %#lx\n", id );
+
+    desc.attributes.ProductID = 1;
+    if (!hid_device_start( &desc, 1 )) goto done;
+
+    product_guid.Data1 = MAKELONG(desc.attributes.VendorID, desc.attributes.ProductID);
+    hr = IDirectInput8_CreateDevice( dinput8, &product_guid, &device[2], NULL );
+    ok( hr == DI_OK, "got %#lx.\n", hr );
+    hr = IDirectInputDevice8_GetProperty( device[0], DIPROP_JOYSTICKID, &prop_dword.diph );
+    ok( hr == DI_OK, "got hr %#lx.\n", hr );
+    todo_wine ok( prop_dword.dwData == 0, "got %lu.\n", prop_dword.dwData );
+    hr = IDirectInputDevice8_GetProperty( device[1], DIPROP_JOYSTICKID, &prop_dword.diph );
+    ok( hr == DI_OK, "got hr %#lx.\n", hr );
+    todo_wine ok( prop_dword.dwData == 0, "got %lu.\n", prop_dword.dwData );
+    hr = IDirectInputDevice8_GetProperty( device[2], DIPROP_JOYSTICKID, &prop_dword.diph );
+    ok( hr == DI_OK, "got hr %#lx.\n", hr );
+    todo_wine ok( prop_dword.dwData == 0, "got %lu.\n", prop_dword.dwData );
+
+    id = 0xdeadbeef;
+    swprintf( path, ARRAY_SIZE(path), L"System\\CurrentControlSet\\Control\\MediaProperties\\PrivateProperties\\"
+              "DirectInput\\%s\\Calibration\\0", vid_1209_pid_0001 );
+    status = RegGetValueW( HKEY_CURRENT_USER, path, L"Joystick ID", RRF_RT_REG_BINARY, NULL, &id, &size );
+    todo_wine ok( !status, "got %#lx\n", status );
+    todo_wine ok( id == 0, "got %#lx\n", id );
+
+    id = 0xdeadbeef;
+    swprintf( path, ARRAY_SIZE(path), L"System\\CurrentControlSet\\Control\\MediaProperties\\PrivateProperties\\"
+              "DirectInput\\%s\\Calibration\\0", vid_1209_pid_0002 );
+    status = RegGetValueW( HKEY_CURRENT_USER, path, L"Joystick ID", RRF_RT_REG_BINARY, NULL, &id, &size );
+    todo_wine ok( !status, "got %#lx\n", status );
+    todo_wine ok( id == 1, "got %#lx\n", id );
+
+    desc.attributes.ProductID = 2;
+    product_guid.Data1 = MAKELONG(desc.attributes.VendorID, desc.attributes.ProductID);
+    hr = IDirectInput8_CreateDevice( dinput8, &product_guid, &device[3], NULL );
+    ok( hr == DI_OK, "got %#lx.\n", hr );
+
+    hr = IDirectInputDevice8_GetProperty( device[0], DIPROP_JOYSTICKID, &prop_dword.diph );
+    ok( hr == DI_OK, "got hr %#lx.\n", hr );
+    todo_wine ok( prop_dword.dwData == 0, "got %lu.\n", prop_dword.dwData );
+    hr = IDirectInputDevice8_GetProperty( device[1], DIPROP_JOYSTICKID, &prop_dword.diph );
+    ok( hr == DI_OK, "got hr %#lx.\n", hr );
+    todo_wine ok( prop_dword.dwData == 0, "got %lu.\n", prop_dword.dwData );
+    hr = IDirectInputDevice8_GetProperty( device[2], DIPROP_JOYSTICKID, &prop_dword.diph );
+    ok( hr == DI_OK, "got hr %#lx.\n", hr );
+    todo_wine ok( prop_dword.dwData == 0, "got %lu.\n", prop_dword.dwData );
+    hr = IDirectInputDevice8_GetProperty( device[3], DIPROP_JOYSTICKID, &prop_dword.diph );
+    ok( hr == DI_OK, "got hr %#lx.\n", hr );
+    todo_wine ok( prop_dword.dwData == 1, "got %lu.\n", prop_dword.dwData );
+
+    id = 0xdeadbeef;
+    swprintf( path, ARRAY_SIZE(path), L"System\\CurrentControlSet\\Control\\MediaProperties\\PrivateProperties\\"
+              "DirectInput\\%s\\Calibration\\0", vid_1209_pid_0001 );
+    status = RegGetValueW( HKEY_CURRENT_USER, path, L"Joystick ID", RRF_RT_REG_BINARY, NULL, &id, &size );
+    todo_wine ok( !status, "got %#lx\n", status );
+    todo_wine ok( id == 0, "got %#lx\n", id );
+
+    id = 0xdeadbeef;
+    swprintf( path, ARRAY_SIZE(path), L"System\\CurrentControlSet\\Control\\MediaProperties\\PrivateProperties\\"
+              "DirectInput\\%s\\Calibration\\0", vid_1209_pid_0002 );
+    status = RegGetValueW( HKEY_CURRENT_USER, path, L"Joystick ID", RRF_RT_REG_BINARY, NULL, &id, &size );
+    todo_wine ok( !status, "got %#lx\n", status );
+    todo_wine ok( id == 1, "got %#lx\n", id );
+
+    hr = IDirectInput8_CreateDevice( dinput8, &GUID_Joystick, &device[4], NULL );
+    todo_wine ok( hr == DI_OK, "got %#lx.\n", hr );
+    if (hr == DI_OK)
+    {
+    hr = IDirectInputDevice8_GetProperty( device[4], DIPROP_JOYSTICKID, &prop_dword.diph );
+    ok( hr == DI_OK, "got hr %#lx.\n", hr );
+    ok( prop_dword.dwData == 0, "got %lu.\n", prop_dword.dwData );
+    }
+
+    desc.attributes.ProductID = 2;
+    hid_device_stop( &desc, 1 );
+
+    desc.attributes.ProductID = 1;
+    hid_device_stop( &desc, 1 );
+
+done:
+    if (device[4]) IDirectInputDevice8_Release( device[4] );
+    if (device[3]) IDirectInputDevice8_Release( device[3] );
+    if (device[2]) IDirectInputDevice8_Release( device[2] );
+    if (device[1]) IDirectInputDevice8_Release( device[1] );
+    if (device[0]) IDirectInputDevice8_Release( device[0] );
+    IDirectInput8_Release( dinput8 );
+    cleanup_registry_keys( vid_1209_pid_0001 );
+    cleanup_registry_keys( vid_1209_pid_0002 );
+}
+
 START_TEST( joystick8 )
 {
     char **argv;
@@ -6001,6 +6204,7 @@ START_TEST( joystick8 )
         test_driving_wheel_axes();
         test_rawinput( argv );
         test_windows_gaming_input();
+        test_joystick_id();
     }
 
 done:
