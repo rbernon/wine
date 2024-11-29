@@ -2935,18 +2935,25 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, HWND owner_hint, UIN
 
     if (!(data = get_win_data( hwnd ))) return;
 
+    TRACE( "win %p/%lx new_rects %s style %08x flags %08x\n", hwnd, data->whole_window,
+           debugstr_window_rects(new_rects), new_style, swp_flags );
+
     old_style = new_style & ~(WS_VISIBLE | WS_MINIMIZE | WS_MAXIMIZE);
     if (data->desired_state.wm_state != WithdrawnState) old_style |= WS_VISIBLE;
     if (data->desired_state.wm_state == IconicState) old_style |= WS_MINIMIZE;
     if (data->desired_state.net_wm_state & (1 << NET_WM_STATE_MAXIMIZED)) old_style |= WS_MAXIMIZE;
 
+    /* don't try mapping the window if it is outside of the virtual screen */
+    if (!(new_style & WS_MINIMIZE) && !is_window_rect_mapped( &new_rects->window ))
+    {
+        swp_flags |= SWP_HIDEWINDOW;
+        new_style &= ~WS_VISIBLE;
+    }
+
     old_rects = data->rects;
     was_fullscreen = data->is_fullscreen;
     data->rects = *new_rects;
     data->is_fullscreen = fullscreen;
-
-    ERR( "win %p/%lx new_rects %s style %08x flags %08x\n", hwnd, data->whole_window,
-           debugstr_window_rects(new_rects), new_style, swp_flags );
 
     XFlush( gdi_display );  /* make sure painting is done before we move the window */
 
@@ -2959,16 +2966,12 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, HWND owner_hint, UIN
         return;
     }
 
-    if (old_style & WS_VISIBLE)
+    if ((old_style & WS_VISIBLE) && (swp_flags & SWP_HIDEWINDOW) && !(new_style & WS_VISIBLE))
     {
-        if (((swp_flags & SWP_HIDEWINDOW) && !(new_style & WS_VISIBLE)) ||
-            (!(new_style & WS_MINIMIZE) && !is_window_rect_mapped( &new_rects->window )))
-        {
-            release_win_data( data );
-            unmap_window( hwnd );
-            if (was_fullscreen) NtUserClipCursor( NULL );
-            if (!(data = get_win_data( hwnd ))) return;
-        }
+        release_win_data( data );
+        unmap_window( hwnd );
+        if (was_fullscreen) NtUserClipCursor( NULL );
+        if (!(data = get_win_data( hwnd ))) return;
     }
 
     /* don't change position if we are about to minimize or maximize a managed window */
@@ -2992,8 +2995,7 @@ ERR("\n");
 #endif
     }
 
-    if ((new_style & WS_VISIBLE) &&
-        ((new_style & WS_MINIMIZE) || is_window_rect_mapped( &new_rects->window )))
+    if (new_style & WS_VISIBLE)
     {
         if (!(old_style & WS_VISIBLE))
         {
@@ -3140,6 +3142,7 @@ void X11DRV_SetWindowRgn( HWND hwnd, HRGN hrgn, BOOL redraw )
  */
 void X11DRV_SetLayeredWindowAttributes( HWND hwnd, COLORREF key, BYTE alpha, DWORD flags )
 {
+    DWORD old_style, new_style = NtUserGetWindowLongW( hwnd, GWL_STYLE );
     struct x11drv_win_data *data = get_win_data( hwnd );
 
     if (data)
@@ -3148,21 +3151,18 @@ void X11DRV_SetLayeredWindowAttributes( HWND hwnd, COLORREF key, BYTE alpha, DWO
 
         if (data->whole_window)
             sync_window_opacity( data->display, data->whole_window, alpha, flags );
-
         data->layered = TRUE;
-        if (data->desired_state.wm_state == WithdrawnState)  /* mapping is delayed until attributes are set */
-        {
-            DWORD style = NtUserGetWindowLongW( data->hwnd, GWL_STYLE );
 
-            if ((style & WS_VISIBLE) &&
-                ((style & WS_MINIMIZE) || is_window_rect_mapped( &data->rects.window )))
-            {
-                release_win_data( data );
-                map_window( hwnd, style );
-                return;
-            }
-        }
+        old_style = new_style & ~(WS_VISIBLE | WS_MINIMIZE | WS_MAXIMIZE);
+        if (data->desired_state.wm_state != WithdrawnState) old_style |= WS_VISIBLE;
+
+        /* don't try mapping the window if it is outside of the virtual screen */
+        if (!(new_style & WS_MINIMIZE) && !is_window_rect_mapped( &data->rects.window )) new_style &= ~WS_VISIBLE;
+
         release_win_data( data );
+
+        /* layered windows are mapped only once their attributes are set */
+        if (!(old_style & WS_VISIBLE) && (new_style & WS_VISIBLE)) map_window( hwnd, new_style );
     }
     else
     {
@@ -3182,21 +3182,21 @@ void X11DRV_SetLayeredWindowAttributes( HWND hwnd, COLORREF key, BYTE alpha, DWO
  */
 void X11DRV_UpdateLayeredWindow( HWND hwnd, UINT flags )
 {
+    DWORD old_style, new_style = NtUserGetWindowLongW( hwnd, GWL_STYLE );
     struct x11drv_win_data *data;
-    BOOL mapped;
 
     if (!(data = get_win_data( hwnd ))) return;
-    mapped = data->desired_state.wm_state != WithdrawnState;
+
+    old_style = new_style & ~(WS_VISIBLE | WS_MINIMIZE | WS_MAXIMIZE);
+    if (data->desired_state.wm_state != WithdrawnState) old_style |= WS_VISIBLE;
+
+    /* don't try mapping the window if it is outside of the virtual screen */
+    if (!(new_style & WS_MINIMIZE) && !is_window_rect_mapped( &data->rects.window )) new_style &= ~WS_VISIBLE;
+
     release_win_data( data );
 
     /* layered windows are mapped only once their attributes are set */
-    if (!mapped)
-    {
-        DWORD style = NtUserGetWindowLongW( hwnd, GWL_STYLE );
-
-        if ((style & WS_VISIBLE) && ((style & WS_MINIMIZE) || is_window_rect_mapped( &data->rects.window )))
-            map_window( hwnd, style );
-    }
+    if (!(old_style & WS_VISIBLE) && (new_style & WS_VISIBLE)) map_window( hwnd, new_style );
 }
 
 
