@@ -260,7 +260,9 @@ static VkResult win32u_vkMapMemory2KHR( VkDevice client_device, const VkMemoryMa
     }
 
     if (device->host_vkMapMemory2KHR)
+    {
         res = device->host_vkMapMemory2KHR( device->host.device, &info, data );
+    }
     else
     {
         if (info.pNext) FIXME( "struct extension chain not implemented!\n" );
@@ -276,7 +278,6 @@ static VkResult win32u_vkMapMemory2KHR( VkDevice client_device, const VkMemoryMa
             NtFreeVirtualMemory( GetCurrentProcess(), &placed_info.pPlacedAddress, &alloc_size, MEM_RELEASE );
             return res;
         }
-
         memory->vm_map = placed_info.pPlacedAddress;
         *data = (char *)memory->vm_map + map_info->offset;
         TRACE( "Using placed mapping %p\n", memory->vm_map );
@@ -331,8 +332,7 @@ static VkResult win32u_vkUnmapMemory2KHR( VkDevice client_device, const VkMemory
     info.memory = memory->obj.host.device_memory;
     if (memory->vm_map) info.flags |= VK_MEMORY_UNMAP_RESERVE_BIT_EXT;
 
-    res = device->host_vkUnmapMemory2KHR( device->host.device, &info );
-    if (res == VK_SUCCESS && memory->vm_map)
+    if (!(res = device->host_vkUnmapMemory2KHR( device->host.device, &info )) && memory->vm_map)
     {
         SIZE_T size = 0;
         NtFreeVirtualMemory( GetCurrentProcess(), &memory->vm_map, &size, MEM_RELEASE );
