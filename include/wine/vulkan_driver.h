@@ -70,6 +70,34 @@ static inline void vulkan_object_init( struct vulkan_object *obj, UINT64 host_ha
     obj->client_handle = (UINT_PTR)obj;
 }
 
+#define WIN32U_VK_DEVICE_FUNCS \
+    USE_VK_FUNC(vkAcquireNextImage2KHR) \
+    USE_VK_FUNC(vkAcquireNextImageKHR) \
+    USE_VK_FUNC(vkAllocateMemory) \
+    USE_VK_FUNC(vkCreateBuffer) \
+    USE_VK_FUNC(vkCreateImage) \
+    USE_VK_FUNC(vkCreateSwapchainKHR) \
+    USE_VK_FUNC(vkDestroySwapchainKHR) \
+    USE_VK_FUNC(vkFreeMemory) \
+    USE_VK_FUNC(vkGetDeviceProcAddr) \
+    USE_VK_FUNC(vkMapMemory) \
+    USE_VK_FUNC(vkMapMemory2KHR) \
+    USE_VK_FUNC(vkQueuePresentKHR) \
+    USE_VK_FUNC(vkUnmapMemory) \
+    USE_VK_FUNC(vkUnmapMemory2KHR) \
+
+#define WIN32U_VK_INSTANCE_FUNCS \
+    USE_VK_FUNC(vkCreateWin32SurfaceKHR) \
+    USE_VK_FUNC(vkDestroySurfaceKHR) \
+    USE_VK_FUNC(vkGetInstanceProcAddr) \
+    USE_VK_FUNC(vkGetPhysicalDevicePresentRectanglesKHR) \
+    USE_VK_FUNC(vkGetPhysicalDeviceSurfaceCapabilities2KHR) \
+    USE_VK_FUNC(vkGetPhysicalDeviceSurfaceCapabilitiesKHR) \
+    USE_VK_FUNC(vkGetPhysicalDeviceSurfaceFormats2KHR) \
+    USE_VK_FUNC(vkGetPhysicalDeviceSurfaceFormatsKHR) \
+    USE_VK_FUNC(vkGetPhysicalDeviceWin32PresentationSupportKHR) \
+    WIN32U_VK_DEVICE_FUNCS
+
 struct vulkan_instance
 {
     VULKAN_OBJECT_HEADER( VkInstance, instance );
@@ -140,6 +168,16 @@ static inline struct vulkan_queue *vulkan_queue_from_handle( VkQueue handle )
 {
     struct vulkan_client_object *client = (struct vulkan_client_object *)handle;
     return (struct vulkan_queue *)(UINT_PTR)client->unix_handle;
+}
+
+struct vulkan_device_memory
+{
+    VULKAN_OBJECT_HEADER( VkDeviceMemory, device_memory );
+};
+
+static inline struct vulkan_device_memory *vulkan_device_memory_from_handle( VkDeviceMemory handle )
+{
+    return (struct vulkan_device_memory *)(UINT_PTR)handle;
 }
 
 struct vulkan_surface
