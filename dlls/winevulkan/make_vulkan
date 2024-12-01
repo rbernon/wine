@@ -329,6 +329,10 @@ def api_is_vulkan(obj):
     return "vulkan" in obj.get("api", "vulkan").split(",")
 
 
+def innertext(tag):
+    return (tag.text or '') + ''.join(innertext(e) for e in tag) + (tag.tail or '')
+
+
 def convert_suffix(direction, win_type, unwrap, is_wrapped):
     if direction == Direction.OUTPUT:
         if not is_wrapped:
@@ -404,8 +408,7 @@ class VkConstant(object):
 
 
 class VkDefine(object):
-    def __init__(self, name, value):
-        self.name = name
+    def __init__(self, value):
         self.value = value
 
     @staticmethod
@@ -413,59 +416,16 @@ class VkDefine(object):
         if not api_is_vulkan(define):
             return None
 
-        name_elem = define.find("name")
+        value = innertext(define)
+        value = re.sub(r'\s*//.*$', '', value, flags=re.M)
+        value = value.strip()
 
-        if name_elem is None:
-            # <type category="define" name="some_name">some_value</type>
-            name = define.attrib.get("name")
-
-            # We override behavior of VK_USE_64_BIT_PTR_DEFINES as the default non-dispatchable handle
-            # definition various between 64-bit (uses pointers) and 32-bit (uses uint64_t).
-            # This complicates TRACEs in the thunks, so just use uint64_t.
-            if name == "VK_USE_64_BIT_PTR_DEFINES":
-                value = "#define VK_USE_64_BIT_PTR_DEFINES 0"
-            else:
-                value = define.text
-            return VkDefine(name, value)
-
-        # With a name element the structure is like:
-        # <type category="define"><name>some_name</name>some_value</type>
-        name = name_elem.text
-
-        # Perform minimal parsing for Vulkan constants, which we don't need, but are referenced
-        # elsewhere in vk.xml.
-        # - VK_API_VERSION is a messy, deprecated constant and we don't want generate code for it.
-        # - AHardwareBuffer/ANativeWindow are forward declarations for Android types, which leaked
-        #   into the define region.
-        if name in ["VK_API_VERSION", "AHardwareBuffer", "ANativeWindow", "CAMetalLayer"]:
-            return VkDefine(name, None)
-
-        # The body of the define is basically unstructured C code. It is not meant for easy parsing.
-        # Some lines contain deprecated values or comments, which we try to filter out.
-        value = ""
-        for line in define.text.splitlines():
-            # Skip comments or deprecated values.
-            if "//" in line:
-                continue
-            value += line
-
-        for child in define:
-            value += child.text
-            if child.tail is not None:
-                # Split comments for VK_API_VERSION_1_0 / VK_API_VERSION_1_1
-                if "//" in child.tail:
-                    value += child.tail.split("//")[0]
-                else:
-                    value += child.tail
-
-        return VkDefine(name, value.rstrip(' '))
+        if "#define VK_USE_64_BIT_PTR_DEFINES" in value:
+            return VkDefine("#define VK_USE_64_BIT_PTR_DEFINES 0")
+        return VkDefine(value)
 
     def definition(self):
-        if self.value is None:
-            return ""
-
-        # Nothing to do as the value was already put in the right form during parsing.
-        return "{0}\n".format(self.value)
+        return self.value + '\n'
 
 
 class VkEnum(object):
