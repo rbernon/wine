@@ -158,11 +158,14 @@ BOOL wine_vk_is_host_surface_extension(const char *name);
 BOOL wine_vk_is_type_wrapped(VkObjectType type);
 
 NTSTATUS init_vulkan(void *args);
+NTSTATUS init_openxr(void *args);
 
 NTSTATUS vk_is_available_instance_function(void *arg);
 NTSTATUS vk_is_available_device_function(void *arg);
+NTSTATUS xr_is_available_instance_function(void *arg);
 NTSTATUS vk_is_available_instance_function32(void *arg);
 NTSTATUS vk_is_available_device_function32(void *arg);
+NTSTATUS xr_is_available_instance_function32(void *arg);
 
 struct conversion_context
 {
@@ -228,7 +231,7 @@ typedef struct
     PTR32 pNext;
 } VkBaseOutStructure32;
 
-static inline void *find_next_struct32(void *s, VkStructureType t)
+static inline void *find_next_vk_struct32(void *s, VkStructureType t)
 {
     VkBaseOutStructure32 *header;
 
@@ -241,7 +244,7 @@ static inline void *find_next_struct32(void *s, VkStructureType t)
     return NULL;
 }
 
-static inline void *find_next_struct(const void *s, VkStructureType t)
+static inline void *find_next_vk_struct(const void *s, VkStructureType t)
 {
     VkBaseOutStructure *header;
 
@@ -249,6 +252,116 @@ static inline void *find_next_struct(const void *s, VkStructureType t)
     {
         if (header->sType == t)
             return header;
+    }
+
+    return NULL;
+}
+
+struct openxr_instance
+{
+    VULKAN_OBJECT_HEADER( XrInstance, instance );
+#define USE_XR_FUNC( x ) PFN_##x p_##x;
+    ALL_XR_INSTANCE_FUNCS
+#undef USE_XR_FUNC
+};
+
+static inline struct openxr_instance *openxr_instance_from_handle( XrInstance handle )
+{
+    struct openxr_client_object *client = (struct openxr_client_object *)handle;
+    return (struct openxr_instance *)(UINT_PTR)client->unix_handle;
+}
+
+struct openxr_session
+{
+    VULKAN_OBJECT_HEADER( XrSession, session );
+    struct openxr_instance *instance;
+};
+
+static inline struct openxr_session *openxr_session_from_handle( XrSession handle )
+{
+    struct openxr_client_object *client = (struct openxr_client_object *)handle;
+    return (struct openxr_session *)(UINT_PTR)client->unix_handle;
+}
+
+struct openxr_swapchain
+{
+    VULKAN_OBJECT_HEADER( XrSwapchain, swapchain );
+    struct openxr_instance *instance;
+};
+
+static inline struct openxr_swapchain *openxr_swapchain_from_handle( XrSwapchain handle )
+{
+    struct openxr_client_object *client = (struct openxr_client_object *)handle;
+    return (struct openxr_swapchain *)(UINT_PTR)client->unix_handle;
+}
+
+struct openxr_space
+{
+    VULKAN_OBJECT_HEADER( XrSpace, space );
+    struct openxr_instance *instance;
+};
+
+static inline struct openxr_space *openxr_space_from_handle( XrSpace handle )
+{
+    struct openxr_client_object *client = (struct openxr_client_object *)handle;
+    return (struct openxr_space *)(UINT_PTR)client->unix_handle;
+}
+
+struct openxr_action_set
+{
+    VULKAN_OBJECT_HEADER( XrActionSet, action_set );
+    struct openxr_instance *instance;
+};
+
+static inline struct openxr_action_set *openxr_action_set_from_handle( XrActionSet handle )
+{
+    struct openxr_client_object *client = (struct openxr_client_object *)handle;
+    return (struct openxr_action_set *)(UINT_PTR)client->unix_handle;
+}
+
+struct openxr_action
+{
+    VULKAN_OBJECT_HEADER( XrAction, action );
+    struct openxr_instance *instance;
+};
+
+static inline struct openxr_action *openxr_action_from_handle( XrAction handle )
+{
+    struct openxr_client_object *client = (struct openxr_client_object *)handle;
+    return (struct openxr_action *)(UINT_PTR)client->unix_handle;
+}
+
+typedef struct
+{
+    XrStructureType sType;
+    PTR32 pNext;
+} XrBaseInStructure32;
+
+typedef struct
+{
+    XrStructureType sType;
+    PTR32 pNext;
+} XrBaseOutStructure32;
+
+static inline void *find_next_xr_struct32( void *s, XrStructureType t )
+{
+    XrBaseOutStructure32 *header;
+
+    for (header = s; header; header = UlongToPtr( header->pNext ))
+    {
+        if (header->sType == t) return header;
+    }
+
+    return NULL;
+}
+
+static inline void *find_next_xr_struct( const void *s, XrStructureType t )
+{
+    XrBaseOutStructure *header;
+
+    for (header = (XrBaseOutStructure *)s; header; header = header->pNext)
+    {
+        if (header->sType == t) return header;
     }
 
     return NULL;
