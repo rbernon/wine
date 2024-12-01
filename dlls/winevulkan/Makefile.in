@@ -7,6 +7,8 @@ UNIX_LIBS = -lwin32u $(PTHREAD_LIBS)
 SOURCES = \
 	loader.c \
 	loader_thunks.c \
+	openxr.c \
+	unix_openxr.c \
 	vulkan.c \
 	vulkan_thunks.c \
 	winevulkan.rc

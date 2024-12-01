@@ -651,7 +651,7 @@ static VkResult wine_vk_instance_convert_create_info(struct conversion_context *
     header = (VkBaseInStructure *) dst;
     for (i = 0; i < instance->utils_messenger_count; i++)
     {
-        header = find_next_struct(header->pNext, VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT);
+        header = find_next_vk_struct(header->pNext, VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT);
         debug_utils_messenger = (VkDebugUtilsMessengerCreateInfoEXT *) header;
 
         instance->utils_messengers[i].instance = &instance->obj;
@@ -664,7 +664,7 @@ static VkResult wine_vk_instance_convert_create_info(struct conversion_context *
         debug_utils_messenger->pUserData = &instance->utils_messengers[i];
     }
 
-    if ((debug_report_callback = find_next_struct(dst->pNext, VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT)))
+    if ((debug_report_callback = find_next_vk_struct(dst->pNext, VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT)))
     {
         instance->default_callback.instance = &instance->obj;
         instance->default_callback.host.debug_callback = VK_NULL_HANDLE;
@@ -1382,7 +1382,7 @@ VkResult wine_vkGetPhysicalDeviceImageFormatProperties2(VkPhysicalDevice client_
 
     res = instance->p_vkGetPhysicalDeviceImageFormatProperties2(physical_device->host.physical_device, format_info, properties);
 
-    if ((external_image_properties = find_next_struct(properties,
+    if ((external_image_properties = find_next_vk_struct(properties,
                                                       VK_STRUCTURE_TYPE_EXTERNAL_IMAGE_FORMAT_PROPERTIES)))
     {
         VkExternalMemoryProperties *p = &external_image_properties->externalMemoryProperties;
@@ -1405,7 +1405,7 @@ VkResult wine_vkGetPhysicalDeviceImageFormatProperties2KHR(VkPhysicalDevice clie
 
     res = instance->p_vkGetPhysicalDeviceImageFormatProperties2KHR(physical_device->host.physical_device, format_info, properties);
 
-    if ((external_image_properties = find_next_struct(properties,
+    if ((external_image_properties = find_next_vk_struct(properties,
                                                       VK_STRUCTURE_TYPE_EXTERNAL_IMAGE_FORMAT_PROPERTIES)))
     {
         VkExternalMemoryProperties *p = &external_image_properties->externalMemoryProperties;
@@ -1657,7 +1657,7 @@ VkResult wine_vkAllocateMemory(VkDevice client_device, const VkMemoryAllocateInf
      * to ensure that mapped pointer is 32-bit. */
     mem_flags = physical_device->memory_properties.memoryTypes[alloc_info->memoryTypeIndex].propertyFlags;
     if (physical_device->external_memory_align && (mem_flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) &&
-        !find_next_struct(alloc_info->pNext, VK_STRUCTURE_TYPE_IMPORT_MEMORY_HOST_POINTER_INFO_EXT))
+        !find_next_vk_struct(alloc_info->pNext, VK_STRUCTURE_TYPE_IMPORT_MEMORY_HOST_POINTER_INFO_EXT))
     {
         VkMemoryHostPointerPropertiesEXT props =
         {
@@ -1919,7 +1919,7 @@ VkResult wine_vkCreateBuffer(VkDevice client_device, const VkBufferCreateInfo *c
     VkBufferCreateInfo info = *create_info;
 
     if (physical_device->external_memory_align &&
-        !find_next_struct(info.pNext, VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO))
+        !find_next_vk_struct(info.pNext, VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO))
     {
         external_memory_info.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO;
         external_memory_info.pNext = info.pNext;
@@ -1939,7 +1939,7 @@ VkResult wine_vkCreateImage(VkDevice client_device, const VkImageCreateInfo *cre
     VkImageCreateInfo info = *create_info;
 
     if (physical_device->external_memory_align &&
-        !find_next_struct(info.pNext, VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO))
+        !find_next_vk_struct(info.pNext, VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO))
     {
         external_memory_info.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO;
         external_memory_info.pNext = info.pNext;
@@ -2112,6 +2112,7 @@ void wine_vkDestroyDeferredOperationKHR(VkDevice device_handle,
     free_conversion_context(&object->ctx);
     free(object);
 }
+
 
 #ifdef _WIN64
 
