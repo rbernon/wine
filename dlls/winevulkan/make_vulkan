@@ -541,33 +541,21 @@ class VkDefine(object):
 
 
 class VkEnum(object):
-    def __init__(self, name, bitwidth, alias=None):
-        if not bitwidth in [32, 64]:
-            LOGGER.error("unknown bitwidth {0} for {1}".format(bitwidth, name))
+    def __init__(self, name, bitwidth="32", **kwargs):
         self.name = name
-        self.bitwidth = bitwidth
-        self.values = [] if alias == None else alias.values
+        self.bitwidth = int(bitwidth)
+        assert self.bitwidth in (32, 64)
+
+        self.values = []
         self.required = False
-        self.alias = alias
-        self.aliased_by = []
-
-    @staticmethod
-    def from_alias(enum, alias):
-        name = enum.attrib.get("name")
-        aliasee = VkEnum(name, alias.bitwidth, alias=alias)
-
-        alias.add_aliased_by(aliasee)
-        return aliasee
+        self.typedefs = []
 
     @staticmethod
     def from_xml(enum):
         if not api_is_supported(enum):
             return None
 
-        name = enum.attrib.get("name")
-        bitwidth = int(enum.attrib.get("bitwidth", "32"))
-        result = VkEnum(name, bitwidth)
-
+        result = VkEnum(**enum.attrib)
         for v in enum.findall("enum"):
             value_name = v.attrib.get("name")
             # Value is either a value or a bitpos, only one can exist.
@@ -581,11 +569,11 @@ class VkEnum(object):
                 # bitmask
                 result.create_bitpos(value_name, int(v.attrib.get("bitpos")))
 
-        if bitwidth == 32:
+        if result.bitwidth == 32:
             # vulkan.h contains a *_MAX_ENUM value set to 32-bit at the time of writing,
             # which is to prepare for extensions as they can add values and hence affect
             # the size definition.
-            max_name = re.sub(r'([0-9a-z_])([A-Z0-9])',r'\1_\2', name).upper() + "_MAX_ENUM"
+            max_name = re.sub(r'([0-9a-z_])([A-Z0-9])',r'\1_\2', result.name).upper() + "_MAX_ENUM"
             result.create_value(max_name, "0x7fffffff")
 
         return result
@@ -652,17 +640,14 @@ class VkEnum(object):
             for value in values:
                 text += "static const {0} {1};\n".format(self.name, value.definition())
 
-        for aliasee in self.aliased_by:
-            text += "typedef {0} {1};\n".format(self.name, aliasee.name)
+        for name in self.typedefs:
+            text += "typedef {0} {1};\n".format(self.name, name)
 
         text += "\n"
         return text
 
     def is_alias(self):
-        return bool(self.alias)
-
-    def add_aliased_by(self, aliasee):
-        self.aliased_by.append(aliasee)
+        return False
 
 
 class VkEnumValue(object):
@@ -3934,9 +3919,8 @@ class VkRegistry(object):
                 type_info["data"] = bitmask
 
             if type_info["category"] == "enum":
-                enum = VkEnum.from_alias(t, self.types[alias]["data"])
-                type_info["data"] = enum
-                self.enums[enum.name] = enum
+                type_info["data"] = self.enums[alias]
+                self.enums[alias].typedefs += [type_info["name"]]
 
             if type_info["category"] == "handle":
                 handle = VkHandle.from_alias(t, self.types[alias]["data"])
