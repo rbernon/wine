@@ -13,6 +13,23 @@
  * Copyright 2021-2024 The Khronos Group Inc.
  * SPDX-License-Identifier: Apache-2.0 OR MIT
  *
+ * and from OpenXR xr.xml file covered
+ * by the following copyright and permission notice:
+ *
+ * Copyright (c) 2017-2024, The Khronos Group Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ *
+ * ------------------------------------------------------------------------
+ *
+ * This file, xr.xml, is the OpenXR API Registry. It is a critically important
+ * and normative part of the OpenXR Specification, including a canonical
+ * machine-readable definition of the API, parameter and member validation
+ * language incorporated into the Specification and reference pages, and other
+ * material which is registered by Khronos, such as tags used by extension and
+ * layer authors. The only authoritative version of xr.xml is the one
+ * maintained in the default branch of the Khronos OpenXR GitHub project.
+ *
  */
 
 #ifndef __WINE_VULKAN_H
@@ -21,6 +38,9 @@
 #include <windef.h>
 #include <stdint.h>
 
+#include <time.h>
+#include <d3d11.h>
+#include <d3d12.h>
 #ifdef WINE_UNIX_LIB
 #define VK_NO_PROTOTYPES
 #define VKAPI_CALL
@@ -67,6 +87,24 @@
 #define VK_MAX_PIPELINE_BINARY_KEY_SIZE_KHR 32
 #define VK_MAX_VIDEO_AV1_REFERENCES_PER_FRAME_KHR 7
 #define VK_SHADER_INDEX_UNUSED_AMDX (~0U)
+#define XR_TRUE 1
+#define XR_FALSE 0
+#define XR_MAX_EXTENSION_NAME_SIZE 128
+#define XR_MAX_API_LAYER_NAME_SIZE 256
+#define XR_MAX_API_LAYER_DESCRIPTION_SIZE 256
+#define XR_MAX_SYSTEM_NAME_SIZE 256
+#define XR_MAX_APPLICATION_NAME_SIZE 128
+#define XR_MAX_ENGINE_NAME_SIZE 128
+#define XR_MAX_RUNTIME_NAME_SIZE 128
+#define XR_MAX_PATH_LENGTH 256
+#define XR_MAX_STRUCTURE_NAME_SIZE 64
+#define XR_MAX_RESULT_STRING_SIZE 64
+#define XR_MAX_GRAPHICS_APIS_SUPPORTED 32
+#define XR_MAX_ACTION_SET_NAME_SIZE 64
+#define XR_MAX_ACTION_NAME_SIZE 64
+#define XR_MAX_LOCALIZED_ACTION_SET_NAME_SIZE 128
+#define XR_MAX_LOCALIZED_ACTION_NAME_SIZE 128
+#define XR_UUID_SIZE 16
 #define VK_KHR_SURFACE_SPEC_VERSION 25
 #define VK_KHR_SURFACE_EXTENSION_NAME "VK_KHR_surface"
 #define VK_KHR_SWAPCHAIN_SPEC_VERSION 70
@@ -799,6 +837,112 @@
 #define VK_STD_VULKAN_VIDEO_CODEC_AV1_DECODE_EXTENSION_NAME "VK_STD_vulkan_video_codec_av1_decode"
 #define VK_STD_VULKAN_VIDEO_CODEC_AV1_ENCODE_SPEC_VERSION VK_STD_VULKAN_VIDEO_CODEC_AV1_ENCODE_API_VERSION_1_0_0
 #define VK_STD_VULKAN_VIDEO_CODEC_AV1_ENCODE_EXTENSION_NAME "VK_STD_vulkan_video_codec_av1_encode"
+#define XR_KHR_android_thread_settings_SPEC_VERSION 6
+#define XR_KHR_ANDROID_THREAD_SETTINGS_EXTENSION_NAME "XR_KHR_android_thread_settings"
+#define XR_KHR_composition_layer_cube_SPEC_VERSION 8
+#define XR_KHR_COMPOSITION_LAYER_CUBE_EXTENSION_NAME "XR_KHR_composition_layer_cube"
+#define XR_KHR_android_create_instance_SPEC_VERSION 3
+#define XR_KHR_ANDROID_CREATE_INSTANCE_EXTENSION_NAME "XR_KHR_android_create_instance"
+#define XR_KHR_composition_layer_depth_SPEC_VERSION 6
+#define XR_KHR_COMPOSITION_LAYER_DEPTH_EXTENSION_NAME "XR_KHR_composition_layer_depth"
+#define XR_KHR_vulkan_swapchain_format_list_SPEC_VERSION 4
+#define XR_KHR_VULKAN_SWAPCHAIN_FORMAT_LIST_EXTENSION_NAME "XR_KHR_vulkan_swapchain_format_list"
+#define XR_EXT_performance_settings_SPEC_VERSION 4
+#define XR_EXT_PERFORMANCE_SETTINGS_EXTENSION_NAME "XR_EXT_performance_settings"
+#define XR_EXT_thermal_query_SPEC_VERSION 2
+#define XR_EXT_THERMAL_QUERY_EXTENSION_NAME "XR_EXT_thermal_query"
+#define XR_KHR_composition_layer_cylinder_SPEC_VERSION 4
+#define XR_KHR_COMPOSITION_LAYER_CYLINDER_EXTENSION_NAME "XR_KHR_composition_layer_cylinder"
+#define XR_KHR_composition_layer_equirect_SPEC_VERSION 3
+#define XR_KHR_COMPOSITION_LAYER_EQUIRECT_EXTENSION_NAME "XR_KHR_composition_layer_equirect"
+#define XR_KHR_vulkan_enable_SPEC_VERSION 8
+#define XR_KHR_VULKAN_ENABLE_EXTENSION_NAME "XR_KHR_vulkan_enable"
+#define XR_KHR_D3D11_enable_SPEC_VERSION 9
+#define XR_KHR_D3D11_ENABLE_EXTENSION_NAME "XR_KHR_D3D11_enable"
+#define XR_KHR_D3D12_enable_SPEC_VERSION 9
+#define XR_KHR_D3D12_ENABLE_EXTENSION_NAME "XR_KHR_D3D12_enable"
+#define XR_KHR_metal_enable_SPEC_VERSION 1
+#define XR_KHR_METAL_ENABLE_EXTENSION_NAME "XR_KHR_metal_enable"
+#define XR_EXT_eye_gaze_interaction_SPEC_VERSION 2
+#define XR_EXT_EYE_GAZE_INTERACTION_EXTENSION_NAME "XR_EXT_eye_gaze_interaction"
+#define XR_KHR_visibility_mask_SPEC_VERSION 2
+#define XR_KHR_VISIBILITY_MASK_EXTENSION_NAME "XR_KHR_visibility_mask"
+#define XR_EXTX_overlay_SPEC_VERSION 5
+#define XR_EXTX_OVERLAY_EXTENSION_NAME "XR_EXTX_overlay"
+#define XR_KHR_composition_layer_color_scale_bias_SPEC_VERSION 5
+#define XR_KHR_COMPOSITION_LAYER_COLOR_SCALE_BIAS_EXTENSION_NAME "XR_KHR_composition_layer_color_scale_bias"
+#define XR_KHR_win32_convert_performance_counter_time_SPEC_VERSION 1
+#define XR_KHR_WIN32_CONVERT_PERFORMANCE_COUNTER_TIME_EXTENSION_NAME "XR_KHR_win32_convert_performance_counter_time"
+#define XR_MND_headless_SPEC_VERSION 2
+#define XR_MND_HEADLESS_EXTENSION_NAME "XR_MND_headless"
+#define XR_OCULUS_android_session_state_enable_SPEC_VERSION 1
+#define XR_OCULUS_ANDROID_SESSION_STATE_ENABLE_EXTENSION_NAME "XR_OCULUS_android_session_state_enable"
+#define XR_EXT_view_configuration_depth_range_SPEC_VERSION 1
+#define XR_EXT_VIEW_CONFIGURATION_DEPTH_RANGE_EXTENSION_NAME "XR_EXT_view_configuration_depth_range"
+#define XR_EXT_conformance_automation_SPEC_VERSION 3
+#define XR_EXT_CONFORMANCE_AUTOMATION_EXTENSION_NAME "XR_EXT_conformance_automation"
+#define XR_EXT_win32_appcontainer_compatible_SPEC_VERSION 1
+#define XR_EXT_WIN32_APPCONTAINER_COMPATIBLE_EXTENSION_NAME "XR_EXT_win32_appcontainer_compatible"
+#define XR_EPIC_view_configuration_fov_SPEC_VERSION 2
+#define XR_EPIC_VIEW_CONFIGURATION_FOV_EXTENSION_NAME "XR_EPIC_view_configuration_fov"
+#define XR_HUAWEI_controller_interaction_SPEC_VERSION 1
+#define XR_HUAWEI_CONTROLLER_INTERACTION_EXTENSION_NAME "XR_HUAWEI_controller_interaction"
+#define XR_EXT_dpad_binding_SPEC_VERSION 1
+#define XR_EXT_DPAD_BINDING_EXTENSION_NAME "XR_EXT_dpad_binding"
+#define XR_VALVE_analog_threshold_SPEC_VERSION 2
+#define XR_VALVE_ANALOG_THRESHOLD_EXTENSION_NAME "XR_VALVE_analog_threshold"
+#define XR_KHR_vulkan_enable2_SPEC_VERSION 2
+#define XR_KHR_VULKAN_ENABLE2_EXTENSION_NAME "XR_KHR_vulkan_enable2"
+#define XR_KHR_composition_layer_equirect2_SPEC_VERSION 1
+#define XR_KHR_COMPOSITION_LAYER_EQUIRECT2_EXTENSION_NAME "XR_KHR_composition_layer_equirect2"
+#define XR_EXT_samsung_odyssey_controller_SPEC_VERSION 1
+#define XR_EXT_SAMSUNG_ODYSSEY_CONTROLLER_EXTENSION_NAME "XR_EXT_samsung_odyssey_controller"
+#define XR_EXT_hp_mixed_reality_controller_SPEC_VERSION 1
+#define XR_EXT_HP_MIXED_REALITY_CONTROLLER_EXTENSION_NAME "XR_EXT_hp_mixed_reality_controller"
+#define XR_MND_swapchain_usage_input_attachment_bit_SPEC_VERSION 2
+#define XR_MND_SWAPCHAIN_USAGE_INPUT_ATTACHMENT_BIT_EXTENSION_NAME "XR_MND_swapchain_usage_input_attachment_bit"
+#define XR_KHR_binding_modification_SPEC_VERSION 1
+#define XR_KHR_BINDING_MODIFICATION_EXTENSION_NAME "XR_KHR_binding_modification"
+#define XR_OCULUS_audio_device_guid_SPEC_VERSION 1
+#define XR_OCULUS_AUDIO_DEVICE_GUID_EXTENSION_NAME "XR_OCULUS_audio_device_guid"
+#define XR_MAX_AUDIO_DEVICE_STR_SIZE_OCULUS 128
+#define XR_KHR_swapchain_usage_input_attachment_bit_SPEC_VERSION 3
+#define XR_KHR_SWAPCHAIN_USAGE_INPUT_ATTACHMENT_BIT_EXTENSION_NAME "XR_KHR_swapchain_usage_input_attachment_bit"
+#define XR_EXT_palm_pose_SPEC_VERSION 3
+#define XR_EXT_PALM_POSE_EXTENSION_NAME "XR_EXT_palm_pose"
+#define XR_ALMALENCE_digital_lens_control_SPEC_VERSION 1
+#define XR_ALMALENCE_DIGITAL_LENS_CONTROL_EXTENSION_NAME "XR_ALMALENCE_digital_lens_control"
+#define XR_OCULUS_external_camera_SPEC_VERSION 1
+#define XR_OCULUS_EXTERNAL_CAMERA_EXTENSION_NAME "XR_OCULUS_external_camera"
+#define XR_MAX_EXTERNAL_CAMERA_NAME_SIZE_OCULUS 32
+#define XR_EXT_uuid_SPEC_VERSION 1
+#define XR_EXT_UUID_EXTENSION_NAME "XR_EXT_uuid"
+#define XR_UUID_SIZE_EXT 16
+#define XR_EXT_hand_interaction_SPEC_VERSION 1
+#define XR_EXT_HAND_INTERACTION_EXTENSION_NAME "XR_EXT_hand_interaction"
+#define XR_QCOM_tracking_optimization_settings_SPEC_VERSION 1
+#define XR_QCOM_TRACKING_OPTIMIZATION_SETTINGS_EXTENSION_NAME "XR_QCOM_tracking_optimization_settings"
+#define XR_EXT_active_action_set_priority_SPEC_VERSION 1
+#define XR_EXT_ACTIVE_ACTION_SET_PRIORITY_EXTENSION_NAME "XR_EXT_active_action_set_priority"
+#define XR_BD_controller_interaction_SPEC_VERSION 2
+#define XR_BD_CONTROLLER_INTERACTION_EXTENSION_NAME "XR_BD_controller_interaction"
+#define XR_EXT_local_floor_SPEC_VERSION 1
+#define XR_EXT_LOCAL_FLOOR_EXTENSION_NAME "XR_EXT_local_floor"
+#define XR_OPPO_controller_interaction_SPEC_VERSION 1
+#define XR_OPPO_CONTROLLER_INTERACTION_EXTENSION_NAME "XR_OPPO_controller_interaction"
+#define XR_EXT_future_SPEC_VERSION 1
+#define XR_EXT_FUTURE_EXTENSION_NAME "XR_EXT_future"
+#define XR_NULL_FUTURE_EXT 0
+#define XR_EXT_user_presence_SPEC_VERSION 1
+#define XR_EXT_USER_PRESENCE_EXTENSION_NAME "XR_EXT_user_presence"
+#define XR_KHR_locate_spaces_SPEC_VERSION 1
+#define XR_KHR_LOCATE_SPACES_EXTENSION_NAME "XR_KHR_locate_spaces"
+#define XR_YVR_controller_interaction_SPEC_VERSION 1
+#define XR_YVR_CONTROLLER_INTERACTION_EXTENSION_NAME "XR_YVR_controller_interaction"
+#define XR_EXT_composition_layer_inverted_alpha_SPEC_VERSION 1
+#define XR_EXT_COMPOSITION_LAYER_INVERTED_ALPHA_EXTENSION_NAME "XR_EXT_composition_layer_inverted_alpha"
+#define XR_KHR_maintenance1_SPEC_VERSION 1
+#define XR_KHR_MAINTENANCE1_EXTENSION_NAME "XR_KHR_maintenance1"
 #define VK_KHR_ACCELERATION_STRUCTURE_SPEC_VERSION 13
 #define VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME "VK_KHR_acceleration_structure"
 #define VK_KHR_RAY_TRACING_PIPELINE_SPEC_VERSION 1
@@ -808,6 +952,8 @@
 #define VK_EXT_MESH_SHADER_SPEC_VERSION 1
 #define VK_EXT_MESH_SHADER_EXTENSION_NAME "VK_EXT_mesh_shader"
 
+#define XRAPI_PTR VKAPI_PTR
+#define XR_PTR_SIZE 8
 #define VK_MAKE_VERSION(major, minor, patch) \
     ((((uint32_t)(major)) << 22U) | (((uint32_t)(minor)) << 12U) | ((uint32_t)(patch)))
 #define VK_VERSION_MAJOR(version) ((uint32_t)(version) >> 22U)
@@ -860,6 +1006,76 @@
 #define VK_STD_VULKAN_VIDEO_CODEC_H265_ENCODE_API_VERSION_1_0_0 VK_MAKE_VIDEO_STD_VERSION(1, 0, 0)
 #define VK_STD_VULKAN_VIDEO_CODEC_AV1_DECODE_API_VERSION_1_0_0 VK_MAKE_VIDEO_STD_VERSION(1, 0, 0)
 #define VK_STD_VULKAN_VIDEO_CODEC_AV1_ENCODE_API_VERSION_1_0_0 VK_MAKE_VIDEO_STD_VERSION(1, 0, 0)
+#define XR_MAKE_VERSION(major, minor, patch) \
+    ((((major) & 0xffffULL) << 48) | (((minor) & 0xffffULL) << 32) | ((patch) & 0xffffffffULL))
+#define XR_VERSION_MAJOR(version) (uint16_t)(((uint64_t)(version) >> 48)& 0xffffULL)
+#define XR_VERSION_MINOR(version) (uint16_t)(((uint64_t)(version) >> 32) & 0xffffULL)
+#define XR_VERSION_PATCH(version) (uint32_t)((uint64_t)(version) & 0xffffffffULL)
+#define XR_CURRENT_API_VERSION XR_MAKE_VERSION(1, 1, 42)
+#define XR_API_VERSION_1_0 XR_MAKE_VERSION(1, 0, XR_VERSION_PATCH(XR_CURRENT_API_VERSION))
+#define XR_API_VERSION_1_1 XR_MAKE_VERSION(1, 1, XR_VERSION_PATCH(XR_CURRENT_API_VERSION))
+#if !defined(XR_MAY_ALIAS)
+#if defined(__clang__) || (defined(__GNUC__) && (__GNUC__ > 4))
+#define XR_MAY_ALIAS __attribute__((__may_alias__))
+#else
+#define XR_MAY_ALIAS
+#endif
+#endif
+#if !defined(XR_DEFINE_HANDLE)
+#if (XR_PTR_SIZE == 8)
+    #define XR_DEFINE_HANDLE(object) typedef struct object##_T* object;
+#else
+    #define XR_DEFINE_HANDLE(object) typedef uint64_t object;
+#endif
+#endif
+#if !defined(XR_NULL_HANDLE)
+#if (XR_PTR_SIZE == 8) && XR_CPP_NULLPTR_SUPPORTED
+    #define XR_NULL_HANDLE nullptr
+#else
+    #define XR_NULL_HANDLE 0
+#endif
+#endif
+#if !defined(XR_DEFINE_ATOM)
+    #define XR_DEFINE_ATOM(object) typedef uint64_t object;
+#endif
+#if !defined(XR_DEFINE_OPAQUE_64)
+    #if (XR_PTR_SIZE == 8)
+        #define XR_DEFINE_OPAQUE_64(object) typedef struct object##_T* object;
+    #else
+        #define XR_DEFINE_OPAQUE_64(object) typedef uint64_t object;
+    #endif
+#endif
+#define XR_EXTENSION_ENUM_BASE 1000000000
+#define XR_EXTENSION_ENUM_STRIDE 1000
+#define XR_NULL_PATH 0
+#define XR_NULL_SYSTEM_ID 0
+#define XR_SUCCEEDED(result) ((result) >= 0)
+#define XR_UNQUALIFIED_SUCCESS(result) ((result) == 0)
+#define XR_FAILED(result) ((result) < 0)
+#define XR_NO_DURATION 0
+#define XR_INFINITE_DURATION 0x7fffffffffffffffLL
+#define XR_MIN_HAPTIC_DURATION -1
+#define XR_FREQUENCY_UNSPECIFIED 0
+#define XR_MAX_EVENT_DATA_SIZE sizeof(XrEventDataBuffer)
+#define XR_MIN_COMPOSITION_LAYERS_SUPPORTED 16
+#define XR_CURRENT_LOADER_API_LAYER_VERSION 1
+#define XR_CURRENT_LOADER_RUNTIME_VERSION 1
+#define XR_LOADER_INFO_STRUCT_VERSION 1
+#define XR_API_LAYER_INFO_STRUCT_VERSION 1
+#define XR_RUNTIME_INFO_STRUCT_VERSION 1
+#define XR_API_LAYER_NEXT_INFO_STRUCT_VERSION 1
+#define XR_API_LAYER_CREATE_INFO_STRUCT_VERSION 1
+#define XR_API_LAYER_MAX_SETTINGS_PATH_SIZE 512
+#define XR_HAND_JOINT_COUNT_EXT 26
+#define XR_NULL_CONTROLLER_MODEL_KEY_MSFT 0
+#define XR_NULL_RENDER_MODEL_KEY_FB 0
+#define XR_FACIAL_EXPRESSION_EYE_COUNT_HTC 14
+#define XR_FACIAL_EXPRESSION_LIP_COUNT_HTC 37
+#define XR_HAND_FOREARM_JOINT_COUNT_ULTRALEAP 27
+#define XR_FACE_EXPRESSSION_SET_DEFAULT_FB XR_FACE_EXPRESSION_SET_DEFAULT_FB
+#define XR_MAX_HAPTIC_AMPLITUDE_ENVELOPE_SAMPLES_FB 4000u
+#define XR_MAX_HAPTIC_PCM_BUFFER_SIZE_FB 4000
+#define XR_BODY_JOINT_COUNT_HTC 26
 VK_DEFINE_NON_DISPATCHABLE_HANDLE(VkAccelerationStructureKHR)
 VK_DEFINE_NON_DISPATCHABLE_HANDLE(VkAccelerationStructureNV)
 VK_DEFINE_NON_DISPATCHABLE_HANDLE(VkBuffer)
@@ -912,6 +1128,15 @@ VK_DEFINE_NON_DISPATCHABLE_HANDLE(VkSwapchainKHR)
 VK_DEFINE_NON_DISPATCHABLE_HANDLE(VkValidationCacheEXT)
 VK_DEFINE_NON_DISPATCHABLE_HANDLE(VkVideoSessionKHR)
 VK_DEFINE_NON_DISPATCHABLE_HANDLE(VkVideoSessionParametersKHR)
+XR_DEFINE_HANDLE(XrAction)
+XR_DEFINE_HANDLE(XrActionSet)
+XR_DEFINE_OPAQUE_64(XrFutureEXT)
+XR_DEFINE_HANDLE(XrInstance)
+XR_DEFINE_ATOM(XrPath)
+XR_DEFINE_HANDLE(XrSession)
+XR_DEFINE_HANDLE(XrSpace)
+XR_DEFINE_HANDLE(XrSwapchain)
+XR_DEFINE_ATOM(XrSystemId)
 
 struct AHardwareBuffer;
 struct ANativeWindow;
@@ -929,6 +1154,12 @@ typedef uint32_t VkFlags;
 typedef uint64_t VkFlags64;
 typedef void* VkRemoteAddressNV;
 typedef uint32_t VkSampleMask;
+typedef uint32_t XrBool32;
+typedef int64_t XrDuration;
+typedef uint64_t XrFlags64;
+typedef uint64_t XrSpaceUserIdFB;
+typedef int64_t XrTime;
+typedef uint64_t XrVersion;
 
 typedef VkFlags VkAccelerationStructureCreateFlagsKHR;
 typedef VkFlags VkAccelerationStructureMotionInfoFlagsNV;
@@ -1157,6 +1388,53 @@ typedef VkFlags VkWaylandSurfaceCreateFlagsKHR;
 typedef VkFlags VkWin32SurfaceCreateFlagsKHR;
 typedef VkFlags VkXcbSurfaceCreateFlagsKHR;
 typedef VkFlags VkXlibSurfaceCreateFlagsKHR;
+typedef XrFlags64 XrAndroidSurfaceSwapchainFlagsFB;
+typedef XrFlags64 XrCompositionLayerFlags;
+typedef XrFlags64 XrCompositionLayerImageLayoutFlagsFB;
+typedef XrFlags64 XrCompositionLayerSecureContentFlagsFB;
+typedef XrFlags64 XrCompositionLayerSettingsFlagsFB;
+typedef XrFlags64 XrCompositionLayerSpaceWarpInfoFlagsFB;
+typedef XrFlags64 XrDebugUtilsMessageSeverityFlagsEXT;
+typedef XrFlags64 XrDebugUtilsMessageTypeFlagsEXT;
+typedef XrFlags64 XrDigitalLensControlFlagsALMALENCE;
+typedef XrFlags64 XrEnvironmentDepthProviderCreateFlagsMETA;
+typedef XrFlags64 XrEnvironmentDepthSwapchainCreateFlagsMETA;
+typedef XrFlags64 XrExternalCameraStatusFlagsOCULUS;
+typedef XrFlags64 XrFoveationDynamicFlagsHTC;
+typedef XrFlags64 XrFoveationEyeTrackedProfileCreateFlagsMETA;
+typedef XrFlags64 XrFoveationEyeTrackedStateFlagsMETA;
+typedef XrFlags64 XrFrameEndInfoFlagsML;
+typedef XrFlags64 XrGlobalDimmerFrameEndInfoFlagsML;
+typedef XrFlags64 XrHandTrackingAimFlagsFB;
+typedef XrFlags64 XrInputSourceLocalizedNameFlags;
+typedef XrFlags64 XrInstanceCreateFlags;
+typedef XrFlags64 XrKeyboardTrackingFlagsFB;
+typedef XrFlags64 XrKeyboardTrackingQueryFlagsFB;
+typedef XrFlags64 XrLocalizationMapErrorFlagsML;
+typedef XrFlags64 XrOverlayMainSessionFlagsEXTX;
+typedef XrFlags64 XrOverlaySessionCreateFlagsEXTX;
+typedef XrFlags64 XrPassthroughCapabilityFlagsFB;
+typedef XrFlags64 XrPassthroughFlagsFB;
+typedef XrFlags64 XrPassthroughPreferenceFlagsMETA;
+typedef XrFlags64 XrPassthroughStateChangedFlagsFB;
+typedef XrFlags64 XrPerformanceMetricsCounterFlagsMETA;
+typedef XrFlags64 XrPlaneDetectionCapabilityFlagsEXT;
+typedef XrFlags64 XrPlaneDetectorFlagsEXT;
+typedef XrFlags64 XrRenderModelFlagsFB;
+typedef XrFlags64 XrSemanticLabelsSupportFlagsFB;
+typedef XrFlags64 XrSessionCreateFlags;
+typedef XrFlags64 XrSpaceLocationFlags;
+typedef XrFlags64 XrSpaceVelocityFlags;
+typedef XrFlags64 XrSwapchainCreateFlags;
+typedef XrFlags64 XrSwapchainCreateFoveationFlagsFB;
+typedef XrFlags64 XrSwapchainStateFoveationFlagsFB;
+typedef XrFlags64 XrSwapchainUsageFlags;
+typedef XrFlags64 XrTriangleMeshFlagsFB;
+typedef XrFlags64 XrViewStateFlags;
+typedef XrFlags64 XrVirtualKeyboardInputStateFlagsMETA;
+typedef XrFlags64 XrVulkanDeviceCreateFlagsKHR;
+typedef XrFlags64 XrVulkanInstanceCreateFlagsKHR;
+typedef XrFlags64 XrWorldMeshDetectorFlagsML;
 
 typedef enum StdVideoAV1ChromaSamplePosition
 {
@@ -6374,15 +6652,367 @@ typedef enum VkViewportCoordinateSwizzleNV
     VK_VIEWPORT_COORDINATE_SWIZZLE_NV_MAX_ENUM = 0x7fffffff,
 } VkViewportCoordinateSwizzleNV;
 
+typedef enum XrActionType
+{
+    XR_ACTION_TYPE_BOOLEAN_INPUT = 1,
+    XR_ACTION_TYPE_FLOAT_INPUT = 2,
+    XR_ACTION_TYPE_VECTOR2F_INPUT = 3,
+    XR_ACTION_TYPE_POSE_INPUT = 4,
+    XR_ACTION_TYPE_VIBRATION_OUTPUT = 100,
+    XR_ACTION_TYPE_MAX_ENUM = 0x7fffffff,
+} XrActionType;
+
+typedef enum XrAndroidThreadTypeKHR
+{
+    XR_ANDROID_THREAD_TYPE_APPLICATION_MAIN_KHR = 1,
+    XR_ANDROID_THREAD_TYPE_APPLICATION_WORKER_KHR = 2,
+    XR_ANDROID_THREAD_TYPE_RENDERER_MAIN_KHR = 3,
+    XR_ANDROID_THREAD_TYPE_RENDERER_WORKER_KHR = 4,
+    XR_ANDROID_THREAD_TYPE_KHR_MAX_ENUM = 0x7fffffff,
+} XrAndroidThreadTypeKHR;
+
+typedef enum XrEnvironmentBlendMode
+{
+    XR_ENVIRONMENT_BLEND_MODE_OPAQUE = 1,
+    XR_ENVIRONMENT_BLEND_MODE_ADDITIVE = 2,
+    XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND = 3,
+    XR_ENVIRONMENT_BLEND_MODE_MAX_ENUM = 0x7fffffff,
+} XrEnvironmentBlendMode;
+
+typedef enum XrExternalCameraAttachedToDeviceOCULUS
+{
+    XR_EXTERNAL_CAMERA_ATTACHED_TO_DEVICE_NONE_OCULUS = 0,
+    XR_EXTERNAL_CAMERA_ATTACHED_TO_DEVICE_HMD_OCULUS = 1,
+    XR_EXTERNAL_CAMERA_ATTACHED_TO_DEVICE_LTOUCH_OCULUS = 2,
+    XR_EXTERNAL_CAMERA_ATTACHED_TO_DEVICE_RTOUCH_OCULUS = 3,
+    XR_EXTERNAL_CAMERA_ATTACHED_TO_DEVICE_OCULUS_MAX_ENUM = 0x7fffffff,
+} XrExternalCameraAttachedToDeviceOCULUS;
+
+typedef enum XrEyeVisibility
+{
+    XR_EYE_VISIBILITY_BOTH = 0,
+    XR_EYE_VISIBILITY_LEFT = 1,
+    XR_EYE_VISIBILITY_RIGHT = 2,
+    XR_EYE_VISIBILITY_MAX_ENUM = 0x7fffffff,
+} XrEyeVisibility;
+
+typedef enum XrFormFactor
+{
+    XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY = 1,
+    XR_FORM_FACTOR_HANDHELD_DISPLAY = 2,
+    XR_FORM_FACTOR_MAX_ENUM = 0x7fffffff,
+} XrFormFactor;
+
+typedef enum XrFutureStateEXT
+{
+    XR_FUTURE_STATE_PENDING_EXT = 1,
+    XR_FUTURE_STATE_READY_EXT = 2,
+    XR_FUTURE_STATE_EXT_MAX_ENUM = 0x7fffffff,
+} XrFutureStateEXT;
+
+typedef enum XrLoaderInterfaceStructs
+{
+    XR_LOADER_INTERFACE_STRUCT_UNINTIALIZED = 0,
+    XR_LOADER_INTERFACE_STRUCT_LOADER_INFO = 1,
+    XR_LOADER_INTERFACE_STRUCT_API_LAYER_REQUEST = 2,
+    XR_LOADER_INTERFACE_STRUCT_RUNTIME_REQUEST = 3,
+    XR_LOADER_INTERFACE_STRUCT_API_LAYER_CREATE_INFO = 4,
+    XR_LOADER_INTERFACE_STRUCT_API_LAYER_NEXT_INFO = 5,
+    XR_LOADER_INTERFACE_STRUCTS_MAX_ENUM = 0x7fffffff,
+} XrLoaderInterfaceStructs;
+
+typedef enum XrObjectType
+{
+    XR_OBJECT_TYPE_UNKNOWN = 0,
+    XR_OBJECT_TYPE_INSTANCE = 1,
+    XR_OBJECT_TYPE_SESSION = 2,
+    XR_OBJECT_TYPE_SWAPCHAIN = 3,
+    XR_OBJECT_TYPE_SPACE = 4,
+    XR_OBJECT_TYPE_ACTION_SET = 5,
+    XR_OBJECT_TYPE_ACTION = 6,
+    XR_OBJECT_TYPE_MAX_ENUM = 0x7fffffff,
+} XrObjectType;
+
+typedef enum XrPerfSettingsDomainEXT
+{
+    XR_PERF_SETTINGS_DOMAIN_CPU_EXT = 1,
+    XR_PERF_SETTINGS_DOMAIN_GPU_EXT = 2,
+    XR_PERF_SETTINGS_DOMAIN_EXT_MAX_ENUM = 0x7fffffff,
+} XrPerfSettingsDomainEXT;
+
+typedef enum XrPerfSettingsLevelEXT
+{
+    XR_PERF_SETTINGS_LEVEL_POWER_SAVINGS_EXT = 0,
+    XR_PERF_SETTINGS_LEVEL_SUSTAINED_LOW_EXT = 25,
+    XR_PERF_SETTINGS_LEVEL_SUSTAINED_HIGH_EXT = 50,
+    XR_PERF_SETTINGS_LEVEL_BOOST_EXT = 75,
+    XR_PERF_SETTINGS_LEVEL_EXT_MAX_ENUM = 0x7fffffff,
+} XrPerfSettingsLevelEXT;
+
+typedef enum XrPerfSettingsNotificationLevelEXT
+{
+    XR_PERF_SETTINGS_NOTIF_LEVEL_NORMAL_EXT = 0,
+    XR_PERF_SETTINGS_NOTIF_LEVEL_WARNING_EXT = 25,
+    XR_PERF_SETTINGS_NOTIF_LEVEL_IMPAIRED_EXT = 75,
+    XR_PERF_SETTINGS_NOTIFICATION_LEVEL_EXT_MAX_ENUM = 0x7fffffff,
+} XrPerfSettingsNotificationLevelEXT;
+
+typedef enum XrPerfSettingsSubDomainEXT
+{
+    XR_PERF_SETTINGS_SUB_DOMAIN_COMPOSITING_EXT = 1,
+    XR_PERF_SETTINGS_SUB_DOMAIN_RENDERING_EXT = 2,
+    XR_PERF_SETTINGS_SUB_DOMAIN_THERMAL_EXT = 3,
+    XR_PERF_SETTINGS_SUB_DOMAIN_EXT_MAX_ENUM = 0x7fffffff,
+} XrPerfSettingsSubDomainEXT;
+
+typedef enum XrReferenceSpaceType
+{
+    XR_REFERENCE_SPACE_TYPE_VIEW = 1,
+    XR_REFERENCE_SPACE_TYPE_LOCAL = 2,
+    XR_REFERENCE_SPACE_TYPE_STAGE = 3,
+    XR_REFERENCE_SPACE_TYPE_LOCAL_FLOOR = 1000426000,
+    XR_REFERENCE_SPACE_TYPE_LOCAL_FLOOR_EXT = XR_REFERENCE_SPACE_TYPE_LOCAL_FLOOR,
+    XR_REFERENCE_SPACE_TYPE_MAX_ENUM = 0x7fffffff,
+} XrReferenceSpaceType;
+
+typedef enum XrResult
+{
+    XR_ERROR_EXTENSION_DEPENDENCY_NOT_ENABLED = -1000710001,
+    XR_ERROR_PERMISSION_INSUFFICIENT = -1000710000,
+    XR_ERROR_FUTURE_INVALID_EXT = -1000469002,
+    XR_ERROR_FUTURE_PENDING_EXT = -1000469001,
+    XR_ERROR_HINT_ALREADY_SET_QCOM = -1000306000,
+    XR_ERROR_ANDROID_THREAD_SETTINGS_FAILURE_KHR = -1000003001,
+    XR_ERROR_ANDROID_THREAD_SETTINGS_ID_INVALID_KHR = -1000003000,
+    XR_ERROR_RUNTIME_UNAVAILABLE = -51,
+    XR_ERROR_GRAPHICS_REQUIREMENTS_CALL_MISSING = -50,
+    XR_ERROR_LOCALIZED_NAME_INVALID = -49,
+    XR_ERROR_LOCALIZED_NAME_DUPLICATED = -48,
+    XR_ERROR_ACTIONSETS_ALREADY_ATTACHED = -47,
+    XR_ERROR_ACTIONSET_NOT_ATTACHED = -46,
+    XR_ERROR_NAME_INVALID = -45,
+    XR_ERROR_NAME_DUPLICATED = -44,
+    XR_ERROR_ENVIRONMENT_BLEND_MODE_UNSUPPORTED = -42,
+    XR_ERROR_VIEW_CONFIGURATION_TYPE_UNSUPPORTED = -41,
+    XR_ERROR_INDEX_OUT_OF_RANGE = -40,
+    XR_ERROR_POSE_INVALID = -39,
+    XR_ERROR_GRAPHICS_DEVICE_INVALID = -38,
+    XR_ERROR_CALL_ORDER_INVALID = -37,
+    XR_ERROR_API_LAYER_NOT_PRESENT = -36,
+    XR_ERROR_FORM_FACTOR_UNAVAILABLE = -35,
+    XR_ERROR_FORM_FACTOR_UNSUPPORTED = -34,
+    XR_ERROR_FILE_CONTENTS_INVALID = -33,
+    XR_ERROR_FILE_ACCESS_ERROR = -32,
+    XR_ERROR_REFERENCE_SPACE_UNSUPPORTED = -31,
+    XR_ERROR_TIME_INVALID = -30,
+    XR_ERROR_SESSION_NOT_STOPPING = -29,
+    XR_ERROR_SESSION_NOT_READY = -28,
+    XR_ERROR_ACTION_TYPE_MISMATCH = -27,
+    XR_ERROR_SWAPCHAIN_FORMAT_UNSUPPORTED = -26,
+    XR_ERROR_SWAPCHAIN_RECT_INVALID = -25,
+    XR_ERROR_LAYER_LIMIT_EXCEEDED = -24,
+    XR_ERROR_LAYER_INVALID = -23,
+    XR_ERROR_PATH_UNSUPPORTED = -22,
+    XR_ERROR_PATH_FORMAT_INVALID = -21,
+    XR_ERROR_PATH_COUNT_EXCEEDED = -20,
+    XR_ERROR_PATH_INVALID = -19,
+    XR_ERROR_SYSTEM_INVALID = -18,
+    XR_ERROR_SESSION_LOST = -17,
+    XR_ERROR_SESSION_NOT_RUNNING = -16,
+    XR_ERROR_SESSION_RUNNING = -14,
+    XR_ERROR_INSTANCE_LOST = -13,
+    XR_ERROR_HANDLE_INVALID = -12,
+    XR_ERROR_SIZE_INSUFFICIENT = -11,
+    XR_ERROR_LIMIT_REACHED = -10,
+    XR_ERROR_EXTENSION_NOT_PRESENT = -9,
+    XR_ERROR_FEATURE_UNSUPPORTED = -8,
+    XR_ERROR_FUNCTION_UNSUPPORTED = -7,
+    XR_ERROR_INITIALIZATION_FAILED = -6,
+    XR_ERROR_API_VERSION_UNSUPPORTED = -4,
+    XR_ERROR_OUT_OF_MEMORY = -3,
+    XR_ERROR_RUNTIME_FAILURE = -2,
+    XR_ERROR_VALIDATION_FAILURE = -1,
+    XR_SUCCESS = 0,
+    XR_TIMEOUT_EXPIRED = 1,
+    XR_SESSION_LOSS_PENDING = 3,
+    XR_EVENT_UNAVAILABLE = 4,
+    XR_SPACE_BOUNDS_UNAVAILABLE = 7,
+    XR_SESSION_NOT_FOCUSED = 8,
+    XR_FRAME_DISCARDED = 9,
+    XR_ERROR_EXTENSION_DEPENDENCY_NOT_ENABLED_KHR = XR_ERROR_EXTENSION_DEPENDENCY_NOT_ENABLED,
+    XR_ERROR_PERMISSION_INSUFFICIENT_KHR = XR_ERROR_PERMISSION_INSUFFICIENT,
+    XR_RESULT_MAX_ENUM = 0x7fffffff,
+} XrResult;
+
+typedef enum XrSessionState
+{
+    XR_SESSION_STATE_UNKNOWN = 0,
+    XR_SESSION_STATE_IDLE = 1,
+    XR_SESSION_STATE_READY = 2,
+    XR_SESSION_STATE_SYNCHRONIZED = 3,
+    XR_SESSION_STATE_VISIBLE = 4,
+    XR_SESSION_STATE_FOCUSED = 5,
+    XR_SESSION_STATE_STOPPING = 6,
+    XR_SESSION_STATE_LOSS_PENDING = 7,
+    XR_SESSION_STATE_EXITING = 8,
+    XR_SESSION_STATE_MAX_ENUM = 0x7fffffff,
+} XrSessionState;
+
+typedef enum XrStructureType
+{
+    XR_TYPE_UNKNOWN = 0,
+    XR_TYPE_API_LAYER_PROPERTIES = 1,
+    XR_TYPE_EXTENSION_PROPERTIES = 2,
+    XR_TYPE_INSTANCE_CREATE_INFO = 3,
+    XR_TYPE_SYSTEM_GET_INFO = 4,
+    XR_TYPE_SYSTEM_PROPERTIES = 5,
+    XR_TYPE_VIEW_LOCATE_INFO = 6,
+    XR_TYPE_VIEW = 7,
+    XR_TYPE_SESSION_CREATE_INFO = 8,
+    XR_TYPE_SWAPCHAIN_CREATE_INFO = 9,
+    XR_TYPE_SESSION_BEGIN_INFO = 10,
+    XR_TYPE_VIEW_STATE = 11,
+    XR_TYPE_FRAME_END_INFO = 12,
+    XR_TYPE_HAPTIC_VIBRATION = 13,
+    XR_TYPE_EVENT_DATA_BUFFER = 16,
+    XR_TYPE_EVENT_DATA_INSTANCE_LOSS_PENDING = 17,
+    XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED = 18,
+    XR_TYPE_ACTION_STATE_BOOLEAN = 23,
+    XR_TYPE_ACTION_STATE_FLOAT = 24,
+    XR_TYPE_ACTION_STATE_VECTOR2F = 25,
+    XR_TYPE_ACTION_STATE_POSE = 27,
+    XR_TYPE_ACTION_SET_CREATE_INFO = 28,
+    XR_TYPE_ACTION_CREATE_INFO = 29,
+    XR_TYPE_INSTANCE_PROPERTIES = 32,
+    XR_TYPE_FRAME_WAIT_INFO = 33,
+    XR_TYPE_COMPOSITION_LAYER_PROJECTION = 35,
+    XR_TYPE_COMPOSITION_LAYER_QUAD = 36,
+    XR_TYPE_REFERENCE_SPACE_CREATE_INFO = 37,
+    XR_TYPE_ACTION_SPACE_CREATE_INFO = 38,
+    XR_TYPE_EVENT_DATA_REFERENCE_SPACE_CHANGE_PENDING = 40,
+    XR_TYPE_VIEW_CONFIGURATION_VIEW = 41,
+    XR_TYPE_SPACE_LOCATION = 42,
+    XR_TYPE_SPACE_VELOCITY = 43,
+    XR_TYPE_FRAME_STATE = 44,
+    XR_TYPE_VIEW_CONFIGURATION_PROPERTIES = 45,
+    XR_TYPE_FRAME_BEGIN_INFO = 46,
+    XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW = 48,
+    XR_TYPE_EVENT_DATA_EVENTS_LOST = 49,
+    XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING = 51,
+    XR_TYPE_EVENT_DATA_INTERACTION_PROFILE_CHANGED = 52,
+    XR_TYPE_INTERACTION_PROFILE_STATE = 53,
+    XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO = 55,
+    XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO = 56,
+    XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO = 57,
+    XR_TYPE_ACTION_STATE_GET_INFO = 58,
+    XR_TYPE_HAPTIC_ACTION_INFO = 59,
+    XR_TYPE_SESSION_ACTION_SETS_ATTACH_INFO = 60,
+    XR_TYPE_ACTIONS_SYNC_INFO = 61,
+    XR_TYPE_BOUND_SOURCES_FOR_ACTION_ENUMERATE_INFO = 62,
+    XR_TYPE_INPUT_SOURCE_LOCALIZED_NAME_GET_INFO = 63,
+    XR_TYPE_COMPOSITION_LAYER_CUBE_KHR = 1000006000,
+    XR_TYPE_INSTANCE_CREATE_INFO_ANDROID_KHR = 1000008000,
+    XR_TYPE_COMPOSITION_LAYER_DEPTH_INFO_KHR = 1000010000,
+    XR_TYPE_VULKAN_SWAPCHAIN_FORMAT_LIST_CREATE_INFO_KHR = 1000014000,
+    XR_TYPE_EVENT_DATA_PERF_SETTINGS_EXT = 1000015000,
+    XR_TYPE_COMPOSITION_LAYER_CYLINDER_KHR = 1000017000,
+    XR_TYPE_COMPOSITION_LAYER_EQUIRECT_KHR = 1000018000,
+    XR_TYPE_GRAPHICS_BINDING_VULKAN_KHR = 1000025000,
+    XR_TYPE_SWAPCHAIN_IMAGE_VULKAN_KHR = 1000025001,
+    XR_TYPE_GRAPHICS_REQUIREMENTS_VULKAN_KHR = 1000025002,
+    XR_TYPE_GRAPHICS_BINDING_D3D11_KHR = 1000027000,
+    XR_TYPE_SWAPCHAIN_IMAGE_D3D11_KHR = 1000027001,
+    XR_TYPE_GRAPHICS_REQUIREMENTS_D3D11_KHR = 1000027002,
+    XR_TYPE_GRAPHICS_BINDING_D3D12_KHR = 1000028000,
+    XR_TYPE_SWAPCHAIN_IMAGE_D3D12_KHR = 1000028001,
+    XR_TYPE_GRAPHICS_REQUIREMENTS_D3D12_KHR = 1000028002,
+    XR_TYPE_GRAPHICS_BINDING_METAL_KHR = 1000029000,
+    XR_TYPE_SWAPCHAIN_IMAGE_METAL_KHR = 1000029001,
+    XR_TYPE_GRAPHICS_REQUIREMENTS_METAL_KHR = 1000029002,
+    XR_TYPE_SYSTEM_EYE_GAZE_INTERACTION_PROPERTIES_EXT = 1000030000,
+    XR_TYPE_EYE_GAZE_SAMPLE_TIME_EXT = 1000030001,
+    XR_TYPE_VISIBILITY_MASK_KHR = 1000031000,
+    XR_TYPE_EVENT_DATA_VISIBILITY_MASK_CHANGED_KHR = 1000031001,
+    XR_TYPE_SESSION_CREATE_INFO_OVERLAY_EXTX = 1000033000,
+    XR_TYPE_EVENT_DATA_MAIN_SESSION_VISIBILITY_CHANGED_EXTX = 1000033003,
+    XR_TYPE_COMPOSITION_LAYER_COLOR_SCALE_BIAS_KHR = 1000034000,
+    XR_TYPE_VIEW_CONFIGURATION_DEPTH_RANGE_EXT = 1000046000,
+    XR_TYPE_VIEW_CONFIGURATION_VIEW_FOV_EPIC = 1000059000,
+    XR_TYPE_INTERACTION_PROFILE_DPAD_BINDING_EXT = 1000078000,
+    XR_TYPE_INTERACTION_PROFILE_ANALOG_THRESHOLD_VALVE = 1000079000,
+    XR_TYPE_VULKAN_INSTANCE_CREATE_INFO_KHR = 1000090000,
+    XR_TYPE_VULKAN_DEVICE_CREATE_INFO_KHR = 1000090001,
+    XR_TYPE_VULKAN_GRAPHICS_DEVICE_GET_INFO_KHR = 1000090003,
+    XR_TYPE_COMPOSITION_LAYER_EQUIRECT2_KHR = 1000091000,
+    XR_TYPE_BINDING_MODIFICATIONS_KHR = 1000120000,
+    XR_TYPE_DIGITAL_LENS_CONTROL_ALMALENCE = 1000196000,
+    XR_TYPE_EXTERNAL_CAMERA_OCULUS = 1000226000,
+    XR_TYPE_ACTIVE_ACTION_SET_PRIORITIES_EXT = 1000373000,
+    XR_TYPE_FUTURE_CANCEL_INFO_EXT = 1000469000,
+    XR_TYPE_FUTURE_POLL_INFO_EXT = 1000469001,
+    XR_TYPE_FUTURE_COMPLETION_EXT = 1000469002,
+    XR_TYPE_FUTURE_POLL_RESULT_EXT = 1000469003,
+    XR_TYPE_EVENT_DATA_USER_PRESENCE_CHANGED_EXT = 1000470000,
+    XR_TYPE_SYSTEM_USER_PRESENCE_PROPERTIES_EXT = 1000470001,
+    XR_TYPE_SPACES_LOCATE_INFO = 1000471000,
+    XR_TYPE_SPACE_LOCATIONS = 1000471001,
+    XR_TYPE_SPACE_VELOCITIES = 1000471002,
+    XR_TYPE_GRAPHICS_BINDING_VULKAN2_KHR = XR_TYPE_GRAPHICS_BINDING_VULKAN_KHR,
+    XR_TYPE_SWAPCHAIN_IMAGE_VULKAN2_KHR = XR_TYPE_SWAPCHAIN_IMAGE_VULKAN_KHR,
+    XR_TYPE_GRAPHICS_REQUIREMENTS_VULKAN2_KHR = XR_TYPE_GRAPHICS_REQUIREMENTS_VULKAN_KHR,
+    XR_TYPE_SPACES_LOCATE_INFO_KHR = XR_TYPE_SPACES_LOCATE_INFO,
+    XR_TYPE_SPACE_LOCATIONS_KHR = XR_TYPE_SPACE_LOCATIONS,
+    XR_TYPE_SPACE_VELOCITIES_KHR = XR_TYPE_SPACE_VELOCITIES,
+    XR_STRUCTURE_TYPE_MAX_ENUM = 0x7fffffff,
+} XrStructureType;
+
+typedef enum XrTrackingOptimizationSettingsDomainQCOM
+{
+    XR_TRACKING_OPTIMIZATION_SETTINGS_DOMAIN_ALL_QCOM = 1,
+    XR_TRACKING_OPTIMIZATION_SETTINGS_DOMAIN_QCOM_MAX_ENUM = 0x7fffffff,
+} XrTrackingOptimizationSettingsDomainQCOM;
+
+typedef enum XrTrackingOptimizationSettingsHintQCOM
+{
+    XR_TRACKING_OPTIMIZATION_SETTINGS_HINT_NONE_QCOM = 0,
+    XR_TRACKING_OPTIMIZATION_SETTINGS_HINT_LONG_RANGE_PRIORIZATION_QCOM = 1,
+    XR_TRACKING_OPTIMIZATION_SETTINGS_HINT_CLOSE_RANGE_PRIORIZATION_QCOM = 2,
+    XR_TRACKING_OPTIMIZATION_SETTINGS_HINT_LOW_POWER_PRIORIZATION_QCOM = 3,
+    XR_TRACKING_OPTIMIZATION_SETTINGS_HINT_HIGH_POWER_PRIORIZATION_QCOM = 4,
+    XR_TRACKING_OPTIMIZATION_SETTINGS_HINT_QCOM_MAX_ENUM = 0x7fffffff,
+} XrTrackingOptimizationSettingsHintQCOM;
+
+typedef enum XrViewConfigurationType
+{
+    XR_VIEW_CONFIGURATION_TYPE_PRIMARY_MONO = 1,
+    XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO = 2,
+    XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO_WITH_FOVEATED_INSET = 1000037000,
+    XR_VIEW_CONFIGURATION_TYPE_MAX_ENUM = 0x7fffffff,
+} XrViewConfigurationType;
+
+typedef enum XrVisibilityMaskTypeKHR
+{
+    XR_VISIBILITY_MASK_TYPE_HIDDEN_TRIANGLE_MESH_KHR = 1,
+    XR_VISIBILITY_MASK_TYPE_VISIBLE_TRIANGLE_MESH_KHR = 2,
+    XR_VISIBILITY_MASK_TYPE_LINE_LOOP_KHR = 3,
+    XR_VISIBILITY_MASK_TYPE_KHR_MAX_ENUM = 0x7fffffff,
+} XrVisibilityMaskTypeKHR;
+
 typedef struct VkDebugUtilsMessengerCallbackDataEXT VkDebugUtilsMessengerCallbackDataEXT;
-typedef VkBool32 (VKAPI_PTR *PFN_vkDebugReportCallbackEXT)( VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objectType, uint64_t object, size_t location, int32_t messageCode, const char* pLayerPrefix, const char* pMessage, void* pUserData);
-typedef VkBool32 (VKAPI_PTR *PFN_vkDebugUtilsMessengerCallbackEXT)( VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageTypes, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
-typedef void (VKAPI_PTR *PFN_vkFreeFunction)( void* pUserData, void* pMemory);
-typedef void (VKAPI_PTR *PFN_vkInternalAllocationNotification)( void* pUserData, size_t size, VkInternalAllocationType allocationType, VkSystemAllocationScope allocationScope);
-typedef void (VKAPI_PTR *PFN_vkInternalFreeNotification)( void* pUserData, size_t size, VkInternalAllocationType allocationType, VkSystemAllocationScope allocationScope);
-typedef void (VKAPI_PTR *PFN_vkVoidFunction)(void);
-typedef void* (VKAPI_PTR *PFN_vkAllocationFunction)( void* pUserData, size_t size, size_t alignment, VkSystemAllocationScope allocationScope);
+typedef struct XrDebugUtilsMessengerCallbackDataEXT XrDebugUtilsMessengerCallbackDataEXT;
+typedef struct XrInstanceCreateInfo XrInstanceCreateInfo;
 typedef void* (VKAPI_PTR *PFN_vkReallocationFunction)( void* pUserData, void* pOriginal, size_t size, size_t alignment, VkSystemAllocationScope allocationScope);
+typedef void* (VKAPI_PTR *PFN_vkAllocationFunction)( void* pUserData, size_t size, size_t alignment, VkSystemAllocationScope allocationScope);
+typedef void (XRAPI_PTR *PFN_xrVoidFunction)(void);
+typedef void (VKAPI_PTR *PFN_vkVoidFunction)(void);
+typedef void (VKAPI_PTR *PFN_vkInternalFreeNotification)( void* pUserData, size_t size, VkInternalAllocationType allocationType, VkSystemAllocationScope allocationScope);
+typedef void (VKAPI_PTR *PFN_vkInternalAllocationNotification)( void* pUserData, size_t size, VkInternalAllocationType allocationType, VkSystemAllocationScope allocationScope);
+typedef void (VKAPI_PTR *PFN_vkFreeFunction)( void* pUserData, void* pMemory);
+typedef struct XrApiLayerCreateInfo XrApiLayerCreateInfo;typedef XrResult (XRAPI_PTR *PFN_xrCreateApiLayerInstance)( const XrInstanceCreateInfo* info, const XrApiLayerCreateInfo* apiLayerInfo, XrInstance* instance);
+typedef XrResult (XRAPI_PTR *PFN_xrGetInstanceProcAddr)(XrInstance instance, const char* name, PFN_xrVoidFunction* function);
+typedef VkBool32 (VKAPI_PTR *PFN_vkDebugUtilsMessengerCallbackEXT)( VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageTypes, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
+typedef VkBool32 (VKAPI_PTR *PFN_vkDebugReportCallbackEXT)( VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objectType, uint64_t object, size_t location, int32_t messageCode, const char* pLayerPrefix, const char* pMessage, void* pUserData);
+typedef PFN_vkVoidFunction (VKAPI_PTR *PFN_vkGetInstanceProcAddr)(VkInstance instance, const char* pName);
 
 typedef struct StdVideoH265HrdFlags
 {
@@ -6553,6 +7183,33 @@ typedef struct VkSpecializationMapEntry
     uint32_t offset;
     size_t size;
 } VkSpecializationMapEntry;
+
+typedef struct XrExtent2Di
+{
+    int32_t width;
+    int32_t height;
+} XrExtent2Di;
+
+typedef struct XrOffset2Di
+{
+    int32_t x;
+    int32_t y;
+} XrOffset2Di;
+
+typedef struct XrQuaternionf
+{
+    float x;
+    float y;
+    float z;
+    float w;
+} XrQuaternionf;
+
+typedef struct XrVector3f
+{
+    float x;
+    float y;
+    float z;
+} XrVector3f;
 
 typedef struct StdVideoAV1ColorConfigFlags
 {
@@ -7186,6 +7843,26 @@ typedef struct VkVertexInputBindingDescription
     VkVertexInputRate inputRate;
 } VkVertexInputBindingDescription;
 
+typedef struct XrFovf
+{
+    float angleLeft;
+    float angleRight;
+    float angleUp;
+    float angleDown;
+} XrFovf;
+
+typedef struct XrPosef
+{
+    XrQuaternionf orientation;
+    XrVector3f position;
+} XrPosef;
+
+typedef struct XrRect2Di
+{
+    XrOffset2Di offset;
+    XrExtent2Di extent;
+} XrRect2Di;
+
 typedef struct StdVideoAV1CDEF
 {
     uint8_t cdef_damping_minus_3;
@@ -7746,6 +8423,17 @@ typedef struct VkAccelerationStructureSRTMotionInstanceNV
     uint64_t WINE_VK_ALIGN(8) accelerationStructureReference;
 } VkAccelerationStructureSRTMotionInstanceNV;
 
+typedef struct VkApplicationInfo
+{
+    VkStructureType sType;
+    const void *pNext;
+    const char *pApplicationName;
+    uint32_t applicationVersion;
+    const char *pEngineName;
+    uint32_t engineVersion;
+    uint32_t apiVersion;
+} VkApplicationInfo;
+
 typedef struct VkAttachmentReference
 {
     uint32_t attachment;
@@ -7797,6 +8485,16 @@ typedef struct VkDescriptorImageInfo
     VkImageView WINE_VK_ALIGN(8) imageView;
     VkImageLayout imageLayout;
 } VkDescriptorImageInfo;
+
+typedef struct VkDeviceQueueCreateInfo
+{
+    VkStructureType sType;
+    const void *pNext;
+    VkDeviceQueueCreateFlags flags;
+    uint32_t queueFamilyIndex;
+    uint32_t queueCount;
+    const float *pQueuePriorities;
+} VkDeviceQueueCreateInfo;
 
 typedef struct VkGeometryNV
 {
@@ -7882,6 +8580,65 @@ typedef struct VkMemoryType
     VkMemoryPropertyFlags propertyFlags;
     uint32_t heapIndex;
 } VkMemoryType;
+
+typedef struct VkPhysicalDeviceFeatures
+{
+    VkBool32 robustBufferAccess;
+    VkBool32 fullDrawIndexUint32;
+    VkBool32 imageCubeArray;
+    VkBool32 independentBlend;
+    VkBool32 geometryShader;
+    VkBool32 tessellationShader;
+    VkBool32 sampleRateShading;
+    VkBool32 dualSrcBlend;
+    VkBool32 logicOp;
+    VkBool32 multiDrawIndirect;
+    VkBool32 drawIndirectFirstInstance;
+    VkBool32 depthClamp;
+    VkBool32 depthBiasClamp;
+    VkBool32 fillModeNonSolid;
+    VkBool32 depthBounds;
+    VkBool32 wideLines;
+    VkBool32 largePoints;
+    VkBool32 alphaToOne;
+    VkBool32 multiViewport;
+    VkBool32 samplerAnisotropy;
+    VkBool32 textureCompressionETC2;
+    VkBool32 textureCompressionASTC_LDR;
+    VkBool32 textureCompressionBC;
+    VkBool32 occlusionQueryPrecise;
+    VkBool32 pipelineStatisticsQuery;
+    VkBool32 vertexPipelineStoresAndAtomics;
+    VkBool32 fragmentStoresAndAtomics;
+    VkBool32 shaderTessellationAndGeometryPointSize;
+    VkBool32 shaderImageGatherExtended;
+    VkBool32 shaderStorageImageExtendedFormats;
+    VkBool32 shaderStorageImageMultisample;
+    VkBool32 shaderStorageImageReadWithoutFormat;
+    VkBool32 shaderStorageImageWriteWithoutFormat;
+    VkBool32 shaderUniformBufferArrayDynamicIndexing;
+    VkBool32 shaderSampledImageArrayDynamicIndexing;
+    VkBool32 shaderStorageBufferArrayDynamicIndexing;
+    VkBool32 shaderStorageImageArrayDynamicIndexing;
+    VkBool32 shaderClipDistance;
+    VkBool32 shaderCullDistance;
+    VkBool32 shaderFloat64;
+    VkBool32 shaderInt64;
+    VkBool32 shaderInt16;
+    VkBool32 shaderResourceResidency;
+    VkBool32 shaderResourceMinLod;
+    VkBool32 sparseBinding;
+    VkBool32 sparseResidencyBuffer;
+    VkBool32 sparseResidencyImage2D;
+    VkBool32 sparseResidencyImage3D;
+    VkBool32 sparseResidency2Samples;
+    VkBool32 sparseResidency4Samples;
+    VkBool32 sparseResidency8Samples;
+    VkBool32 sparseResidency16Samples;
+    VkBool32 sparseResidencyAliased;
+    VkBool32 variableMultisampleRate;
+    VkBool32 inheritedQueries;
+} VkPhysicalDeviceFeatures;
 
 typedef struct VkPhysicalDeviceProperties
 {
@@ -8031,6 +8788,55 @@ typedef struct VkViewport
     float minDepth;
     float maxDepth;
 } VkViewport;
+
+typedef struct XrCompositionLayerBaseHeader
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrCompositionLayerFlags layerFlags;
+    XrSpace space;
+} XrCompositionLayerBaseHeader;
+
+typedef struct XrExtent2Df
+{
+    float width;
+    float height;
+} XrExtent2Df;
+
+typedef struct XrExtent3Df
+{
+    float width;
+    float height;
+    float depth;
+} XrExtent3Df;
+typedef XrExtent3Df XrExtent3DfEXT;
+typedef XrExtent3Df XrExtent3DfFB;
+typedef XrExtent3Df XrExtent3DfKHR;
+
+typedef struct XrOffset2Df
+{
+    float x;
+    float y;
+} XrOffset2Df;
+
+typedef struct XrSwapchainSubImage
+{
+    XrSwapchain swapchain;
+    XrRect2Di imageRect;
+    uint32_t imageArrayIndex;
+} XrSwapchainSubImage;
+
+typedef struct XrUuid
+{
+    uint8_t data[XR_UUID_SIZE];
+} XrUuid;
+typedef XrUuid XrUuidEXT;
+
+typedef struct XrVector2f
+{
+    float x;
+    float y;
+} XrVector2f;
 
 typedef struct StdVideoAV1SequenceHeader
 {
@@ -8265,6 +9071,16 @@ typedef union VkAccelerationStructureMotionInstanceDataNV
     VkAccelerationStructureSRTMotionInstanceNV WINE_VK_ALIGN(8) srtMotionInstance;
 } VkAccelerationStructureMotionInstanceDataNV;
 
+typedef struct VkAllocationCallbacks
+{
+    void *pUserData;
+    PFN_vkAllocationFunction pfnAllocation;
+    PFN_vkReallocationFunction pfnReallocation;
+    PFN_vkFreeFunction pfnFree;
+    PFN_vkInternalAllocationNotification pfnInternalAllocation;
+    PFN_vkInternalFreeNotification pfnInternalFree;
+} VkAllocationCallbacks;
+
 typedef struct VkAntiLagPresentationInfoAMD
 {
     VkStructureType sType;
@@ -8272,17 +9088,6 @@ typedef struct VkAntiLagPresentationInfoAMD
     VkAntiLagStageAMD stage;
     uint64_t WINE_VK_ALIGN(8) frameIndex;
 } VkAntiLagPresentationInfoAMD;
-
-typedef struct VkApplicationInfo
-{
-    VkStructureType sType;
-    const void *pNext;
-    const char *pApplicationName;
-    uint32_t applicationVersion;
-    const char *pEngineName;
-    uint32_t engineVersion;
-    uint32_t apiVersion;
-} VkApplicationInfo;
 
 typedef struct VkAttachmentDescription
 {
@@ -8479,6 +9284,20 @@ typedef struct VkDescriptorUpdateTemplateEntry
 } VkDescriptorUpdateTemplateEntry;
 typedef VkDescriptorUpdateTemplateEntry VkDescriptorUpdateTemplateEntryKHR;
 
+typedef struct VkDeviceCreateInfo
+{
+    VkStructureType sType;
+    const void *pNext;
+    VkDeviceCreateFlags flags;
+    uint32_t queueCreateInfoCount;
+    const VkDeviceQueueCreateInfo *pQueueCreateInfos;
+    uint32_t enabledLayerCount;
+    const char * const*ppEnabledLayerNames;
+    uint32_t enabledExtensionCount;
+    const char * const*ppEnabledExtensionNames;
+    const VkPhysicalDeviceFeatures *pEnabledFeatures;
+} VkDeviceCreateInfo;
+
 typedef struct VkDeviceFaultAddressInfoEXT
 {
     VkDeviceFaultAddressTypeEXT addressType;
@@ -8498,16 +9317,6 @@ typedef union VkDeviceOrHostAddressKHR
     VkDeviceAddress WINE_VK_ALIGN(8) deviceAddress;
     void *hostAddress;
 } VkDeviceOrHostAddressKHR;
-
-typedef struct VkDeviceQueueCreateInfo
-{
-    VkStructureType sType;
-    const void *pNext;
-    VkDeviceQueueCreateFlags flags;
-    uint32_t queueFamilyIndex;
-    uint32_t queueCount;
-    const float *pQueuePriorities;
-} VkDeviceQueueCreateInfo;
 
 typedef struct VkExtensionProperties
 {
@@ -8685,6 +9494,18 @@ typedef struct VkInputAttachmentAspectReference
 } VkInputAttachmentAspectReference;
 typedef VkInputAttachmentAspectReference VkInputAttachmentAspectReferenceKHR;
 
+typedef struct VkInstanceCreateInfo
+{
+    VkStructureType sType;
+    const void *pNext;
+    VkInstanceCreateFlags flags;
+    const VkApplicationInfo *pApplicationInfo;
+    uint32_t enabledLayerCount;
+    const char * const*ppEnabledLayerNames;
+    uint32_t enabledExtensionCount;
+    const char * const*ppEnabledExtensionNames;
+} VkInstanceCreateInfo;
+
 typedef struct VkLatencyTimingsFrameReportNV
 {
     VkStructureType sType;
@@ -8758,65 +9579,6 @@ typedef struct VkMutableDescriptorTypeListEXT
     const VkDescriptorType *pDescriptorTypes;
 } VkMutableDescriptorTypeListEXT;
 typedef VkMutableDescriptorTypeListEXT VkMutableDescriptorTypeListVALVE;
-
-typedef struct VkPhysicalDeviceFeatures
-{
-    VkBool32 robustBufferAccess;
-    VkBool32 fullDrawIndexUint32;
-    VkBool32 imageCubeArray;
-    VkBool32 independentBlend;
-    VkBool32 geometryShader;
-    VkBool32 tessellationShader;
-    VkBool32 sampleRateShading;
-    VkBool32 dualSrcBlend;
-    VkBool32 logicOp;
-    VkBool32 multiDrawIndirect;
-    VkBool32 drawIndirectFirstInstance;
-    VkBool32 depthClamp;
-    VkBool32 depthBiasClamp;
-    VkBool32 fillModeNonSolid;
-    VkBool32 depthBounds;
-    VkBool32 wideLines;
-    VkBool32 largePoints;
-    VkBool32 alphaToOne;
-    VkBool32 multiViewport;
-    VkBool32 samplerAnisotropy;
-    VkBool32 textureCompressionETC2;
-    VkBool32 textureCompressionASTC_LDR;
-    VkBool32 textureCompressionBC;
-    VkBool32 occlusionQueryPrecise;
-    VkBool32 pipelineStatisticsQuery;
-    VkBool32 vertexPipelineStoresAndAtomics;
-    VkBool32 fragmentStoresAndAtomics;
-    VkBool32 shaderTessellationAndGeometryPointSize;
-    VkBool32 shaderImageGatherExtended;
-    VkBool32 shaderStorageImageExtendedFormats;
-    VkBool32 shaderStorageImageMultisample;
-    VkBool32 shaderStorageImageReadWithoutFormat;
-    VkBool32 shaderStorageImageWriteWithoutFormat;
-    VkBool32 shaderUniformBufferArrayDynamicIndexing;
-    VkBool32 shaderSampledImageArrayDynamicIndexing;
-    VkBool32 shaderStorageBufferArrayDynamicIndexing;
-    VkBool32 shaderStorageImageArrayDynamicIndexing;
-    VkBool32 shaderClipDistance;
-    VkBool32 shaderCullDistance;
-    VkBool32 shaderFloat64;
-    VkBool32 shaderInt64;
-    VkBool32 shaderInt16;
-    VkBool32 shaderResourceResidency;
-    VkBool32 shaderResourceMinLod;
-    VkBool32 sparseBinding;
-    VkBool32 sparseResidencyBuffer;
-    VkBool32 sparseResidencyImage2D;
-    VkBool32 sparseResidencyImage3D;
-    VkBool32 sparseResidency2Samples;
-    VkBool32 sparseResidency4Samples;
-    VkBool32 sparseResidency8Samples;
-    VkBool32 sparseResidency16Samples;
-    VkBool32 sparseResidencyAliased;
-    VkBool32 variableMultisampleRate;
-    VkBool32 inheritedQueries;
-} VkPhysicalDeviceFeatures;
 
 typedef struct VkPhysicalDeviceMemoryProperties
 {
@@ -9375,6 +10137,126 @@ typedef struct VkXYColorEXT
     float y;
 } VkXYColorEXT;
 
+typedef struct XrActionSuggestedBinding
+{
+    XrAction action;
+    XrPath WINE_VK_ALIGN(8) binding;
+} XrActionSuggestedBinding;
+
+typedef struct XrActiveActionSet
+{
+    XrActionSet actionSet;
+    XrPath WINE_VK_ALIGN(8) subactionPath;
+} XrActiveActionSet;
+
+typedef struct XrActiveActionSetPriorityEXT
+{
+    XrActionSet actionSet;
+    uint32_t priorityOverride;
+} XrActiveActionSetPriorityEXT;
+
+typedef struct XrApiLayerNextInfo
+{
+    XrLoaderInterfaceStructs structType;
+    uint32_t structVersion;
+    size_t structSize;
+    char layerName[XR_MAX_API_LAYER_NAME_SIZE];
+    PFN_xrGetInstanceProcAddr nextGetInstanceProcAddr;
+    PFN_xrCreateApiLayerInstance nextCreateApiLayerInstance;
+    struct XrApiLayerNextInfo *pNext;
+} XrApiLayerNextInfo;
+
+typedef struct XrApplicationInfo
+{
+    char applicationName[XR_MAX_APPLICATION_NAME_SIZE];
+    uint32_t applicationVersion;
+    char engineName[XR_MAX_ENGINE_NAME_SIZE];
+    uint32_t engineVersion;
+    XrVersion apiVersion;
+} XrApplicationInfo;
+
+typedef struct XrBindingModificationBaseHeaderKHR
+{
+    XrStructureType sType;
+    const void *pNext;
+} XrBindingModificationBaseHeaderKHR;
+
+typedef struct XrColor4f
+{
+    float r;
+    float g;
+    float b;
+    float a;
+} XrColor4f;
+
+typedef struct XrCompositionLayerProjectionView
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrPosef pose;
+    XrFovf fov;
+    XrSwapchainSubImage subImage;
+} XrCompositionLayerProjectionView;
+
+typedef struct XrExternalCameraExtrinsicsOCULUS
+{
+    XrTime lastChangeTime;
+    XrExternalCameraStatusFlagsOCULUS cameraStatusFlags;
+    XrExternalCameraAttachedToDeviceOCULUS attachedToDevice;
+    XrPosef relativePose;
+} XrExternalCameraExtrinsicsOCULUS;
+
+typedef struct XrExternalCameraIntrinsicsOCULUS
+{
+    XrTime lastChangeTime;
+    XrFovf fov;
+    float virtualNearPlaneDistance;
+    float virtualFarPlaneDistance;
+    XrExtent2Di imageSensorPixelResolution;
+} XrExternalCameraIntrinsicsOCULUS;
+
+typedef struct XrHapticBaseHeader
+{
+    XrStructureType sType;
+    const void *pNext;
+} XrHapticBaseHeader;
+
+typedef struct XrSpaceLocationData
+{
+    XrSpaceLocationFlags locationFlags;
+    XrPosef pose;
+} XrSpaceLocationData;
+typedef XrSpaceLocationData XrSpaceLocationDataKHR;
+
+typedef struct XrSpaceVelocityData
+{
+    XrSpaceVelocityFlags velocityFlags;
+    XrVector3f linearVelocity;
+    XrVector3f angularVelocity;
+} XrSpaceVelocityData;
+typedef XrSpaceVelocityData XrSpaceVelocityDataKHR;
+
+typedef struct XrSystemGraphicsProperties
+{
+    uint32_t maxSwapchainImageHeight;
+    uint32_t maxSwapchainImageWidth;
+    uint32_t maxLayerCount;
+} XrSystemGraphicsProperties;
+
+typedef struct XrSystemTrackingProperties
+{
+    XrBool32 orientationTracking;
+    XrBool32 positionTracking;
+} XrSystemTrackingProperties;
+
+typedef struct XrVector4f
+{
+    float x;
+    float y;
+    float z;
+    float w;
+} XrVector4f;
+
 typedef struct VkAabbPositionsKHR
 {
     float minX;
@@ -9522,16 +10404,6 @@ typedef struct VkAcquireProfilingLockInfoKHR
     VkAcquireProfilingLockFlagsKHR flags;
     uint64_t WINE_VK_ALIGN(8) timeout;
 } VkAcquireProfilingLockInfoKHR;
-
-typedef struct VkAllocationCallbacks
-{
-    void *pUserData;
-    PFN_vkAllocationFunction pfnAllocation;
-    PFN_vkReallocationFunction pfnReallocation;
-    PFN_vkFreeFunction pfnFree;
-    PFN_vkInternalAllocationNotification pfnInternalAllocation;
-    PFN_vkInternalFreeNotification pfnInternalFree;
-} VkAllocationCallbacks;
 
 typedef struct VkAntiLagDataAMD
 {
@@ -10577,20 +11449,6 @@ typedef struct VkDeviceBufferMemoryRequirements
 } VkDeviceBufferMemoryRequirements;
 typedef VkDeviceBufferMemoryRequirements VkDeviceBufferMemoryRequirementsKHR;
 
-typedef struct VkDeviceCreateInfo
-{
-    VkStructureType sType;
-    const void *pNext;
-    VkDeviceCreateFlags flags;
-    uint32_t queueCreateInfoCount;
-    const VkDeviceQueueCreateInfo *pQueueCreateInfos;
-    uint32_t enabledLayerCount;
-    const char * const*ppEnabledLayerNames;
-    uint32_t enabledExtensionCount;
-    const char * const*ppEnabledExtensionNames;
-    const VkPhysicalDeviceFeatures *pEnabledFeatures;
-} VkDeviceCreateInfo;
-
 typedef struct VkDeviceDiagnosticsConfigCreateInfoNV
 {
     VkStructureType sType;
@@ -11419,18 +12277,6 @@ typedef struct VkIndirectExecutionSetCreateInfoEXT
     VkIndirectExecutionSetInfoTypeEXT type;
     VkIndirectExecutionSetInfoEXT info;
 } VkIndirectExecutionSetCreateInfoEXT;
-
-typedef struct VkInstanceCreateInfo
-{
-    VkStructureType sType;
-    const void *pNext;
-    VkInstanceCreateFlags flags;
-    const VkApplicationInfo *pApplicationInfo;
-    uint32_t enabledLayerCount;
-    const char * const*ppEnabledLayerNames;
-    uint32_t enabledExtensionCount;
-    const char * const*ppEnabledExtensionNames;
-} VkInstanceCreateInfo;
 
 typedef struct VkLatencySleepInfoNV
 {
@@ -16944,6 +17790,955 @@ typedef struct VkWriteIndirectExecutionSetShaderEXT
     VkShaderEXT WINE_VK_ALIGN(8) shader;
 } VkWriteIndirectExecutionSetShaderEXT;
 
+typedef struct XrActionCreateInfo
+{
+    XrStructureType sType;
+    const void *pNext;
+    char actionName[XR_MAX_ACTION_NAME_SIZE];
+    XrActionType actionType;
+    uint32_t countSubactionPaths;
+    const XrPath *subactionPaths;
+    char localizedActionName[XR_MAX_LOCALIZED_ACTION_NAME_SIZE];
+} XrActionCreateInfo;
+
+typedef struct XrActionSetCreateInfo
+{
+    XrStructureType sType;
+    const void *pNext;
+    char actionSetName[XR_MAX_ACTION_SET_NAME_SIZE];
+    char localizedActionSetName[XR_MAX_LOCALIZED_ACTION_SET_NAME_SIZE];
+    uint32_t priority;
+} XrActionSetCreateInfo;
+
+typedef struct XrActionSpaceCreateInfo
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrAction action;
+    XrPath WINE_VK_ALIGN(8) subactionPath;
+    XrPosef poseInActionSpace;
+} XrActionSpaceCreateInfo;
+
+typedef struct XrActionStateBoolean
+{
+    XrStructureType sType;
+    void *pNext;
+    XrBool32 currentState;
+    XrBool32 changedSinceLastSync;
+    XrTime lastChangeTime;
+    XrBool32 isActive;
+} XrActionStateBoolean;
+
+typedef struct XrActionStateFloat
+{
+    XrStructureType sType;
+    void *pNext;
+    float currentState;
+    XrBool32 changedSinceLastSync;
+    XrTime lastChangeTime;
+    XrBool32 isActive;
+} XrActionStateFloat;
+
+typedef struct XrActionStateGetInfo
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrAction action;
+    XrPath WINE_VK_ALIGN(8) subactionPath;
+} XrActionStateGetInfo;
+
+typedef struct XrActionStatePose
+{
+    XrStructureType sType;
+    void *pNext;
+    XrBool32 isActive;
+} XrActionStatePose;
+
+typedef struct XrActionStateVector2f
+{
+    XrStructureType sType;
+    void *pNext;
+    XrVector2f currentState;
+    XrBool32 changedSinceLastSync;
+    XrTime lastChangeTime;
+    XrBool32 isActive;
+} XrActionStateVector2f;
+
+typedef struct XrActionsSyncInfo
+{
+    XrStructureType sType;
+    const void *pNext;
+    uint32_t countActiveActionSets;
+    const XrActiveActionSet *activeActionSets;
+} XrActionsSyncInfo;
+
+typedef struct XrActiveActionSetPrioritiesEXT
+{
+    XrStructureType sType;
+    const void *pNext;
+    uint32_t actionSetPriorityCount;
+    const XrActiveActionSetPriorityEXT *actionSetPriorities;
+} XrActiveActionSetPrioritiesEXT;
+
+typedef struct XrApiLayerCreateInfo
+{
+    XrLoaderInterfaceStructs structType;
+    uint32_t structVersion;
+    size_t structSize;
+    void *loaderInstance;
+    char settings_file_location[XR_API_LAYER_MAX_SETTINGS_PATH_SIZE];
+    XrApiLayerNextInfo *nextInfo;
+} XrApiLayerCreateInfo;
+
+typedef struct XrApiLayerProperties
+{
+    XrStructureType sType;
+    void *pNext;
+    char layerName[XR_MAX_API_LAYER_NAME_SIZE];
+    XrVersion specVersion;
+    uint32_t layerVersion;
+    char description[XR_MAX_API_LAYER_DESCRIPTION_SIZE];
+} XrApiLayerProperties;
+
+typedef struct XrBaseInStructure
+{
+    XrStructureType sType;
+    const struct XrBaseInStructure *pNext;
+} XrBaseInStructure;
+
+typedef struct XrBaseOutStructure
+{
+    XrStructureType sType;
+    struct XrBaseOutStructure *pNext;
+} XrBaseOutStructure;
+
+typedef struct XrBindingModificationsKHR
+{
+    XrStructureType sType;
+    const void *pNext;
+    uint32_t bindingModificationCount;
+    const XrBindingModificationBaseHeaderKHR * const*bindingModifications;
+} XrBindingModificationsKHR;
+
+typedef struct XrBoundSourcesForActionEnumerateInfo
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrAction action;
+} XrBoundSourcesForActionEnumerateInfo;
+
+typedef struct XrBoxf
+{
+    XrPosef center;
+    XrExtent3Df extents;
+} XrBoxf;
+typedef XrBoxf XrBoxfKHR;
+
+typedef struct XrColor3f
+{
+    float r;
+    float g;
+    float b;
+} XrColor3f;
+typedef XrColor3f XrColor3fKHR;
+
+typedef struct XrCompositionLayerColorScaleBiasKHR
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrColor4f colorScale;
+    XrColor4f colorBias;
+} XrCompositionLayerColorScaleBiasKHR;
+
+typedef struct XrCompositionLayerCubeKHR
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrCompositionLayerFlags layerFlags;
+    XrSpace space;
+    XrEyeVisibility eyeVisibility;
+    XrSwapchain swapchain;
+    uint32_t imageArrayIndex;
+    XrQuaternionf orientation;
+} XrCompositionLayerCubeKHR;
+
+typedef struct XrCompositionLayerCylinderKHR
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrCompositionLayerFlags layerFlags;
+    XrSpace space;
+    XrEyeVisibility eyeVisibility;
+    XrSwapchainSubImage subImage;
+    XrPosef pose;
+    float radius;
+    float centralAngle;
+    float aspectRatio;
+} XrCompositionLayerCylinderKHR;
+
+typedef struct XrCompositionLayerDepthInfoKHR
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrSwapchainSubImage subImage;
+    float minDepth;
+    float maxDepth;
+    float nearZ;
+    float farZ;
+} XrCompositionLayerDepthInfoKHR;
+
+typedef struct XrCompositionLayerEquirect2KHR
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrCompositionLayerFlags layerFlags;
+    XrSpace space;
+    XrEyeVisibility eyeVisibility;
+    XrSwapchainSubImage subImage;
+    XrPosef pose;
+    float radius;
+    float centralHorizontalAngle;
+    float upperVerticalAngle;
+    float lowerVerticalAngle;
+} XrCompositionLayerEquirect2KHR;
+
+typedef struct XrCompositionLayerEquirectKHR
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrCompositionLayerFlags layerFlags;
+    XrSpace space;
+    XrEyeVisibility eyeVisibility;
+    XrSwapchainSubImage subImage;
+    XrPosef pose;
+    float radius;
+    XrVector2f scale;
+    XrVector2f bias;
+} XrCompositionLayerEquirectKHR;
+
+typedef struct XrCompositionLayerProjection
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrCompositionLayerFlags layerFlags;
+    XrSpace space;
+    uint32_t viewCount;
+    const XrCompositionLayerProjectionView *views;
+} XrCompositionLayerProjection;
+
+typedef struct XrCompositionLayerQuad
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrCompositionLayerFlags layerFlags;
+    XrSpace space;
+    XrEyeVisibility eyeVisibility;
+    XrSwapchainSubImage subImage;
+    XrPosef pose;
+    XrExtent2Df size;
+} XrCompositionLayerQuad;
+
+typedef struct XrDigitalLensControlALMALENCE
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrDigitalLensControlFlagsALMALENCE flags;
+} XrDigitalLensControlALMALENCE;
+
+typedef struct XrEventDataBaseHeader
+{
+    XrStructureType sType;
+    const void *pNext;
+} XrEventDataBaseHeader;
+
+typedef struct XrEventDataBuffer
+{
+    XrStructureType sType;
+    const void *pNext;
+    uint8_t varying[4000];
+} XrEventDataBuffer;
+
+typedef struct XrEventDataEventsLost
+{
+    XrStructureType sType;
+    const void *pNext;
+    uint32_t lostEventCount;
+} XrEventDataEventsLost;
+
+typedef struct XrEventDataInstanceLossPending
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrTime lossTime;
+} XrEventDataInstanceLossPending;
+
+typedef struct XrEventDataInteractionProfileChanged
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrSession session;
+} XrEventDataInteractionProfileChanged;
+
+typedef struct XrEventDataMainSessionVisibilityChangedEXTX
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrBool32 visible;
+    XrOverlayMainSessionFlagsEXTX flags;
+} XrEventDataMainSessionVisibilityChangedEXTX;
+
+typedef struct XrEventDataPerfSettingsEXT
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrPerfSettingsDomainEXT domain;
+    XrPerfSettingsSubDomainEXT subDomain;
+    XrPerfSettingsNotificationLevelEXT fromLevel;
+    XrPerfSettingsNotificationLevelEXT toLevel;
+} XrEventDataPerfSettingsEXT;
+
+typedef struct XrEventDataReferenceSpaceChangePending
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrSession session;
+    XrReferenceSpaceType referenceSpaceType;
+    XrTime changeTime;
+    XrBool32 poseValid;
+    XrPosef poseInPreviousSpace;
+} XrEventDataReferenceSpaceChangePending;
+
+typedef struct XrEventDataSessionStateChanged
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrSession session;
+    XrSessionState state;
+    XrTime time;
+} XrEventDataSessionStateChanged;
+
+typedef struct XrEventDataUserPresenceChangedEXT
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrSession session;
+    XrBool32 isUserPresent;
+} XrEventDataUserPresenceChangedEXT;
+
+typedef struct XrEventDataVisibilityMaskChangedKHR
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrSession session;
+    XrViewConfigurationType viewConfigurationType;
+    uint32_t viewIndex;
+} XrEventDataVisibilityMaskChangedKHR;
+
+typedef struct XrExtensionProperties
+{
+    XrStructureType sType;
+    void *pNext;
+    char extensionName[XR_MAX_EXTENSION_NAME_SIZE];
+    uint32_t extensionVersion;
+} XrExtensionProperties;
+
+typedef struct XrExternalCameraOCULUS
+{
+    XrStructureType sType;
+    const void *pNext;
+    char name[XR_MAX_EXTERNAL_CAMERA_NAME_SIZE_OCULUS];
+    XrExternalCameraIntrinsicsOCULUS intrinsics;
+    XrExternalCameraExtrinsicsOCULUS extrinsics;
+} XrExternalCameraOCULUS;
+
+typedef struct XrEyeGazeSampleTimeEXT
+{
+    XrStructureType sType;
+    void *pNext;
+    XrTime time;
+} XrEyeGazeSampleTimeEXT;
+
+typedef struct XrFrameBeginInfo
+{
+    XrStructureType sType;
+    const void *pNext;
+} XrFrameBeginInfo;
+
+typedef struct XrFrameEndInfo
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrTime displayTime;
+    XrEnvironmentBlendMode environmentBlendMode;
+    uint32_t layerCount;
+    const XrCompositionLayerBaseHeader * const*layers;
+} XrFrameEndInfo;
+
+typedef struct XrFrameState
+{
+    XrStructureType sType;
+    void *pNext;
+    XrTime predictedDisplayTime;
+    XrDuration predictedDisplayPeriod;
+    XrBool32 shouldRender;
+} XrFrameState;
+
+typedef struct XrFrameWaitInfo
+{
+    XrStructureType sType;
+    const void *pNext;
+} XrFrameWaitInfo;
+
+typedef struct XrFrustumf
+{
+    XrPosef pose;
+    XrFovf fov;
+    float nearZ;
+    float farZ;
+} XrFrustumf;
+typedef XrFrustumf XrFrustumfKHR;
+
+typedef struct XrFutureCancelInfoEXT
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrFutureEXT WINE_VK_ALIGN(8) future;
+} XrFutureCancelInfoEXT;
+
+typedef struct XrFutureCompletionBaseHeaderEXT
+{
+    XrStructureType sType;
+    void *pNext;
+    XrResult futureResult;
+} XrFutureCompletionBaseHeaderEXT;
+
+typedef struct XrFutureCompletionEXT
+{
+    XrStructureType sType;
+    void *pNext;
+    XrResult futureResult;
+} XrFutureCompletionEXT;
+
+typedef struct XrFuturePollInfoEXT
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrFutureEXT WINE_VK_ALIGN(8) future;
+} XrFuturePollInfoEXT;
+
+typedef struct XrFuturePollResultEXT
+{
+    XrStructureType sType;
+    void *pNext;
+    XrFutureStateEXT state;
+} XrFuturePollResultEXT;
+
+typedef struct XrGraphicsBindingD3D11KHR
+{
+    XrStructureType sType;
+    const void *pNext;
+    ID3D11Device *device;
+} XrGraphicsBindingD3D11KHR;
+
+typedef struct XrGraphicsBindingD3D12KHR
+{
+    XrStructureType sType;
+    const void *pNext;
+    ID3D12Device *device;
+    ID3D12CommandQueue *queue;
+} XrGraphicsBindingD3D12KHR;
+
+typedef struct XrGraphicsBindingMetalKHR
+{
+    XrStructureType sType;
+    const void *pNext;
+    void *commandQueue;
+} XrGraphicsBindingMetalKHR;
+
+typedef struct XrGraphicsBindingVulkanKHR
+{
+    XrStructureType sType;
+    const void *pNext;
+    VkInstance instance;
+    VkPhysicalDevice physicalDevice;
+    VkDevice device;
+    uint32_t queueFamilyIndex;
+    uint32_t queueIndex;
+} XrGraphicsBindingVulkanKHR;
+typedef XrGraphicsBindingVulkanKHR XrGraphicsBindingVulkan2KHR;
+
+typedef struct XrGraphicsRequirementsD3D11KHR
+{
+    XrStructureType sType;
+    void *pNext;
+    LUID adapterLuid;
+    D3D_FEATURE_LEVEL minFeatureLevel;
+} XrGraphicsRequirementsD3D11KHR;
+
+typedef struct XrGraphicsRequirementsD3D12KHR
+{
+    XrStructureType sType;
+    void *pNext;
+    LUID adapterLuid;
+    D3D_FEATURE_LEVEL minFeatureLevel;
+} XrGraphicsRequirementsD3D12KHR;
+
+typedef struct XrGraphicsRequirementsMetalKHR
+{
+    XrStructureType sType;
+    void *pNext;
+    void *metalDevice;
+} XrGraphicsRequirementsMetalKHR;
+
+typedef struct XrGraphicsRequirementsVulkanKHR
+{
+    XrStructureType sType;
+    void *pNext;
+    XrVersion minApiVersionSupported;
+    XrVersion maxApiVersionSupported;
+} XrGraphicsRequirementsVulkanKHR;
+typedef XrGraphicsRequirementsVulkanKHR XrGraphicsRequirementsVulkan2KHR;
+
+typedef struct XrHapticActionInfo
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrAction action;
+    XrPath WINE_VK_ALIGN(8) subactionPath;
+} XrHapticActionInfo;
+
+typedef struct XrHapticVibration
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrDuration duration;
+    float frequency;
+    float amplitude;
+} XrHapticVibration;
+
+typedef struct XrInputSourceLocalizedNameGetInfo
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrPath WINE_VK_ALIGN(8) sourcePath;
+    XrInputSourceLocalizedNameFlags whichComponents;
+} XrInputSourceLocalizedNameGetInfo;
+
+typedef struct XrInstanceCreateInfo
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrInstanceCreateFlags createFlags;
+    XrApplicationInfo applicationInfo;
+    uint32_t enabledApiLayerCount;
+    const char * const*enabledApiLayerNames;
+    uint32_t enabledExtensionCount;
+    const char * const*enabledExtensionNames;
+} XrInstanceCreateInfo;
+
+typedef struct XrInstanceCreateInfoAndroidKHR
+{
+    XrStructureType sType;
+    const void *pNext;
+    void *applicationVM;
+    void *applicationActivity;
+} XrInstanceCreateInfoAndroidKHR;
+
+typedef struct XrInstanceProperties
+{
+    XrStructureType sType;
+    void *pNext;
+    XrVersion runtimeVersion;
+    char runtimeName[XR_MAX_RUNTIME_NAME_SIZE];
+} XrInstanceProperties;
+
+typedef struct XrInteractionProfileAnalogThresholdVALVE
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrAction action;
+    XrPath WINE_VK_ALIGN(8) binding;
+    float onThreshold;
+    float offThreshold;
+    const XrHapticBaseHeader *onHaptic;
+    const XrHapticBaseHeader *offHaptic;
+} XrInteractionProfileAnalogThresholdVALVE;
+
+typedef struct XrInteractionProfileDpadBindingEXT
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrPath WINE_VK_ALIGN(8) binding;
+    XrActionSet actionSet;
+    float forceThreshold;
+    float forceThresholdReleased;
+    float centerRegion;
+    float wedgeAngle;
+    XrBool32 isSticky;
+    const XrHapticBaseHeader *onHaptic;
+    const XrHapticBaseHeader *offHaptic;
+} XrInteractionProfileDpadBindingEXT;
+
+typedef struct XrInteractionProfileState
+{
+    XrStructureType sType;
+    void *pNext;
+    XrPath WINE_VK_ALIGN(8) interactionProfile;
+} XrInteractionProfileState;
+
+typedef struct XrInteractionProfileSuggestedBinding
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrPath WINE_VK_ALIGN(8) interactionProfile;
+    uint32_t countSuggestedBindings;
+    const XrActionSuggestedBinding *suggestedBindings;
+} XrInteractionProfileSuggestedBinding;
+
+typedef struct XrNegotiateApiLayerRequest
+{
+    XrLoaderInterfaceStructs structType;
+    uint32_t structVersion;
+    size_t structSize;
+    uint32_t layerInterfaceVersion;
+    XrVersion layerApiVersion;
+    PFN_xrGetInstanceProcAddr getInstanceProcAddr;
+    PFN_xrCreateApiLayerInstance createApiLayerInstance;
+} XrNegotiateApiLayerRequest;
+
+typedef struct XrNegotiateLoaderInfo
+{
+    XrLoaderInterfaceStructs structType;
+    uint32_t structVersion;
+    size_t structSize;
+    uint32_t minInterfaceVersion;
+    uint32_t maxInterfaceVersion;
+    XrVersion minApiVersion;
+    XrVersion maxApiVersion;
+} XrNegotiateLoaderInfo;
+
+typedef struct XrNegotiateRuntimeRequest
+{
+    XrLoaderInterfaceStructs structType;
+    uint32_t structVersion;
+    size_t structSize;
+    uint32_t runtimeInterfaceVersion;
+    XrVersion runtimeApiVersion;
+    PFN_xrGetInstanceProcAddr getInstanceProcAddr;
+} XrNegotiateRuntimeRequest;
+
+typedef struct XrRect2Df
+{
+    XrOffset2Df offset;
+    XrExtent2Df extent;
+} XrRect2Df;
+
+typedef struct XrReferenceSpaceCreateInfo
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrReferenceSpaceType referenceSpaceType;
+    XrPosef poseInReferenceSpace;
+} XrReferenceSpaceCreateInfo;
+
+typedef struct XrSessionActionSetsAttachInfo
+{
+    XrStructureType sType;
+    const void *pNext;
+    uint32_t countActionSets;
+    const XrActionSet *actionSets;
+} XrSessionActionSetsAttachInfo;
+
+typedef struct XrSessionBeginInfo
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrViewConfigurationType primaryViewConfigurationType;
+} XrSessionBeginInfo;
+
+typedef struct XrSessionCreateInfo
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrSessionCreateFlags createFlags;
+    XrSystemId WINE_VK_ALIGN(8) systemId;
+} XrSessionCreateInfo;
+
+typedef struct XrSessionCreateInfoOverlayEXTX
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrOverlaySessionCreateFlagsEXTX createFlags;
+    uint32_t sessionLayersPlacement;
+} XrSessionCreateInfoOverlayEXTX;
+
+typedef struct XrSpaceLocation
+{
+    XrStructureType sType;
+    void *pNext;
+    XrSpaceLocationFlags locationFlags;
+    XrPosef pose;
+} XrSpaceLocation;
+
+typedef struct XrSpaceLocations
+{
+    XrStructureType sType;
+    void *pNext;
+    uint32_t locationCount;
+    XrSpaceLocationData *locations;
+} XrSpaceLocations;
+typedef XrSpaceLocations XrSpaceLocationsKHR;
+
+typedef struct XrSpaceVelocities
+{
+    XrStructureType sType;
+    void *pNext;
+    uint32_t velocityCount;
+    XrSpaceVelocityData *velocities;
+} XrSpaceVelocities;
+typedef XrSpaceVelocities XrSpaceVelocitiesKHR;
+
+typedef struct XrSpaceVelocity
+{
+    XrStructureType sType;
+    void *pNext;
+    XrSpaceVelocityFlags velocityFlags;
+    XrVector3f linearVelocity;
+    XrVector3f angularVelocity;
+} XrSpaceVelocity;
+
+typedef struct XrSpacesLocateInfo
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrSpace baseSpace;
+    XrTime time;
+    uint32_t spaceCount;
+    const XrSpace *spaces;
+} XrSpacesLocateInfo;
+typedef XrSpacesLocateInfo XrSpacesLocateInfoKHR;
+
+typedef struct XrSpheref
+{
+    XrPosef center;
+    float radius;
+} XrSpheref;
+typedef XrSpheref XrSpherefKHR;
+
+typedef struct XrSwapchainCreateInfo
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrSwapchainCreateFlags createFlags;
+    XrSwapchainUsageFlags usageFlags;
+    int64_t format;
+    uint32_t sampleCount;
+    uint32_t width;
+    uint32_t height;
+    uint32_t faceCount;
+    uint32_t arraySize;
+    uint32_t mipCount;
+} XrSwapchainCreateInfo;
+
+typedef struct XrSwapchainImageAcquireInfo
+{
+    XrStructureType sType;
+    const void *pNext;
+} XrSwapchainImageAcquireInfo;
+
+typedef struct XrSwapchainImageBaseHeader
+{
+    XrStructureType sType;
+    void *pNext;
+} XrSwapchainImageBaseHeader;
+
+typedef struct XrSwapchainImageD3D11KHR
+{
+    XrStructureType sType;
+    void *pNext;
+    ID3D11Texture2D *texture;
+} XrSwapchainImageD3D11KHR;
+
+typedef struct XrSwapchainImageD3D12KHR
+{
+    XrStructureType sType;
+    void *pNext;
+    ID3D12Resource *texture;
+} XrSwapchainImageD3D12KHR;
+
+typedef struct XrSwapchainImageMetalKHR
+{
+    XrStructureType sType;
+    const void *pNext;
+    void *texture;
+} XrSwapchainImageMetalKHR;
+
+typedef struct XrSwapchainImageReleaseInfo
+{
+    XrStructureType sType;
+    const void *pNext;
+} XrSwapchainImageReleaseInfo;
+
+typedef struct XrSwapchainImageVulkanKHR
+{
+    XrStructureType sType;
+    void *pNext;
+    VkImage WINE_VK_ALIGN(8) image;
+} XrSwapchainImageVulkanKHR;
+typedef XrSwapchainImageVulkanKHR XrSwapchainImageVulkan2KHR;
+
+typedef struct XrSwapchainImageWaitInfo
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrDuration timeout;
+} XrSwapchainImageWaitInfo;
+
+typedef struct XrSystemEyeGazeInteractionPropertiesEXT
+{
+    XrStructureType sType;
+    void *pNext;
+    XrBool32 supportsEyeGazeInteraction;
+} XrSystemEyeGazeInteractionPropertiesEXT;
+
+typedef struct XrSystemGetInfo
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrFormFactor formFactor;
+} XrSystemGetInfo;
+
+typedef struct XrSystemProperties
+{
+    XrStructureType sType;
+    void *pNext;
+    XrSystemId WINE_VK_ALIGN(8) systemId;
+    uint32_t vendorId;
+    char systemName[XR_MAX_SYSTEM_NAME_SIZE];
+    XrSystemGraphicsProperties graphicsProperties;
+    XrSystemTrackingProperties trackingProperties;
+} XrSystemProperties;
+
+typedef struct XrSystemUserPresencePropertiesEXT
+{
+    XrStructureType sType;
+    void *pNext;
+    XrBool32 supportsUserPresence;
+} XrSystemUserPresencePropertiesEXT;
+
+typedef struct XrView
+{
+    XrStructureType sType;
+    void *pNext;
+    XrPosef pose;
+    XrFovf fov;
+} XrView;
+
+typedef struct XrViewConfigurationDepthRangeEXT
+{
+    XrStructureType sType;
+    void *pNext;
+    float recommendedNearZ;
+    float minNearZ;
+    float recommendedFarZ;
+    float maxFarZ;
+} XrViewConfigurationDepthRangeEXT;
+
+typedef struct XrViewConfigurationProperties
+{
+    XrStructureType sType;
+    void *pNext;
+    XrViewConfigurationType viewConfigurationType;
+    XrBool32 fovMutable;
+} XrViewConfigurationProperties;
+
+typedef struct XrViewConfigurationView
+{
+    XrStructureType sType;
+    void *pNext;
+    uint32_t recommendedImageRectWidth;
+    uint32_t maxImageRectWidth;
+    uint32_t recommendedImageRectHeight;
+    uint32_t maxImageRectHeight;
+    uint32_t recommendedSwapchainSampleCount;
+    uint32_t maxSwapchainSampleCount;
+} XrViewConfigurationView;
+
+typedef struct XrViewConfigurationViewFovEPIC
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrFovf recommendedFov;
+    XrFovf maxMutableFov;
+} XrViewConfigurationViewFovEPIC;
+
+typedef struct XrViewLocateInfo
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrViewConfigurationType viewConfigurationType;
+    XrTime displayTime;
+    XrSpace space;
+} XrViewLocateInfo;
+
+typedef struct XrViewState
+{
+    XrStructureType sType;
+    void *pNext;
+    XrViewStateFlags viewStateFlags;
+} XrViewState;
+
+typedef struct XrVisibilityMaskKHR
+{
+    XrStructureType sType;
+    void *pNext;
+    uint32_t vertexCapacityInput;
+    uint32_t vertexCountOutput;
+    XrVector2f *vertices;
+    uint32_t indexCapacityInput;
+    uint32_t indexCountOutput;
+    uint32_t *indices;
+} XrVisibilityMaskKHR;
+
+typedef struct XrVulkanDeviceCreateInfoKHR
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrSystemId WINE_VK_ALIGN(8) systemId;
+    XrVulkanDeviceCreateFlagsKHR createFlags;
+    PFN_vkGetInstanceProcAddr pfnGetInstanceProcAddr;
+    VkPhysicalDevice vulkanPhysicalDevice;
+    const VkDeviceCreateInfo *vulkanCreateInfo;
+    const VkAllocationCallbacks *vulkanAllocator;
+} XrVulkanDeviceCreateInfoKHR;
+
+typedef struct XrVulkanGraphicsDeviceGetInfoKHR
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrSystemId WINE_VK_ALIGN(8) systemId;
+    VkInstance vulkanInstance;
+} XrVulkanGraphicsDeviceGetInfoKHR;
+
+typedef struct XrVulkanInstanceCreateInfoKHR
+{
+    XrStructureType sType;
+    const void *pNext;
+    XrSystemId WINE_VK_ALIGN(8) systemId;
+    XrVulkanInstanceCreateFlagsKHR createFlags;
+    PFN_vkGetInstanceProcAddr pfnGetInstanceProcAddr;
+    const VkInstanceCreateInfo *vulkanCreateInfo;
+    const VkAllocationCallbacks *vulkanAllocator;
+} XrVulkanInstanceCreateInfoKHR;
+
+typedef struct XrVulkanSwapchainFormatListCreateInfoKHR
+{
+    XrStructureType sType;
+    const void *pNext;
+    uint32_t viewFormatCount;
+    const VkFormat *viewFormats;
+} XrVulkanSwapchainFormatListCreateInfoKHR;
+
 typedef VkResult (VKAPI_PTR *PFN_vkAcquireNextImage2KHR)(VkDevice, const VkAcquireNextImageInfoKHR *, uint32_t *);
 typedef VkResult (VKAPI_PTR *PFN_vkAcquireNextImageKHR)(VkDevice, VkSwapchainKHR, uint64_t, VkSemaphore, VkFence, uint32_t *);
 typedef VkResult (VKAPI_PTR *PFN_vkAcquireProfilingLockKHR)(VkDevice, const VkAcquireProfilingLockInfoKHR *);
@@ -17568,6 +19363,95 @@ typedef VkResult (VKAPI_PTR *PFN_vkWaitSemaphores)(VkDevice, const VkSemaphoreWa
 typedef VkResult (VKAPI_PTR *PFN_vkWaitSemaphoresKHR)(VkDevice, const VkSemaphoreWaitInfo *, uint64_t);
 typedef VkResult (VKAPI_PTR *PFN_vkWriteAccelerationStructuresPropertiesKHR)(VkDevice, uint32_t, const VkAccelerationStructureKHR *, VkQueryType, size_t, void *, size_t);
 typedef VkResult (VKAPI_PTR *PFN_vkWriteMicromapsPropertiesEXT)(VkDevice, uint32_t, const VkMicromapEXT *, VkQueryType, size_t, void *, size_t);
+typedef XrResult (VKAPI_PTR *PFN_xrAcquireSwapchainImage)(XrSwapchain, const XrSwapchainImageAcquireInfo *, uint32_t *);
+typedef XrResult (VKAPI_PTR *PFN_xrApplyHapticFeedback)(XrSession, const XrHapticActionInfo *, const XrHapticBaseHeader *);
+typedef XrResult (VKAPI_PTR *PFN_xrAttachSessionActionSets)(XrSession, const XrSessionActionSetsAttachInfo *);
+typedef XrResult (VKAPI_PTR *PFN_xrBeginFrame)(XrSession, const XrFrameBeginInfo *);
+typedef XrResult (VKAPI_PTR *PFN_xrBeginSession)(XrSession, const XrSessionBeginInfo *);
+typedef XrResult (VKAPI_PTR *PFN_xrCancelFutureEXT)(XrInstance, const XrFutureCancelInfoEXT *);
+typedef XrResult (VKAPI_PTR *PFN_xrConvertTimeToWin32PerformanceCounterKHR)(XrInstance, XrTime, LARGE_INTEGER *);
+typedef XrResult (VKAPI_PTR *PFN_xrConvertWin32PerformanceCounterToTimeKHR)(XrInstance, const LARGE_INTEGER *, XrTime *);
+typedef XrResult (VKAPI_PTR *PFN_xrCreateAction)(XrActionSet, const XrActionCreateInfo *, XrAction *);
+typedef XrResult (VKAPI_PTR *PFN_xrCreateActionSet)(XrInstance, const XrActionSetCreateInfo *, XrActionSet *);
+typedef XrResult (VKAPI_PTR *PFN_xrCreateActionSpace)(XrSession, const XrActionSpaceCreateInfo *, XrSpace *);
+typedef XrResult (VKAPI_PTR *PFN_xrCreateApiLayerInstance)(const XrInstanceCreateInfo *, const XrApiLayerCreateInfo *, XrInstance *);
+typedef XrResult (VKAPI_PTR *PFN_xrCreateInstance)(const XrInstanceCreateInfo *, XrInstance *);
+typedef XrResult (VKAPI_PTR *PFN_xrCreateReferenceSpace)(XrSession, const XrReferenceSpaceCreateInfo *, XrSpace *);
+typedef XrResult (VKAPI_PTR *PFN_xrCreateSession)(XrInstance, const XrSessionCreateInfo *, XrSession *);
+typedef XrResult (VKAPI_PTR *PFN_xrCreateSwapchain)(XrSession, const XrSwapchainCreateInfo *, XrSwapchain *);
+typedef XrResult (VKAPI_PTR *PFN_xrCreateVulkanDeviceKHR)(XrInstance, const XrVulkanDeviceCreateInfoKHR *, VkDevice *, VkResult *);
+typedef XrResult (VKAPI_PTR *PFN_xrCreateVulkanInstanceKHR)(XrInstance, const XrVulkanInstanceCreateInfoKHR *, VkInstance *, VkResult *);
+typedef XrResult (VKAPI_PTR *PFN_xrDestroyAction)(XrAction);
+typedef XrResult (VKAPI_PTR *PFN_xrDestroyActionSet)(XrActionSet);
+typedef XrResult (VKAPI_PTR *PFN_xrDestroyInstance)(XrInstance);
+typedef XrResult (VKAPI_PTR *PFN_xrDestroySession)(XrSession);
+typedef XrResult (VKAPI_PTR *PFN_xrDestroySpace)(XrSpace);
+typedef XrResult (VKAPI_PTR *PFN_xrDestroySwapchain)(XrSwapchain);
+typedef XrResult (VKAPI_PTR *PFN_xrEndFrame)(XrSession, const XrFrameEndInfo *);
+typedef XrResult (VKAPI_PTR *PFN_xrEndSession)(XrSession);
+typedef XrResult (VKAPI_PTR *PFN_xrEnumerateApiLayerProperties)(uint32_t, uint32_t *, XrApiLayerProperties *);
+typedef XrResult (VKAPI_PTR *PFN_xrEnumerateBoundSourcesForAction)(XrSession, const XrBoundSourcesForActionEnumerateInfo *, uint32_t, uint32_t *, XrPath *);
+typedef XrResult (VKAPI_PTR *PFN_xrEnumerateEnvironmentBlendModes)(XrInstance, XrSystemId, XrViewConfigurationType, uint32_t, uint32_t *, XrEnvironmentBlendMode *);
+typedef XrResult (VKAPI_PTR *PFN_xrEnumerateExternalCamerasOCULUS)(XrSession, uint32_t, uint32_t *, XrExternalCameraOCULUS *);
+typedef XrResult (VKAPI_PTR *PFN_xrEnumerateInstanceExtensionProperties)(const char *, uint32_t, uint32_t *, XrExtensionProperties *);
+typedef XrResult (VKAPI_PTR *PFN_xrEnumerateReferenceSpaces)(XrSession, uint32_t, uint32_t *, XrReferenceSpaceType *);
+typedef XrResult (VKAPI_PTR *PFN_xrEnumerateSwapchainFormats)(XrSession, uint32_t, uint32_t *, int64_t *);
+typedef XrResult (VKAPI_PTR *PFN_xrEnumerateSwapchainImages)(XrSwapchain, uint32_t, uint32_t *, XrSwapchainImageBaseHeader *);
+typedef XrResult (VKAPI_PTR *PFN_xrEnumerateViewConfigurationViews)(XrInstance, XrSystemId, XrViewConfigurationType, uint32_t, uint32_t *, XrViewConfigurationView *);
+typedef XrResult (VKAPI_PTR *PFN_xrEnumerateViewConfigurations)(XrInstance, XrSystemId, uint32_t, uint32_t *, XrViewConfigurationType *);
+typedef XrResult (VKAPI_PTR *PFN_xrGetActionStateBoolean)(XrSession, const XrActionStateGetInfo *, XrActionStateBoolean *);
+typedef XrResult (VKAPI_PTR *PFN_xrGetActionStateFloat)(XrSession, const XrActionStateGetInfo *, XrActionStateFloat *);
+typedef XrResult (VKAPI_PTR *PFN_xrGetActionStatePose)(XrSession, const XrActionStateGetInfo *, XrActionStatePose *);
+typedef XrResult (VKAPI_PTR *PFN_xrGetActionStateVector2f)(XrSession, const XrActionStateGetInfo *, XrActionStateVector2f *);
+typedef XrResult (VKAPI_PTR *PFN_xrGetAudioInputDeviceGuidOculus)(XrInstance, wchar_t[XR_MAX_AUDIO_DEVICE_STR_SIZE_OCULUS]);
+typedef XrResult (VKAPI_PTR *PFN_xrGetAudioOutputDeviceGuidOculus)(XrInstance, wchar_t[XR_MAX_AUDIO_DEVICE_STR_SIZE_OCULUS]);
+typedef XrResult (VKAPI_PTR *PFN_xrGetCurrentInteractionProfile)(XrSession, XrPath, XrInteractionProfileState *);
+typedef XrResult (VKAPI_PTR *PFN_xrGetD3D11GraphicsRequirementsKHR)(XrInstance, XrSystemId, XrGraphicsRequirementsD3D11KHR *);
+typedef XrResult (VKAPI_PTR *PFN_xrGetD3D12GraphicsRequirementsKHR)(XrInstance, XrSystemId, XrGraphicsRequirementsD3D12KHR *);
+typedef XrResult (VKAPI_PTR *PFN_xrGetInputSourceLocalizedName)(XrSession, const XrInputSourceLocalizedNameGetInfo *, uint32_t, uint32_t *, char *);
+typedef XrResult (VKAPI_PTR *PFN_xrGetInstanceProcAddr)(XrInstance, const char *, PFN_xrVoidFunction *);
+typedef XrResult (VKAPI_PTR *PFN_xrGetInstanceProperties)(XrInstance, XrInstanceProperties *);
+typedef XrResult (VKAPI_PTR *PFN_xrGetMetalGraphicsRequirementsKHR)(XrInstance, XrSystemId, XrGraphicsRequirementsMetalKHR *);
+typedef XrResult (VKAPI_PTR *PFN_xrGetReferenceSpaceBoundsRect)(XrSession, XrReferenceSpaceType, XrExtent2Df *);
+typedef XrResult (VKAPI_PTR *PFN_xrGetSystem)(XrInstance, const XrSystemGetInfo *, XrSystemId *);
+typedef XrResult (VKAPI_PTR *PFN_xrGetSystemProperties)(XrInstance, XrSystemId, XrSystemProperties *);
+typedef XrResult (VKAPI_PTR *PFN_xrGetViewConfigurationProperties)(XrInstance, XrSystemId, XrViewConfigurationType, XrViewConfigurationProperties *);
+typedef XrResult (VKAPI_PTR *PFN_xrGetVisibilityMaskKHR)(XrSession, XrViewConfigurationType, uint32_t, XrVisibilityMaskTypeKHR, XrVisibilityMaskKHR *);
+typedef XrResult (VKAPI_PTR *PFN_xrGetVulkanDeviceExtensionsKHR)(XrInstance, XrSystemId, uint32_t, uint32_t *, char *);
+typedef XrResult (VKAPI_PTR *PFN_xrGetVulkanGraphicsDevice2KHR)(XrInstance, const XrVulkanGraphicsDeviceGetInfoKHR *, VkPhysicalDevice *);
+typedef XrResult (VKAPI_PTR *PFN_xrGetVulkanGraphicsDeviceKHR)(XrInstance, XrSystemId, VkInstance, VkPhysicalDevice *);
+typedef XrResult (VKAPI_PTR *PFN_xrGetVulkanGraphicsRequirements2KHR)(XrInstance, XrSystemId, XrGraphicsRequirementsVulkanKHR *);
+typedef XrResult (VKAPI_PTR *PFN_xrGetVulkanGraphicsRequirementsKHR)(XrInstance, XrSystemId, XrGraphicsRequirementsVulkanKHR *);
+typedef XrResult (VKAPI_PTR *PFN_xrGetVulkanInstanceExtensionsKHR)(XrInstance, XrSystemId, uint32_t, uint32_t *, char *);
+typedef XrResult (VKAPI_PTR *PFN_xrLocateSpace)(XrSpace, XrSpace, XrTime, XrSpaceLocation *);
+typedef XrResult (VKAPI_PTR *PFN_xrLocateSpaces)(XrSession, const XrSpacesLocateInfo *, XrSpaceLocations *);
+typedef XrResult (VKAPI_PTR *PFN_xrLocateSpacesKHR)(XrSession, const XrSpacesLocateInfo *, XrSpaceLocations *);
+typedef XrResult (VKAPI_PTR *PFN_xrLocateViews)(XrSession, const XrViewLocateInfo *, XrViewState *, uint32_t, uint32_t *, XrView *);
+typedef XrResult (VKAPI_PTR *PFN_xrNegotiateLoaderApiLayerInterface)(const XrNegotiateLoaderInfo *, const char *, XrNegotiateApiLayerRequest *);
+typedef XrResult (VKAPI_PTR *PFN_xrNegotiateLoaderRuntimeInterface)(const XrNegotiateLoaderInfo *, XrNegotiateRuntimeRequest *);
+typedef XrResult (VKAPI_PTR *PFN_xrPathToString)(XrInstance, XrPath, uint32_t, uint32_t *, char *);
+typedef XrResult (VKAPI_PTR *PFN_xrPerfSettingsSetPerformanceLevelEXT)(XrSession, XrPerfSettingsDomainEXT, XrPerfSettingsLevelEXT);
+typedef XrResult (VKAPI_PTR *PFN_xrPollEvent)(XrInstance, XrEventDataBuffer *);
+typedef XrResult (VKAPI_PTR *PFN_xrPollFutureEXT)(XrInstance, const XrFuturePollInfoEXT *, XrFuturePollResultEXT *);
+typedef XrResult (VKAPI_PTR *PFN_xrReleaseSwapchainImage)(XrSwapchain, const XrSwapchainImageReleaseInfo *);
+typedef XrResult (VKAPI_PTR *PFN_xrRequestExitSession)(XrSession);
+typedef XrResult (VKAPI_PTR *PFN_xrResultToString)(XrInstance, XrResult, char[XR_MAX_RESULT_STRING_SIZE]);
+typedef XrResult (VKAPI_PTR *PFN_xrSetAndroidApplicationThreadKHR)(XrSession, XrAndroidThreadTypeKHR, uint32_t);
+typedef XrResult (VKAPI_PTR *PFN_xrSetDigitalLensControlALMALENCE)(XrSession, const XrDigitalLensControlALMALENCE *);
+typedef XrResult (VKAPI_PTR *PFN_xrSetInputDeviceActiveEXT)(XrSession, XrPath, XrPath, XrBool32);
+typedef XrResult (VKAPI_PTR *PFN_xrSetInputDeviceLocationEXT)(XrSession, XrPath, XrPath, XrSpace, XrPosef);
+typedef XrResult (VKAPI_PTR *PFN_xrSetInputDeviceStateBoolEXT)(XrSession, XrPath, XrPath, XrBool32);
+typedef XrResult (VKAPI_PTR *PFN_xrSetInputDeviceStateFloatEXT)(XrSession, XrPath, XrPath, float);
+typedef XrResult (VKAPI_PTR *PFN_xrSetInputDeviceStateVector2fEXT)(XrSession, XrPath, XrPath, XrVector2f);
+typedef XrResult (VKAPI_PTR *PFN_xrSetTrackingOptimizationSettingsHintQCOM)(XrSession, XrTrackingOptimizationSettingsDomainQCOM, XrTrackingOptimizationSettingsHintQCOM);
+typedef XrResult (VKAPI_PTR *PFN_xrStopHapticFeedback)(XrSession, const XrHapticActionInfo *);
+typedef XrResult (VKAPI_PTR *PFN_xrStringToPath)(XrInstance, const char *, XrPath *);
+typedef XrResult (VKAPI_PTR *PFN_xrStructureTypeToString)(XrInstance, XrStructureType, char[XR_MAX_STRUCTURE_NAME_SIZE]);
+typedef XrResult (VKAPI_PTR *PFN_xrSuggestInteractionProfileBindings)(XrInstance, const XrInteractionProfileSuggestedBinding *);
+typedef XrResult (VKAPI_PTR *PFN_xrSyncActions)(XrSession, const XrActionsSyncInfo *);
+typedef XrResult (VKAPI_PTR *PFN_xrThermalGetTemperatureTrendEXT)(XrSession, XrPerfSettingsDomainEXT, XrPerfSettingsNotificationLevelEXT *, float *, float *);
+typedef XrResult (VKAPI_PTR *PFN_xrWaitFrame)(XrSession, const XrFrameWaitInfo *, XrFrameState *);
+typedef XrResult (VKAPI_PTR *PFN_xrWaitSwapchainImage)(XrSwapchain, const XrSwapchainImageWaitInfo *);
 
 #ifndef VK_NO_PROTOTYPES
 VkResult VKAPI_CALL vkAcquireNextImage2KHR(VkDevice device, const VkAcquireNextImageInfoKHR *pAcquireInfo, uint32_t *pImageIndex);
@@ -18194,6 +20078,95 @@ VkResult VKAPI_CALL vkWaitSemaphores(VkDevice device, const VkSemaphoreWaitInfo 
 VkResult VKAPI_CALL vkWaitSemaphoresKHR(VkDevice device, const VkSemaphoreWaitInfo *pWaitInfo, uint64_t timeout);
 VkResult VKAPI_CALL vkWriteAccelerationStructuresPropertiesKHR(VkDevice device, uint32_t accelerationStructureCount, const VkAccelerationStructureKHR *pAccelerationStructures, VkQueryType queryType, size_t dataSize, void *pData, size_t stride);
 VkResult VKAPI_CALL vkWriteMicromapsPropertiesEXT(VkDevice device, uint32_t micromapCount, const VkMicromapEXT *pMicromaps, VkQueryType queryType, size_t dataSize, void *pData, size_t stride);
+XrResult VKAPI_CALL xrAcquireSwapchainImage(XrSwapchain swapchain, const XrSwapchainImageAcquireInfo *acquireInfo, uint32_t *index);
+XrResult VKAPI_CALL xrApplyHapticFeedback(XrSession session, const XrHapticActionInfo *hapticActionInfo, const XrHapticBaseHeader *hapticFeedback);
+XrResult VKAPI_CALL xrAttachSessionActionSets(XrSession session, const XrSessionActionSetsAttachInfo *attachInfo);
+XrResult VKAPI_CALL xrBeginFrame(XrSession session, const XrFrameBeginInfo *frameBeginInfo);
+XrResult VKAPI_CALL xrBeginSession(XrSession session, const XrSessionBeginInfo *beginInfo);
+XrResult VKAPI_CALL xrCancelFutureEXT(XrInstance instance, const XrFutureCancelInfoEXT *cancelInfo);
+XrResult VKAPI_CALL xrConvertTimeToWin32PerformanceCounterKHR(XrInstance instance, XrTime time, LARGE_INTEGER *performanceCounter);
+XrResult VKAPI_CALL xrConvertWin32PerformanceCounterToTimeKHR(XrInstance instance, const LARGE_INTEGER *performanceCounter, XrTime *time);
+XrResult VKAPI_CALL xrCreateAction(XrActionSet actionSet, const XrActionCreateInfo *createInfo, XrAction *action);
+XrResult VKAPI_CALL xrCreateActionSet(XrInstance instance, const XrActionSetCreateInfo *createInfo, XrActionSet *actionSet);
+XrResult VKAPI_CALL xrCreateActionSpace(XrSession session, const XrActionSpaceCreateInfo *createInfo, XrSpace *space);
+XrResult VKAPI_CALL xrCreateApiLayerInstance(const XrInstanceCreateInfo *info, const XrApiLayerCreateInfo *layerInfo, XrInstance *instance);
+XrResult VKAPI_CALL xrCreateInstance(const XrInstanceCreateInfo *createInfo, XrInstance *instance);
+XrResult VKAPI_CALL xrCreateReferenceSpace(XrSession session, const XrReferenceSpaceCreateInfo *createInfo, XrSpace *space);
+XrResult VKAPI_CALL xrCreateSession(XrInstance instance, const XrSessionCreateInfo *createInfo, XrSession *session);
+XrResult VKAPI_CALL xrCreateSwapchain(XrSession session, const XrSwapchainCreateInfo *createInfo, XrSwapchain *swapchain);
+XrResult VKAPI_CALL xrCreateVulkanDeviceKHR(XrInstance instance, const XrVulkanDeviceCreateInfoKHR *createInfo, VkDevice *vulkanDevice, VkResult *vulkanResult);
+XrResult VKAPI_CALL xrCreateVulkanInstanceKHR(XrInstance instance, const XrVulkanInstanceCreateInfoKHR *createInfo, VkInstance *vulkanInstance, VkResult *vulkanResult);
+XrResult VKAPI_CALL xrDestroyAction(XrAction action);
+XrResult VKAPI_CALL xrDestroyActionSet(XrActionSet actionSet);
+XrResult VKAPI_CALL xrDestroyInstance(XrInstance instance);
+XrResult VKAPI_CALL xrDestroySession(XrSession session);
+XrResult VKAPI_CALL xrDestroySpace(XrSpace space);
+XrResult VKAPI_CALL xrDestroySwapchain(XrSwapchain swapchain);
+XrResult VKAPI_CALL xrEndFrame(XrSession session, const XrFrameEndInfo *frameEndInfo);
+XrResult VKAPI_CALL xrEndSession(XrSession session);
+XrResult VKAPI_CALL xrEnumerateApiLayerProperties(uint32_t propertyCapacityInput, uint32_t *propertyCountOutput, XrApiLayerProperties *properties);
+XrResult VKAPI_CALL xrEnumerateBoundSourcesForAction(XrSession session, const XrBoundSourcesForActionEnumerateInfo *enumerateInfo, uint32_t sourceCapacityInput, uint32_t *sourceCountOutput, XrPath *sources);
+XrResult VKAPI_CALL xrEnumerateEnvironmentBlendModes(XrInstance instance, XrSystemId systemId, XrViewConfigurationType viewConfigurationType, uint32_t environmentBlendModeCapacityInput, uint32_t *environmentBlendModeCountOutput, XrEnvironmentBlendMode *environmentBlendModes);
+XrResult VKAPI_CALL xrEnumerateExternalCamerasOCULUS(XrSession session, uint32_t cameraCapacityInput, uint32_t *cameraCountOutput, XrExternalCameraOCULUS *cameras);
+XrResult VKAPI_CALL xrEnumerateInstanceExtensionProperties(const char *layerName, uint32_t propertyCapacityInput, uint32_t *propertyCountOutput, XrExtensionProperties *properties);
+XrResult VKAPI_CALL xrEnumerateReferenceSpaces(XrSession session, uint32_t spaceCapacityInput, uint32_t *spaceCountOutput, XrReferenceSpaceType *spaces);
+XrResult VKAPI_CALL xrEnumerateSwapchainFormats(XrSession session, uint32_t formatCapacityInput, uint32_t *formatCountOutput, int64_t *formats);
+XrResult VKAPI_CALL xrEnumerateSwapchainImages(XrSwapchain swapchain, uint32_t imageCapacityInput, uint32_t *imageCountOutput, XrSwapchainImageBaseHeader *images);
+XrResult VKAPI_CALL xrEnumerateViewConfigurationViews(XrInstance instance, XrSystemId systemId, XrViewConfigurationType viewConfigurationType, uint32_t viewCapacityInput, uint32_t *viewCountOutput, XrViewConfigurationView *views);
+XrResult VKAPI_CALL xrEnumerateViewConfigurations(XrInstance instance, XrSystemId systemId, uint32_t viewConfigurationTypeCapacityInput, uint32_t *viewConfigurationTypeCountOutput, XrViewConfigurationType *viewConfigurationTypes);
+XrResult VKAPI_CALL xrGetActionStateBoolean(XrSession session, const XrActionStateGetInfo *getInfo, XrActionStateBoolean *state);
+XrResult VKAPI_CALL xrGetActionStateFloat(XrSession session, const XrActionStateGetInfo *getInfo, XrActionStateFloat *state);
+XrResult VKAPI_CALL xrGetActionStatePose(XrSession session, const XrActionStateGetInfo *getInfo, XrActionStatePose *state);
+XrResult VKAPI_CALL xrGetActionStateVector2f(XrSession session, const XrActionStateGetInfo *getInfo, XrActionStateVector2f *state);
+XrResult VKAPI_CALL xrGetAudioInputDeviceGuidOculus(XrInstance instance, wchar_t buffer[XR_MAX_AUDIO_DEVICE_STR_SIZE_OCULUS]);
+XrResult VKAPI_CALL xrGetAudioOutputDeviceGuidOculus(XrInstance instance, wchar_t buffer[XR_MAX_AUDIO_DEVICE_STR_SIZE_OCULUS]);
+XrResult VKAPI_CALL xrGetCurrentInteractionProfile(XrSession session, XrPath topLevelUserPath, XrInteractionProfileState *interactionProfile);
+XrResult VKAPI_CALL xrGetD3D11GraphicsRequirementsKHR(XrInstance instance, XrSystemId systemId, XrGraphicsRequirementsD3D11KHR *graphicsRequirements);
+XrResult VKAPI_CALL xrGetD3D12GraphicsRequirementsKHR(XrInstance instance, XrSystemId systemId, XrGraphicsRequirementsD3D12KHR *graphicsRequirements);
+XrResult VKAPI_CALL xrGetInputSourceLocalizedName(XrSession session, const XrInputSourceLocalizedNameGetInfo *getInfo, uint32_t bufferCapacityInput, uint32_t *bufferCountOutput, char *buffer);
+XrResult VKAPI_CALL xrGetInstanceProcAddr(XrInstance instance, const char *name, PFN_xrVoidFunction *function);
+XrResult VKAPI_CALL xrGetInstanceProperties(XrInstance instance, XrInstanceProperties *instanceProperties);
+XrResult VKAPI_CALL xrGetMetalGraphicsRequirementsKHR(XrInstance instance, XrSystemId systemId, XrGraphicsRequirementsMetalKHR *graphicsRequirements);
+XrResult VKAPI_CALL xrGetReferenceSpaceBoundsRect(XrSession session, XrReferenceSpaceType referenceSpaceType, XrExtent2Df *bounds);
+XrResult VKAPI_CALL xrGetSystem(XrInstance instance, const XrSystemGetInfo *getInfo, XrSystemId *systemId);
+XrResult VKAPI_CALL xrGetSystemProperties(XrInstance instance, XrSystemId systemId, XrSystemProperties *properties);
+XrResult VKAPI_CALL xrGetViewConfigurationProperties(XrInstance instance, XrSystemId systemId, XrViewConfigurationType viewConfigurationType, XrViewConfigurationProperties *configurationProperties);
+XrResult VKAPI_CALL xrGetVisibilityMaskKHR(XrSession session, XrViewConfigurationType viewConfigurationType, uint32_t viewIndex, XrVisibilityMaskTypeKHR visibilityMaskType, XrVisibilityMaskKHR *visibilityMask);
+XrResult VKAPI_CALL xrGetVulkanDeviceExtensionsKHR(XrInstance instance, XrSystemId systemId, uint32_t bufferCapacityInput, uint32_t *bufferCountOutput, char *buffer);
+XrResult VKAPI_CALL xrGetVulkanGraphicsDevice2KHR(XrInstance instance, const XrVulkanGraphicsDeviceGetInfoKHR *getInfo, VkPhysicalDevice *vulkanPhysicalDevice);
+XrResult VKAPI_CALL xrGetVulkanGraphicsDeviceKHR(XrInstance instance, XrSystemId systemId, VkInstance vkInstance, VkPhysicalDevice *vkPhysicalDevice);
+XrResult VKAPI_CALL xrGetVulkanGraphicsRequirements2KHR(XrInstance instance, XrSystemId systemId, XrGraphicsRequirementsVulkanKHR *graphicsRequirements);
+XrResult VKAPI_CALL xrGetVulkanGraphicsRequirementsKHR(XrInstance instance, XrSystemId systemId, XrGraphicsRequirementsVulkanKHR *graphicsRequirements);
+XrResult VKAPI_CALL xrGetVulkanInstanceExtensionsKHR(XrInstance instance, XrSystemId systemId, uint32_t bufferCapacityInput, uint32_t *bufferCountOutput, char *buffer);
+XrResult VKAPI_CALL xrLocateSpace(XrSpace space, XrSpace baseSpace, XrTime time, XrSpaceLocation *location);
+XrResult VKAPI_CALL xrLocateSpaces(XrSession session, const XrSpacesLocateInfo *locateInfo, XrSpaceLocations *spaceLocations);
+XrResult VKAPI_CALL xrLocateSpacesKHR(XrSession session, const XrSpacesLocateInfo *locateInfo, XrSpaceLocations *spaceLocations);
+XrResult VKAPI_CALL xrLocateViews(XrSession session, const XrViewLocateInfo *viewLocateInfo, XrViewState *viewState, uint32_t viewCapacityInput, uint32_t *viewCountOutput, XrView *views);
+XrResult VKAPI_CALL xrNegotiateLoaderApiLayerInterface(const XrNegotiateLoaderInfo *loaderInfo, const char *layerName, XrNegotiateApiLayerRequest *apiLayerRequest);
+XrResult VKAPI_CALL xrNegotiateLoaderRuntimeInterface(const XrNegotiateLoaderInfo *loaderInfo, XrNegotiateRuntimeRequest *runtimeRequest);
+XrResult VKAPI_CALL xrPathToString(XrInstance instance, XrPath path, uint32_t bufferCapacityInput, uint32_t *bufferCountOutput, char *buffer);
+XrResult VKAPI_CALL xrPerfSettingsSetPerformanceLevelEXT(XrSession session, XrPerfSettingsDomainEXT domain, XrPerfSettingsLevelEXT level);
+XrResult VKAPI_CALL xrPollEvent(XrInstance instance, XrEventDataBuffer *eventData);
+XrResult VKAPI_CALL xrPollFutureEXT(XrInstance instance, const XrFuturePollInfoEXT *pollInfo, XrFuturePollResultEXT *pollResult);
+XrResult VKAPI_CALL xrReleaseSwapchainImage(XrSwapchain swapchain, const XrSwapchainImageReleaseInfo *releaseInfo);
+XrResult VKAPI_CALL xrRequestExitSession(XrSession session);
+XrResult VKAPI_CALL xrResultToString(XrInstance instance, XrResult value, char buffer[XR_MAX_RESULT_STRING_SIZE]);
+XrResult VKAPI_CALL xrSetAndroidApplicationThreadKHR(XrSession session, XrAndroidThreadTypeKHR threadType, uint32_t threadId);
+XrResult VKAPI_CALL xrSetDigitalLensControlALMALENCE(XrSession session, const XrDigitalLensControlALMALENCE *digitalLensControl);
+XrResult VKAPI_CALL xrSetInputDeviceActiveEXT(XrSession session, XrPath interactionProfile, XrPath topLevelPath, XrBool32 isActive);
+XrResult VKAPI_CALL xrSetInputDeviceLocationEXT(XrSession session, XrPath topLevelPath, XrPath inputSourcePath, XrSpace space, XrPosef pose);
+XrResult VKAPI_CALL xrSetInputDeviceStateBoolEXT(XrSession session, XrPath topLevelPath, XrPath inputSourcePath, XrBool32 state);
+XrResult VKAPI_CALL xrSetInputDeviceStateFloatEXT(XrSession session, XrPath topLevelPath, XrPath inputSourcePath, float state);
+XrResult VKAPI_CALL xrSetInputDeviceStateVector2fEXT(XrSession session, XrPath topLevelPath, XrPath inputSourcePath, XrVector2f state);
+XrResult VKAPI_CALL xrSetTrackingOptimizationSettingsHintQCOM(XrSession session, XrTrackingOptimizationSettingsDomainQCOM domain, XrTrackingOptimizationSettingsHintQCOM hint);
+XrResult VKAPI_CALL xrStopHapticFeedback(XrSession session, const XrHapticActionInfo *hapticActionInfo);
+XrResult VKAPI_CALL xrStringToPath(XrInstance instance, const char *pathString, XrPath *path);
+XrResult VKAPI_CALL xrStructureTypeToString(XrInstance instance, XrStructureType value, char buffer[XR_MAX_STRUCTURE_NAME_SIZE]);
+XrResult VKAPI_CALL xrSuggestInteractionProfileBindings(XrInstance instance, const XrInteractionProfileSuggestedBinding *suggestedBindings);
+XrResult VKAPI_CALL xrSyncActions(XrSession session, const XrActionsSyncInfo *syncInfo);
+XrResult VKAPI_CALL xrThermalGetTemperatureTrendEXT(XrSession session, XrPerfSettingsDomainEXT domain, XrPerfSettingsNotificationLevelEXT *notificationLevel, float *tempHeadroom, float *tempSlope);
+XrResult VKAPI_CALL xrWaitFrame(XrSession session, const XrFrameWaitInfo *frameWaitInfo, XrFrameState *frameState);
+XrResult VKAPI_CALL xrWaitSwapchainImage(XrSwapchain swapchain, const XrSwapchainImageWaitInfo *waitInfo);
 #endif /* VK_NO_PROTOTYPES */
 
 #define ALL_VK_DEVICE_FUNCS \
@@ -18809,5 +20782,96 @@ VkResult VKAPI_CALL vkWriteMicromapsPropertiesEXT(VkDevice device, uint32_t micr
     USE_VK_FUNC(vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR) \
     USE_VK_FUNC(vkGetPhysicalDeviceVideoFormatPropertiesKHR) \
     USE_VK_FUNC(vkGetPhysicalDeviceWin32PresentationSupportKHR)
+
+#define ALL_XR_INSTANCE_FUNCS \
+    USE_XR_FUNC(xrAcquireSwapchainImage) \
+    USE_XR_FUNC(xrApplyHapticFeedback) \
+    USE_XR_FUNC(xrAttachSessionActionSets) \
+    USE_XR_FUNC(xrBeginFrame) \
+    USE_XR_FUNC(xrBeginSession) \
+    USE_XR_FUNC(xrCancelFutureEXT) \
+    USE_XR_FUNC(xrConvertTimeToWin32PerformanceCounterKHR) \
+    USE_XR_FUNC(xrConvertWin32PerformanceCounterToTimeKHR) \
+    USE_XR_FUNC(xrCreateAction) \
+    USE_XR_FUNC(xrCreateActionSet) \
+    USE_XR_FUNC(xrCreateActionSpace) \
+    USE_XR_FUNC(xrCreateApiLayerInstance) \
+    USE_XR_FUNC(xrCreateInstance) \
+    USE_XR_FUNC(xrCreateReferenceSpace) \
+    USE_XR_FUNC(xrCreateSession) \
+    USE_XR_FUNC(xrCreateSwapchain) \
+    USE_XR_FUNC(xrCreateVulkanDeviceKHR) \
+    USE_XR_FUNC(xrCreateVulkanInstanceKHR) \
+    USE_XR_FUNC(xrDestroyAction) \
+    USE_XR_FUNC(xrDestroyActionSet) \
+    USE_XR_FUNC(xrDestroyInstance) \
+    USE_XR_FUNC(xrDestroySession) \
+    USE_XR_FUNC(xrDestroySpace) \
+    USE_XR_FUNC(xrDestroySwapchain) \
+    USE_XR_FUNC(xrEndFrame) \
+    USE_XR_FUNC(xrEndSession) \
+    USE_XR_FUNC(xrEnumerateApiLayerProperties) \
+    USE_XR_FUNC(xrEnumerateBoundSourcesForAction) \
+    USE_XR_FUNC(xrEnumerateEnvironmentBlendModes) \
+    USE_XR_FUNC(xrEnumerateExternalCamerasOCULUS) \
+    USE_XR_FUNC(xrEnumerateInstanceExtensionProperties) \
+    USE_XR_FUNC(xrEnumerateReferenceSpaces) \
+    USE_XR_FUNC(xrEnumerateSwapchainFormats) \
+    USE_XR_FUNC(xrEnumerateSwapchainImages) \
+    USE_XR_FUNC(xrEnumerateViewConfigurationViews) \
+    USE_XR_FUNC(xrEnumerateViewConfigurations) \
+    USE_XR_FUNC(xrGetActionStateBoolean) \
+    USE_XR_FUNC(xrGetActionStateFloat) \
+    USE_XR_FUNC(xrGetActionStatePose) \
+    USE_XR_FUNC(xrGetActionStateVector2f) \
+    USE_XR_FUNC(xrGetAudioInputDeviceGuidOculus) \
+    USE_XR_FUNC(xrGetAudioOutputDeviceGuidOculus) \
+    USE_XR_FUNC(xrGetCurrentInteractionProfile) \
+    USE_XR_FUNC(xrGetD3D11GraphicsRequirementsKHR) \
+    USE_XR_FUNC(xrGetD3D12GraphicsRequirementsKHR) \
+    USE_XR_FUNC(xrGetInputSourceLocalizedName) \
+    USE_XR_FUNC(xrGetInstanceProcAddr) \
+    USE_XR_FUNC(xrGetInstanceProperties) \
+    USE_XR_FUNC(xrGetMetalGraphicsRequirementsKHR) \
+    USE_XR_FUNC(xrGetReferenceSpaceBoundsRect) \
+    USE_XR_FUNC(xrGetSystem) \
+    USE_XR_FUNC(xrGetSystemProperties) \
+    USE_XR_FUNC(xrGetViewConfigurationProperties) \
+    USE_XR_FUNC(xrGetVisibilityMaskKHR) \
+    USE_XR_FUNC(xrGetVulkanDeviceExtensionsKHR) \
+    USE_XR_FUNC(xrGetVulkanGraphicsDevice2KHR) \
+    USE_XR_FUNC(xrGetVulkanGraphicsDeviceKHR) \
+    USE_XR_FUNC(xrGetVulkanGraphicsRequirements2KHR) \
+    USE_XR_FUNC(xrGetVulkanGraphicsRequirementsKHR) \
+    USE_XR_FUNC(xrGetVulkanInstanceExtensionsKHR) \
+    USE_XR_FUNC(xrLocateSpace) \
+    USE_XR_FUNC(xrLocateSpaces) \
+    USE_XR_FUNC(xrLocateSpacesKHR) \
+    USE_XR_FUNC(xrLocateViews) \
+    USE_XR_FUNC(xrNegotiateLoaderApiLayerInterface) \
+    USE_XR_FUNC(xrNegotiateLoaderRuntimeInterface) \
+    USE_XR_FUNC(xrPathToString) \
+    USE_XR_FUNC(xrPerfSettingsSetPerformanceLevelEXT) \
+    USE_XR_FUNC(xrPollEvent) \
+    USE_XR_FUNC(xrPollFutureEXT) \
+    USE_XR_FUNC(xrReleaseSwapchainImage) \
+    USE_XR_FUNC(xrRequestExitSession) \
+    USE_XR_FUNC(xrResultToString) \
+    USE_XR_FUNC(xrSetAndroidApplicationThreadKHR) \
+    USE_XR_FUNC(xrSetDigitalLensControlALMALENCE) \
+    USE_XR_FUNC(xrSetInputDeviceActiveEXT) \
+    USE_XR_FUNC(xrSetInputDeviceLocationEXT) \
+    USE_XR_FUNC(xrSetInputDeviceStateBoolEXT) \
+    USE_XR_FUNC(xrSetInputDeviceStateFloatEXT) \
+    USE_XR_FUNC(xrSetInputDeviceStateVector2fEXT) \
+    USE_XR_FUNC(xrSetTrackingOptimizationSettingsHintQCOM) \
+    USE_XR_FUNC(xrStopHapticFeedback) \
+    USE_XR_FUNC(xrStringToPath) \
+    USE_XR_FUNC(xrStructureTypeToString) \
+    USE_XR_FUNC(xrSuggestInteractionProfileBindings) \
+    USE_XR_FUNC(xrSyncActions) \
+    USE_XR_FUNC(xrThermalGetTemperatureTrendEXT) \
+    USE_XR_FUNC(xrWaitFrame) \
+    USE_XR_FUNC(xrWaitSwapchainImage)
 
 #endif /* __WINE_VULKAN_H */
