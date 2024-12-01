@@ -537,7 +537,8 @@ static const char *find_extension(const char *const *extensions, uint32_t count,
 }
 
 static VkResult wine_vk_device_convert_create_info(VkPhysicalDevice client_physical_device,
-        struct conversion_context *ctx, const VkDeviceCreateInfo *src, VkDeviceCreateInfo *dst)
+        struct conversion_context *ctx, const VkDeviceCreateInfo *src, VkDeviceCreateInfo *dst,
+        struct wine_device *device)
 {
     struct vulkan_physical_device *physical_device = vulkan_physical_device_from_handle(client_physical_device);
     const char *extra_extensions[2], * const*extensions = src->ppEnabledExtensionNames;
@@ -595,6 +596,11 @@ static VkResult wine_vk_device_convert_create_info(VkPhysicalDevice client_physi
         memcpy(new_extensions + extensions_count, extra_extensions, extra_count * sizeof(*new_extensions));
         dst->ppEnabledExtensionNames = new_extensions;
     }
+
+    if (!(device->obj.extensions = calloc(dst->enabledExtensionCount, sizeof(device->obj.extensions))))
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
+    for (i = 0; i < dst->enabledExtensionCount; i++)
+        strcpy(device->obj.extensions[i].extensionName, dst->ppEnabledExtensionNames[i]);
 
     return VK_SUCCESS;
 }
@@ -717,6 +723,11 @@ static VkResult wine_vk_instance_convert_create_info(struct conversion_context *
         new_extensions[dst->enabledExtensionCount++] = "VK_KHR_get_physical_device_properties2";
         new_extensions[dst->enabledExtensionCount++] = "VK_KHR_external_memory_capabilities";
     }
+
+    if (!(instance->obj.extensions = calloc(dst->enabledExtensionCount, sizeof(instance->obj.extensions))))
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
+    for (i = 0; i < dst->enabledExtensionCount; i++)
+        strcpy(instance->obj.extensions[i].extensionName, dst->ppEnabledExtensionNames[i]);
 
     TRACE("Enabled %u instance extensions.\n", dst->enabledExtensionCount);
 
@@ -883,7 +894,7 @@ VkResult wine_vkCreateDevice(VkPhysicalDevice client_physical_device, const VkDe
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
     init_conversion_context(&ctx);
-    res = wine_vk_device_convert_create_info(client_physical_device, &ctx, create_info, &create_info_host);
+    res = wine_vk_device_convert_create_info(client_physical_device, &ctx, create_info, &create_info_host, device);
     if (res == VK_SUCCESS)
         res = instance->p_vkCreateDevice(physical_device->host.physical_device, &create_info_host,
                                                NULL /* allocator */, &host_device);
@@ -891,6 +902,7 @@ VkResult wine_vkCreateDevice(VkPhysicalDevice client_physical_device, const VkDe
     if (res != VK_SUCCESS)
     {
         WARN("Failed to create device, res=%d.\n", res);
+        free(device->obj.extensions);
         free(device);
         return res;
     }
@@ -957,6 +969,7 @@ VkResult wine_vkCreateInstance(const VkInstanceCreateInfo *create_info,
     {
         ERR("Failed to create instance, res=%d\n", res);
         free(instance->utils_messengers);
+        free(instance->obj.extensions);
         free(instance);
         return res;
     }
@@ -985,6 +998,7 @@ VkResult wine_vkCreateInstance(const VkInstanceCreateInfo *create_info,
         ERR("Failed to load physical devices, res=%d\n", res);
         instance->obj.p_vkDestroyInstance(instance->obj.host.instance, NULL /* allocator */);
         free(instance->utils_messengers);
+        free(instance->obj.extensions);
         free(instance);
         return res;
     }
@@ -1030,6 +1044,7 @@ void wine_vkDestroyDevice(VkDevice client_device, const VkAllocationCallbacks *a
         vulkan_instance_remove_object(instance, &device->queues[i].obj.obj);
     vulkan_instance_remove_object(instance, &device->obj.obj);
 
+    free(device->obj.extensions);
     free(device);
 }
 
@@ -1053,6 +1068,7 @@ void wine_vkDestroyInstance(VkInstance client_instance, const VkAllocationCallba
 
     if (instance->objects.compare) pthread_rwlock_destroy(&instance->objects_lock);
     free(instance->utils_messengers);
+    free(instance->obj.extensions);
     free(instance);
 }
 

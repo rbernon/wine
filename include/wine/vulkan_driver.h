@@ -79,6 +79,9 @@ struct vulkan_instance
     void (*p_insert_object)( struct vulkan_instance *instance, struct vulkan_object *obj );
     void (*p_remove_object)( struct vulkan_instance *instance, struct vulkan_object *obj );
 
+    VkExtensionProperties *extensions; /* enabled host extensions */
+    uint32_t extension_count;
+
     struct vulkan_physical_device *physical_devices;
     uint32_t physical_device_count;
 };
@@ -116,6 +119,9 @@ struct vulkan_device
 #define USE_VK_FUNC(x) PFN_ ## x p_ ## x;
     ALL_VK_DEVICE_FUNCS
 #undef USE_VK_FUNC
+
+    VkExtensionProperties *extensions; /* enabled host extensions */
+    uint32_t extension_count;
 };
 
 static inline struct vulkan_device *vulkan_device_from_handle( VkDevice handle )
