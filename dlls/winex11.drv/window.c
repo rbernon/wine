@@ -3513,6 +3513,64 @@ void net_supported_init( struct x11drv_thread_data *data )
     }
 }
 
+static Window get_net_supporting_wm_check( Display *display, Window window )
+{
+    unsigned long count, remaining;
+    Window *tmp, support = None;
+    int format;
+    Atom type;
+
+    if (!XGetWindowProperty( display, window, x11drv_atom(_NET_SUPPORTING_WM_CHECK), 0, 65536 / sizeof(CARD32),
+                             False, XA_WINDOW, &type, &format, &count, &remaining, (unsigned char **)&tmp ))
+    {
+        support = *tmp;
+        free( tmp );
+    }
+
+    return support;
+}
+
+static BOOL get_window_property_str( Display *display, Window window, Atom atom, char **name )
+{
+    unsigned long count, remaining;
+    int format, ret;
+    Atom type;
+
+    X11DRV_expect_error( display, host_window_error, NULL );
+    ret = XGetWindowProperty( display, window, atom, 0, 65536 / sizeof(CARD32), False, x11drv_atom(UTF8_STRING),
+                              &type, &format, &count, &remaining, (unsigned char **)name );
+    return !X11DRV_check_error() && !ret;
+}
+
+void net_supporting_wm_check_init( struct x11drv_thread_data *data )
+{
+    Window window = None, other;
+
+    window = get_net_supporting_wm_check( data->display, DefaultRootWindow( data->display ) );
+    /* the window itself must have the property set too */
+    X11DRV_expect_error( data->display, host_window_error, NULL );
+    other = get_net_supporting_wm_check( data->display, window );
+    if (X11DRV_check_error() || window != other) WARN( "Invalid _NET_SUPPORTING_WM_CHECK window\n" );
+    else if (get_window_property_str( data->display, window, x11drv_atom(_NET_WM_NAME), &data->window_manager ) ||
+             get_window_property_str( data->display, window, x11drv_atom(WM_NAME), &data->window_manager ))
+    {
+        if (!strcmp( data->window_manager, "GNOME Shell" )) strcpy( data->window_manager, "Mutter" );
+        TRACE( "Detected window manager: %s\n", debugstr_a(data->window_manager) );
+    }
+}
+
+BOOL X11DRV_HasWindowManager( const char *name )
+{
+    struct x11drv_thread_data *data = x11drv_init_thread_data();
+    return data->window_manager && !strcmp( data->window_manager, name );
+}
+
+BOOL X11DRV_HasWindowManager( const char *name )
+{
+    struct x11drv_thread_data *data = x11drv_init_thread_data();
+    return data->window_manager && !strcmp( data->window_manager, name );
+}
+
 void init_win_context(void)
 {
     init_recursive_mutex( &win_data_mutex );
