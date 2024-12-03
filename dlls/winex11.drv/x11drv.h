@@ -487,6 +487,7 @@ enum x11drv_atoms
     XATOM__NET_STARTUP_INFO_BEGIN,
     XATOM__NET_STARTUP_INFO,
     XATOM__NET_SUPPORTED,
+    XATOM__NET_SUPPORTING_WM_CHECK,
     XATOM__NET_SYSTEM_TRAY_OPCODE,
     XATOM__NET_SYSTEM_TRAY_S0,
     XATOM__NET_SYSTEM_TRAY_VISUAL,
@@ -667,6 +668,7 @@ extern void window_configure_notify( struct x11drv_win_data *data, unsigned long
 extern BOOL get_window_state_updates( HWND hwnd, UINT *state_cmd, UINT *config_cmd, RECT *rect );
 
 extern void net_supported_init( struct x11drv_thread_data *data );
+extern void net_supporting_wm_check_init( struct x11drv_thread_data *data );
 
 extern Window init_clip_window(void);
 extern void update_user_time( Time time );
