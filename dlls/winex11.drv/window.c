@@ -3439,6 +3439,18 @@ static Window get_net_supporting_wm_check( Display *display, Window window )
     return support;
 }
 
+static BOOL get_window_property_str( Display *display, Window window, Atom atom, char **name )
+{
+    unsigned long count, remaining;
+    int format, ret;
+    Atom type;
+
+    X11DRV_expect_error( display, host_window_error, NULL );
+    ret = XGetWindowProperty( display, window, atom, 0, 65536 / sizeof(CARD32), False, x11drv_atom(UTF8_STRING),
+                              &type, &format, &count, &remaining, (unsigned char **)name );
+    return !X11DRV_check_error() && !ret;
+}
+
 void net_supporting_wm_check_init( struct x11drv_thread_data *data )
 {
     Window window = None, other;
@@ -3448,6 +3460,9 @@ void net_supporting_wm_check_init( struct x11drv_thread_data *data )
     X11DRV_expect_error( data->display, host_window_error, NULL );
     other = get_net_supporting_wm_check( data->display, window );
     if (X11DRV_check_error() || window != other) WARN( "Invalid _NET_SUPPORTING_WM_CHECK window\n" );
+    else if (get_window_property_str( data->display, window, x11drv_atom(_NET_WM_NAME), &data->window_manager ) ||
+             get_window_property_str( data->display, window, x11drv_atom(WM_NAME), &data->window_manager ))
+        TRACE( "Detected window manager: %s\n", debugstr_a(data->window_manager) );
 }
 
 void init_win_context(void)
