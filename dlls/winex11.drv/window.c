@@ -1279,7 +1279,8 @@ static void window_set_net_wm_state( struct x11drv_win_data *data, UINT new_stat
 static void window_set_config( struct x11drv_win_data *data, const RECT *new_rect, BOOL above )
 {
     static const UINT fullscreen_mask = (1 << NET_WM_STATE_MAXIMIZED) | (1 << NET_WM_STATE_FULLSCREEN);
-    UINT style = NtUserGetWindowLongW( data->hwnd, GWL_STYLE ), mask = 0;
+    UINT style = NtUserGetWindowLongW( data->hwnd, GWL_STYLE ), mask = 0, net_wm_state = -1;
+    struct x11drv_thread_data *thread_data = x11drv_thread_data();
     const RECT *old_rect = &data->pending_state.rect;
     XWindowChanges changes;
 
@@ -1287,16 +1288,25 @@ static void window_set_config( struct x11drv_win_data *data, const RECT *new_rec
     if (!data->whole_window) return; /* no window, nothing to update */
     if (EqualRect( old_rect, new_rect )) return; /* rects are the same, nothing to update */
 
-    if (data->pending_state.wm_state == NormalState && data->net_wm_state_serial &&
-        !(data->pending_state.net_wm_state & fullscreen_mask) &&
-        (data->current_state.net_wm_state & fullscreen_mask))
+    if (((data->pending_state.net_wm_state | data->current_state.net_wm_state) & fullscreen_mask) &&
+        data->pending_state.wm_state == NormalState)
     {
         /* Some window managers are sending a ConfigureNotify event with the fullscreen size when
          * exiting a fullscreen window, with a serial that we cannot predict. Handling that event
          * will override the Win32 window size and make the window fullscreen again.
          */
-        WARN( "window %p/%lx is exiting maximize/fullscreen, delaying request\n", data->hwnd, data->whole_window );
-        return;
+        if (data->net_wm_state_serial)
+        {
+            WARN( "window %p/%lx is updating _NET_WM_STATE, delaying request\n", data->hwnd, data->whole_window );
+            return;
+        }
+
+        if (thread_data->window_manager && !strcmp( thread_data->window_manager, "KWin" ))
+        {
+            /* Workaround for KWin bug 496966: clear maximized state before requesting new config */
+            net_wm_state = data->pending_state.net_wm_state;
+            window_set_net_wm_state( data, net_wm_state & ~fullscreen_mask );
+        }
     }
 
     /* resizing a managed maximized window is not allowed */
@@ -1331,6 +1341,9 @@ static void window_set_config( struct x11drv_win_data *data, const RECT *new_rec
     TRACE( "window %p/%lx, requesting config %s above %u, serial %lu\n", data->hwnd, data->whole_window,
            wine_dbgstr_rect(new_rect), above, data->configure_serial );
     XReconfigureWMWindow( data->display, data->whole_window, data->vis.screen, mask, &changes );
+
+    /* Workaround for KWin bug 496966: restore maximized state after requesting new config */
+    if (net_wm_state != -1) window_set_net_wm_state( data, net_wm_state );
 }
 
 /***********************************************************************
