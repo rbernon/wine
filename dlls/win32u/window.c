@@ -2419,6 +2419,42 @@ BOOL WINAPI NtUserSetLayeredWindowAttributes( HWND hwnd, COLORREF key, BYTE alph
     return ret;
 }
 
+static inline void dump_hdc( const char *path, HDC hdc, RECT rect )
+{
+    UINT width = rect.right - rect.left, height = rect.bottom - rect.top;
+    BITMAPFILEHEADER header = {.bfType = 0x4d42};
+    BITMAPINFO info = {0};
+    char *bits = NULL;
+    HBITMAP bitmap;
+    FILE *file;
+    HDC memdc;
+
+    info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    info.bmiHeader.biWidth = width;
+    info.bmiHeader.biHeight = -height;
+    info.bmiHeader.biPlanes = 1;
+    info.bmiHeader.biBitCount = 32;
+    info.bmiHeader.biCompression = BI_RGB;
+    info.bmiHeader.biSizeImage = width * height * 4;
+
+    header.bfSize = sizeof(header) + sizeof(info) + info.bmiHeader.biSizeImage;
+    header.bfOffBits = sizeof(header);
+
+    memdc = NtGdiCreateCompatibleDC( hdc );
+    bitmap = NtGdiCreateDIBSection( hdc, NULL, 0, &info, DIB_RGB_COLORS, 0, 0, 0, (void **)&bits );
+    NtGdiDeleteObjectApp( NtGdiSelectBitmap( memdc, bitmap ) );
+    NtGdiBitBlt( memdc, 0, 0, width, height, hdc, rect.left, rect.top, SRCCOPY, 0, 0 );
+    NtGdiDeleteObjectApp( memdc );
+
+    file = fopen( path, "w" );
+    fwrite( &header, sizeof(header), 1, file );
+    fwrite( &info.bmiHeader, sizeof(info.bmiHeader), 1, file );
+    fwrite( bits, 1, info.bmiHeader.biSizeImage, file );
+    fclose( file );
+
+    NtGdiDeleteObjectApp( bitmap );
+}
+
 /*****************************************************************************
  *           UpdateLayeredWindow (win32u.@)
  */
