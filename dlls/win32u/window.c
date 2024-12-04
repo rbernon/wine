@@ -2433,6 +2433,10 @@ BOOL WINAPI NtUserUpdateLayeredWindow( HWND hwnd, HDC hdc_dst, const POINT *pts_
     SIZE offset;
     BOOL ret = FALSE;
 
+    TRACE( "hwnd %p, hdc_dst %p, pts_dst %s, size %s, hdc_src %p, pts_src %s, key %#x, blend %p, flags %#x, dirty %s\n",
+           hwnd, hdc_dst, wine_dbgstr_point(pts_dst), wine_dbgstr_point((POINT *)size), hdc_src, wine_dbgstr_point(pts_src),
+           (UINT)key, blend, (UINT)flags, wine_dbgstr_rect(dirty) );
+
     if (flags & ~(ULW_COLORKEY | ULW_ALPHA | ULW_OPAQUE | ULW_EX_NORESIZE) ||
         !(get_window_long( hwnd, GWL_EXSTYLE ) & WS_EX_LAYERED) ||
         NtUserGetLayeredWindowAttributes( hwnd, NULL, NULL, NULL ))
