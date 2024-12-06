@@ -498,14 +498,6 @@ static void dump_obj_locator( const char *prefix, const struct obj_locator *loca
     fprintf( stderr, "}" );
 }
 
-static void dump_d3dkmt_desc( const char *prefix, const struct d3dkmt_desc *desc )
-{
-    fprintf( stderr, "%s{type=%#x", prefix, desc->type );
-    dump_uint64( ",size=", &desc->size );
-    dump_uint64( ",flags=", &desc->flags );
-    fprintf( stderr, "format=%#x,width=%d,height=%d,stride=%d}", desc->format, desc->width, desc->height, desc->stride );
-}
-
 static void dump_luid( const char *prefix, const struct luid *luid )
 {
     fprintf( stderr, "%s%d.%u", prefix, luid->high_part, luid->low_part );

@@ -1260,19 +1260,6 @@ static void handle_net_supported_notify( XPropertyEvent *event )
     if (event->state == PropertyNewValue) net_supported_init( data );
 }
 
-static void handle_net_supporting_wm_check_notify( XPropertyEvent *event )
-{
-    struct x11drv_thread_data *data = x11drv_thread_data();
-
-    if (data->window_manager)
-    {
-        XFree( data->window_manager );
-        data->window_manager = NULL;
-    }
-
-    if (event->state == PropertyNewValue) net_supporting_wm_check_init( data );
-}
-
 /***********************************************************************
  *           X11DRV_PropertyNotify
  */
@@ -1285,7 +1272,6 @@ static BOOL X11DRV_PropertyNotify( HWND hwnd, XEvent *xev )
     if (event->atom == x11drv_atom(_XEMBED_INFO)) handle_xembed_info_notify( hwnd, event );
     if (event->atom == x11drv_atom(_NET_WM_STATE)) handle_net_wm_state_notify( hwnd, event );
     if (event->atom == x11drv_atom(_NET_SUPPORTED)) handle_net_supported_notify( event );
-    if (event->atom == x11drv_atom(_NET_SUPPORTING_WM_CHECK)) handle_net_supporting_wm_check_notify( event );
 
     return TRUE;
 }

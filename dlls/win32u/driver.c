@@ -793,11 +793,6 @@ static void nulldrv_FlashWindowEx( FLASHWINFO *info )
 {
 }
 
-static BOOL nulldrv_HasWindowManager( const char *name )
-{
-    return FALSE;
-}
-
 static void nulldrv_GetDC( HDC hdc, HWND hwnd, HWND top_win, const RECT *win_rect,
                            const RECT *top_rect, DWORD flags )
 {
@@ -1202,11 +1197,6 @@ static void loaderdrv_FlashWindowEx( FLASHWINFO *info )
     load_driver()->pFlashWindowEx( info );
 }
 
-static BOOL loaderdrv_HasWindowManager( const char *name )
-{
-    return load_driver()->pHasWindowManager( name );
-}
-
 static void loaderdrv_SetDesktopWindow( HWND hwnd )
 {
     load_driver()->pSetDesktopWindow( hwnd );
@@ -1275,7 +1265,6 @@ static const struct user_driver_funcs lazy_load_driver =
     nulldrv_DesktopWindowProc,
     nulldrv_DestroyWindow,
     loaderdrv_FlashWindowEx,
-    loaderdrv_HasWindowManager,
     loaderdrv_GetDC,
     nulldrv_ProcessEvents,
     nulldrv_ReleaseDC,
@@ -1373,7 +1362,6 @@ void __wine_set_user_driver( const struct user_driver_funcs *funcs, UINT version
     SET_USER_FUNC(DesktopWindowProc);
     SET_USER_FUNC(DestroyWindow);
     SET_USER_FUNC(FlashWindowEx);
-    SET_USER_FUNC(HasWindowManager);
     SET_USER_FUNC(GetDC);
     SET_USER_FUNC(ProcessEvents);
     SET_USER_FUNC(ReleaseDC);
