@@ -570,8 +570,3 @@ HRESULT WINAPI GetAcceptLanguagesW(WCHAR *langbuf, DWORD *buflen)
     *buflen = 0;
     return E_NOT_SUFFICIENT_BUFFER;
 }
-
-BOOL WINAPI DllMainCRTStartup( HINSTANCE inst, DWORD reason, void *reserved )
-{
-    return DllMain( inst, reason, reserved );
-}

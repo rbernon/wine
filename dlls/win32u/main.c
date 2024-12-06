@@ -2356,8 +2356,3 @@ BOOL WINAPI DllMain( HINSTANCE inst, DWORD reason, void *reserved )
     }
     return TRUE;
 }
-
-BOOL WINAPI DllMainCRTStartup( HINSTANCE inst, DWORD reason, void *reserved )
-{
-    return DllMain( inst, reason, reserved );
-}
