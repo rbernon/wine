@@ -1,5 +1,0 @@
-TESTDLL = midl.exe
-IMPORTS = advapi32
-
-SOURCES = \
-	midl.c
