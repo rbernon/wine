@@ -34,10 +34,8 @@ struct effect
 {
     IWineForceFeedbackEffectImpl IWineForceFeedbackEffectImpl_iface;
     IForceFeedbackEffect IForceFeedbackEffect_iface;
-    IAgileObject IAgileObject_iface;
-    IInspectable *outer;
-    const WCHAR *class_name;
-    LONG refcount;
+    IInspectable *IInspectable_outer;
+    LONG ref;
 
     CRITICAL_SECTION cs;
     IDirectInputEffect *effect;
@@ -54,19 +52,62 @@ struct effect
     DIEFFECT params;
 };
 
-static void effect_destroy( struct effect *impl )
+static inline struct effect *impl_from_IWineForceFeedbackEffectImpl( IWineForceFeedbackEffectImpl *iface )
 {
-    if (impl->effect) IDirectInputEffect_Release( impl->effect );
-    impl->cs.DebugInfo->Spare[0] = 0;
-    DeleteCriticalSection( &impl->cs );
-    free( impl );
+    return CONTAINING_RECORD( iface, struct effect, IWineForceFeedbackEffectImpl_iface );
 }
 
-WIDL_impl_outer_IWineForceFeedbackEffectImpl( effect,
-    IForceFeedbackEffect,
-    IAgileObject,
-    END, FIXME
-);
+static HRESULT WINAPI effect_impl_QueryInterface( IWineForceFeedbackEffectImpl *iface, REFIID iid, void **out )
+{
+    struct effect *impl = impl_from_IWineForceFeedbackEffectImpl( iface );
+
+    TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
+
+    if (IsEqualGUID( iid, &IID_IUnknown ) ||
+        IsEqualGUID( iid, &IID_IInspectable ) ||
+        IsEqualGUID( iid, &IID_IAgileObject ) ||
+        IsEqualGUID( iid, &IID_IWineForceFeedbackEffectImpl ))
+    {
+        IWineForceFeedbackEffectImpl_AddRef( (*out = &impl->IWineForceFeedbackEffectImpl_iface) );
+        return S_OK;
+    }
+
+    if (IsEqualGUID( iid, &IID_IForceFeedbackEffect ))
+    {
+        IInspectable_AddRef( (*out = &impl->IForceFeedbackEffect_iface) );
+        return S_OK;
+    }
+
+    FIXME( "%s not implemented, returning E_NOINTERFACE.\n", debugstr_guid( iid ) );
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+
+static ULONG WINAPI effect_impl_AddRef( IWineForceFeedbackEffectImpl *iface )
+{
+    struct effect *impl = impl_from_IWineForceFeedbackEffectImpl( iface );
+    ULONG ref = InterlockedIncrement( &impl->ref );
+    TRACE( "iface %p increasing refcount to %lu.\n", iface, ref );
+    return ref;
+}
+
+static ULONG WINAPI effect_impl_Release( IWineForceFeedbackEffectImpl *iface )
+{
+    struct effect *impl = impl_from_IWineForceFeedbackEffectImpl( iface );
+    ULONG ref = InterlockedDecrement( &impl->ref );
+
+    TRACE( "iface %p decreasing refcount to %lu.\n", iface, ref );
+
+    if (!ref)
+    {
+        if (impl->effect) IDirectInputEffect_Release( impl->effect );
+        impl->cs.DebugInfo->Spare[0] = 0;
+        DeleteCriticalSection( &impl->cs );
+        free( impl );
+    }
+
+    return ref;
+}
 
 static int effect_reorient_direction( const WineForceFeedbackEffectParameters *params, Vector3 *direction )
 {
@@ -108,10 +149,10 @@ static int effect_reorient_direction( const WineForceFeedbackEffectParameters *p
     return sign;
 }
 
-static HRESULT WINAPI effect_put_Parameters( IWineForceFeedbackEffectImpl *iface, WineForceFeedbackEffectParameters params,
+static HRESULT WINAPI effect_impl_put_Parameters( IWineForceFeedbackEffectImpl *iface, WineForceFeedbackEffectParameters params,
                                                   WineForceFeedbackEffectEnvelope *envelope )
 {
-    struct effect *impl = effect_from_IWineForceFeedbackEffectImpl( iface );
+    struct effect *impl = impl_from_IWineForceFeedbackEffectImpl( iface );
     Vector3 direction = {0};
     double magnitude = 0;
     DWORD count = 0;
@@ -194,11 +235,20 @@ static HRESULT WINAPI effect_put_Parameters( IWineForceFeedbackEffectImpl *iface
     return hr;
 }
 
-WIDL_impl_IWineForceFeedbackEffectImplVtbl( effect );
-
-static HRESULT WINAPI effect_IForceFeedbackEffect_get_Gain( IForceFeedbackEffect *iface, DOUBLE *value )
+static const struct IWineForceFeedbackEffectImplVtbl effect_impl_vtbl =
 {
-    struct effect *impl = effect_from_IForceFeedbackEffect( iface );
+    effect_impl_QueryInterface,
+    effect_impl_AddRef,
+    effect_impl_Release,
+    /* IWineForceFeedbackEffectImpl methods */
+    effect_impl_put_Parameters,
+};
+
+DEFINE_IINSPECTABLE_OUTER( effect, IForceFeedbackEffect, struct effect, IInspectable_outer )
+
+static HRESULT WINAPI effect_get_Gain( IForceFeedbackEffect *iface, DOUBLE *value )
+{
+    struct effect *impl = impl_from_IForceFeedbackEffect( iface );
 
     TRACE( "iface %p, value %p.\n", iface, value );
 
@@ -209,9 +259,9 @@ static HRESULT WINAPI effect_IForceFeedbackEffect_get_Gain( IForceFeedbackEffect
     return S_OK;
 }
 
-static HRESULT WINAPI effect_IForceFeedbackEffect_put_Gain( IForceFeedbackEffect *iface, DOUBLE value )
+static HRESULT WINAPI effect_put_Gain( IForceFeedbackEffect *iface, DOUBLE value )
 {
-    struct effect *impl = effect_from_IForceFeedbackEffect( iface );
+    struct effect *impl = impl_from_IForceFeedbackEffect( iface );
     HRESULT hr;
 
     TRACE( "iface %p, value %f.\n", iface, value );
@@ -225,9 +275,9 @@ static HRESULT WINAPI effect_IForceFeedbackEffect_put_Gain( IForceFeedbackEffect
     return hr;
 }
 
-static HRESULT WINAPI effect_IForceFeedbackEffect_get_State( IForceFeedbackEffect *iface, ForceFeedbackEffectState *value )
+static HRESULT WINAPI effect_get_State( IForceFeedbackEffect *iface, ForceFeedbackEffectState *value )
 {
-    struct effect *impl = effect_from_IForceFeedbackEffect( iface );
+    struct effect *impl = impl_from_IForceFeedbackEffect( iface );
     DWORD status;
     HRESULT hr;
 
@@ -248,9 +298,9 @@ static HRESULT WINAPI effect_IForceFeedbackEffect_get_State( IForceFeedbackEffec
     return S_OK;
 }
 
-static HRESULT WINAPI effect_IForceFeedbackEffect_Start( IForceFeedbackEffect *iface )
+static HRESULT WINAPI effect_Start( IForceFeedbackEffect *iface )
 {
-    struct effect *impl = effect_from_IForceFeedbackEffect( iface );
+    struct effect *impl = impl_from_IForceFeedbackEffect( iface );
     HRESULT hr = E_UNEXPECTED;
     DWORD flags = 0;
 
@@ -263,9 +313,9 @@ static HRESULT WINAPI effect_IForceFeedbackEffect_Start( IForceFeedbackEffect *i
     return hr;
 }
 
-static HRESULT WINAPI effect_IForceFeedbackEffect_Stop( IForceFeedbackEffect *iface )
+static HRESULT WINAPI effect_Stop( IForceFeedbackEffect *iface )
 {
-    struct effect *impl = effect_from_IForceFeedbackEffect( iface );
+    struct effect *impl = impl_from_IForceFeedbackEffect( iface );
     HRESULT hr = E_UNEXPECTED;
 
     TRACE( "iface %p.\n", iface );
@@ -277,8 +327,22 @@ static HRESULT WINAPI effect_IForceFeedbackEffect_Stop( IForceFeedbackEffect *if
     return hr;
 }
 
-WIDL_impl_IForceFeedbackEffectVtbl( effect_IForceFeedbackEffect );
-WIDL_impl_IAgileObjectVtbl( effect_IAgileObject );
+static const struct IForceFeedbackEffectVtbl effect_vtbl =
+{
+    effect_QueryInterface,
+    effect_AddRef,
+    effect_Release,
+    /* IInspectable methods */
+    effect_GetIids,
+    effect_GetRuntimeClassName,
+    effect_GetTrustLevel,
+    /* IForceFeedbackEffect methods */
+    effect_get_Gain,
+    effect_put_Gain,
+    effect_get_State,
+    effect_Start,
+    effect_Stop,
+};
 
 HRESULT force_feedback_effect_create( enum WineForceFeedbackEffectType type, IInspectable *outer, IWineForceFeedbackEffectImpl **out )
 {
@@ -287,11 +351,10 @@ HRESULT force_feedback_effect_create( enum WineForceFeedbackEffectType type, IIn
     TRACE( "outer %p, out %p\n", outer, out );
 
     if (!(impl = calloc( 1, sizeof(*impl) ))) return E_OUTOFMEMORY;
-    impl->IWineForceFeedbackEffectImpl_iface.lpVtbl = &effect_vtbl;
-    impl->IForceFeedbackEffect_iface.lpVtbl = &effect_IForceFeedbackEffect_vtbl;
-    impl->IAgileObject_iface.lpVtbl = &effect_IAgileObject_vtbl;
-    impl->outer = outer;
-    impl->refcount = 1;
+    impl->IWineForceFeedbackEffectImpl_iface.lpVtbl = &effect_impl_vtbl;
+    impl->IForceFeedbackEffect_iface.lpVtbl = &effect_vtbl;
+    impl->IInspectable_outer = outer;
+    impl->ref = 1;
 
     switch (type)
     {
@@ -368,27 +431,82 @@ HRESULT force_feedback_effect_create( enum WineForceFeedbackEffectType type, IIn
 struct motor
 {
     IForceFeedbackMotor IForceFeedbackMotor_iface;
-    IAgileObject IAgileObject_iface;
-    const WCHAR *class_name;
-    LONG refcount;
+    LONG ref;
 
     IDirectInputDevice8W *device;
 };
 
-static void motor_destroy( struct motor *impl )
+static inline struct motor *impl_from_IForceFeedbackMotor( IForceFeedbackMotor *iface )
 {
-    IDirectInputDevice8_Release( impl->device );
-    free( impl );
+    return CONTAINING_RECORD( iface, struct motor, IForceFeedbackMotor_iface );
 }
 
-WIDL_impl_IForceFeedbackMotor( motor,
-    IAgileObject,
-    END, FIXME
-);
+static HRESULT WINAPI motor_QueryInterface( IForceFeedbackMotor *iface, REFIID iid, void **out )
+{
+    struct motor *impl = impl_from_IForceFeedbackMotor( iface );
+
+    TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
+
+    if (IsEqualGUID( iid, &IID_IUnknown ) ||
+        IsEqualGUID( iid, &IID_IInspectable ) ||
+        IsEqualGUID( iid, &IID_IAgileObject ) ||
+        IsEqualGUID( iid, &IID_IForceFeedbackMotor ))
+    {
+        IInspectable_AddRef( (*out = &impl->IForceFeedbackMotor_iface) );
+        return S_OK;
+    }
+
+    FIXME( "%s not implemented, returning E_NOINTERFACE.\n", debugstr_guid( iid ) );
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+
+static ULONG WINAPI motor_AddRef( IForceFeedbackMotor *iface )
+{
+    struct motor *impl = impl_from_IForceFeedbackMotor( iface );
+    ULONG ref = InterlockedIncrement( &impl->ref );
+    TRACE( "iface %p increasing refcount to %lu.\n", iface, ref );
+    return ref;
+}
+
+static ULONG WINAPI motor_Release( IForceFeedbackMotor *iface )
+{
+    struct motor *impl = impl_from_IForceFeedbackMotor( iface );
+    ULONG ref = InterlockedDecrement( &impl->ref );
+
+    TRACE( "iface %p decreasing refcount to %lu.\n", iface, ref );
+
+    if (!ref)
+    {
+        IDirectInputDevice8_Release( impl->device );
+        free( impl );
+    }
+
+    return ref;
+}
+
+static HRESULT WINAPI motor_GetIids( IForceFeedbackMotor *iface, ULONG *iid_count, IID **iids )
+{
+    FIXME( "iface %p, iid_count %p, iids %p stub!\n", iface, iid_count, iids );
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI motor_GetRuntimeClassName( IForceFeedbackMotor *iface, HSTRING *class_name )
+{
+    return WindowsCreateString( RuntimeClass_Windows_Gaming_Input_ForceFeedback_ForceFeedbackMotor,
+                                ARRAY_SIZE(RuntimeClass_Windows_Gaming_Input_ForceFeedback_ForceFeedbackMotor),
+                                class_name );
+}
+
+static HRESULT WINAPI motor_GetTrustLevel( IForceFeedbackMotor *iface, TrustLevel *trust_level )
+{
+    FIXME( "iface %p, trust_level %p stub!\n", iface, trust_level );
+    return E_NOTIMPL;
+}
 
 static HRESULT WINAPI motor_get_AreEffectsPaused( IForceFeedbackMotor *iface, BOOLEAN *value )
 {
-    struct motor *impl = motor_from_IForceFeedbackMotor( iface );
+    struct motor *impl = impl_from_IForceFeedbackMotor( iface );
     DWORD state;
     HRESULT hr;
 
@@ -402,7 +520,7 @@ static HRESULT WINAPI motor_get_AreEffectsPaused( IForceFeedbackMotor *iface, BO
 
 static HRESULT WINAPI motor_get_MasterGain( IForceFeedbackMotor *iface, double *value )
 {
-    struct motor *impl = motor_from_IForceFeedbackMotor( iface );
+    struct motor *impl = impl_from_IForceFeedbackMotor( iface );
     DIPROPDWORD gain =
     {
         .diph =
@@ -424,7 +542,7 @@ static HRESULT WINAPI motor_get_MasterGain( IForceFeedbackMotor *iface, double *
 
 static HRESULT WINAPI motor_put_MasterGain( IForceFeedbackMotor *iface, double value )
 {
-    struct motor *impl = motor_from_IForceFeedbackMotor( iface );
+    struct motor *impl = impl_from_IForceFeedbackMotor( iface );
     DIPROPDWORD gain =
     {
         .diph =
@@ -443,7 +561,7 @@ static HRESULT WINAPI motor_put_MasterGain( IForceFeedbackMotor *iface, double v
 
 static HRESULT WINAPI motor_get_IsEnabled( IForceFeedbackMotor *iface, BOOLEAN *value )
 {
-    struct motor *impl = motor_from_IForceFeedbackMotor( iface );
+    struct motor *impl = impl_from_IForceFeedbackMotor( iface );
     DWORD state;
     HRESULT hr;
 
@@ -471,7 +589,7 @@ static BOOL CALLBACK check_ffb_axes( const DIDEVICEOBJECTINSTANCEW *obj, void *a
 
 static HRESULT WINAPI motor_get_SupportedAxes( IForceFeedbackMotor *iface, enum ForceFeedbackEffectAxes *value )
 {
-    struct motor *impl = motor_from_IForceFeedbackMotor( iface );
+    struct motor *impl = impl_from_IForceFeedbackMotor( iface );
     HRESULT hr;
 
     TRACE( "iface %p, value %p.\n", iface, value );
@@ -485,9 +603,9 @@ static HRESULT WINAPI motor_get_SupportedAxes( IForceFeedbackMotor *iface, enum 
 
 static HRESULT WINAPI motor_load_effect_async( IUnknown *invoker, IUnknown *param, PROPVARIANT *result )
 {
-    struct effect *effect = effect_from_IForceFeedbackEffect( (IForceFeedbackEffect *)param );
+    struct effect *effect = impl_from_IForceFeedbackEffect( (IForceFeedbackEffect *)param );
     IForceFeedbackMotor *motor = (IForceFeedbackMotor *)invoker;
-    struct motor *impl = motor_from_IForceFeedbackMotor( motor );
+    struct motor *impl = impl_from_IForceFeedbackMotor( motor );
     ForceFeedbackEffectAxes supported_axes = 0;
     IDirectInputEffect *dinput_effect;
     HRESULT hr;
@@ -549,7 +667,7 @@ static HRESULT WINAPI motor_LoadEffectAsync( IForceFeedbackMotor *iface, IForceF
 
 static HRESULT WINAPI motor_PauseAllEffects( IForceFeedbackMotor *iface )
 {
-    struct motor *impl = motor_from_IForceFeedbackMotor( iface );
+    struct motor *impl = impl_from_IForceFeedbackMotor( iface );
 
     TRACE( "iface %p.\n", iface );
 
@@ -558,7 +676,7 @@ static HRESULT WINAPI motor_PauseAllEffects( IForceFeedbackMotor *iface )
 
 static HRESULT WINAPI motor_ResumeAllEffects( IForceFeedbackMotor *iface )
 {
-    struct motor *impl = motor_from_IForceFeedbackMotor( iface );
+    struct motor *impl = impl_from_IForceFeedbackMotor( iface );
 
     TRACE( "iface %p.\n", iface );
 
@@ -567,7 +685,7 @@ static HRESULT WINAPI motor_ResumeAllEffects( IForceFeedbackMotor *iface )
 
 static HRESULT WINAPI motor_StopAllEffects( IForceFeedbackMotor *iface )
 {
-    struct motor *impl = motor_from_IForceFeedbackMotor( iface );
+    struct motor *impl = impl_from_IForceFeedbackMotor( iface );
 
     TRACE( "iface %p.\n", iface );
 
@@ -576,7 +694,7 @@ static HRESULT WINAPI motor_StopAllEffects( IForceFeedbackMotor *iface )
 
 static HRESULT WINAPI motor_try_disable_async( IUnknown *invoker, IUnknown *param, PROPVARIANT *result )
 {
-    struct motor *impl = motor_from_IForceFeedbackMotor( (IForceFeedbackMotor *)invoker );
+    struct motor *impl = impl_from_IForceFeedbackMotor( (IForceFeedbackMotor *)invoker );
     HRESULT hr;
 
     hr = IDirectInputDevice8_SendForceFeedbackCommand( impl->device, DISFFC_SETACTUATORSOFF );
@@ -594,7 +712,7 @@ static HRESULT WINAPI motor_TryDisableAsync( IForceFeedbackMotor *iface, IAsyncO
 
 static HRESULT WINAPI motor_try_enable_async( IUnknown *invoker, IUnknown *param, PROPVARIANT *result )
 {
-    struct motor *impl = motor_from_IForceFeedbackMotor( (IForceFeedbackMotor *)invoker );
+    struct motor *impl = impl_from_IForceFeedbackMotor( (IForceFeedbackMotor *)invoker );
     HRESULT hr;
 
     hr = IDirectInputDevice8_SendForceFeedbackCommand( impl->device, DISFFC_SETACTUATORSON );
@@ -612,7 +730,7 @@ static HRESULT WINAPI motor_TryEnableAsync( IForceFeedbackMotor *iface, IAsyncOp
 
 static HRESULT WINAPI motor_try_reset_async( IUnknown *invoker, IUnknown *param, PROPVARIANT *result )
 {
-    struct motor *impl = motor_from_IForceFeedbackMotor( (IForceFeedbackMotor *)invoker );
+    struct motor *impl = impl_from_IForceFeedbackMotor( (IForceFeedbackMotor *)invoker );
     HRESULT hr;
 
     hr = IDirectInputDevice8_SendForceFeedbackCommand( impl->device, DISFFC_RESET );
@@ -630,7 +748,7 @@ static HRESULT WINAPI motor_TryResetAsync( IForceFeedbackMotor *iface, IAsyncOpe
 
 static HRESULT WINAPI motor_unload_effect_async( IUnknown *iface, IUnknown *param, PROPVARIANT *result )
 {
-    struct effect *effect = effect_from_IForceFeedbackEffect( (IForceFeedbackEffect *)param );
+    struct effect *effect = impl_from_IForceFeedbackEffect( (IForceFeedbackEffect *)param );
     IDirectInputEffect *dinput_effect;
     HRESULT hr;
 
@@ -654,7 +772,7 @@ static HRESULT WINAPI motor_unload_effect_async( IUnknown *iface, IUnknown *para
 static HRESULT WINAPI motor_TryUnloadEffectAsync( IForceFeedbackMotor *iface, IForceFeedbackEffect *effect,
                                                   IAsyncOperation_boolean **async_op )
 {
-    struct effect *impl = effect_from_IForceFeedbackEffect( (IForceFeedbackEffect *)effect );
+    struct effect *impl = impl_from_IForceFeedbackEffect( (IForceFeedbackEffect *)effect );
     HRESULT hr = S_OK;
 
     TRACE( "iface %p, effect %p, async_op %p.\n", iface, effect, async_op );
@@ -667,8 +785,30 @@ static HRESULT WINAPI motor_TryUnloadEffectAsync( IForceFeedbackMotor *iface, IF
     return async_operation_boolean_create( (IUnknown *)iface, (IUnknown *)effect, motor_unload_effect_async, async_op );
 }
 
-WIDL_impl_IForceFeedbackMotorVtbl( motor );
-WIDL_impl_IAgileObjectVtbl( motor_IAgileObject );
+static const struct IForceFeedbackMotorVtbl motor_vtbl =
+{
+    motor_QueryInterface,
+    motor_AddRef,
+    motor_Release,
+    /* IInspectable methods */
+    motor_GetIids,
+    motor_GetRuntimeClassName,
+    motor_GetTrustLevel,
+    /* IForceFeedbackMotor methods */
+    motor_get_AreEffectsPaused,
+    motor_get_MasterGain,
+    motor_put_MasterGain,
+    motor_get_IsEnabled,
+    motor_get_SupportedAxes,
+    motor_LoadEffectAsync,
+    motor_PauseAllEffects,
+    motor_ResumeAllEffects,
+    motor_StopAllEffects,
+    motor_TryDisableAsync,
+    motor_TryEnableAsync,
+    motor_TryResetAsync,
+    motor_TryUnloadEffectAsync,
+};
 
 HRESULT force_feedback_motor_create( IDirectInputDevice8W *device, IForceFeedbackMotor **out )
 {
@@ -683,9 +823,7 @@ HRESULT force_feedback_motor_create( IDirectInputDevice8W *device, IForceFeedbac
 
     if (!(impl = calloc( 1, sizeof(*impl) ))) return E_OUTOFMEMORY;
     impl->IForceFeedbackMotor_iface.lpVtbl = &motor_vtbl;
-    impl->IAgileObject_iface.lpVtbl = &motor_IAgileObject_vtbl;
-    impl->class_name = RuntimeClass_Windows_Gaming_Input_ForceFeedback_ForceFeedbackMotor;
-    impl->refcount = 1;
+    impl->ref = 1;
 
     IDirectInputDevice_AddRef( device );
     impl->device = device;
