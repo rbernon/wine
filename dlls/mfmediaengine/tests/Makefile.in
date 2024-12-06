@@ -1,7 +1,6 @@
 TESTDLL   = mfmediaengine.dll
-IMPORTS   = ole32 mf mfplat oleaut32 mfuuid uuid d3d11
+IMPORTS   = ole32 mf mfplat oleaut32 mfuuid uuid
 
 SOURCES = \
 	mfmediaengine.c \
-	games.c \
 	resource.rc
