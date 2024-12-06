@@ -158,7 +158,6 @@ static const struct object_ops token_ops =
     no_open_file,              /* open_file */
     no_kernel_obj_list,        /* get_kernel_obj_list */
     no_close_handle,           /* close_handle */
-    NULL,                      /* get_host_ops */
     token_destroy              /* destroy */
 };
 

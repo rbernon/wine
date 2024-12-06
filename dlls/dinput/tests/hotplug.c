@@ -82,7 +82,6 @@ DWORD msg_wait_for_events_( const char *file, int line, DWORD count, HANDLE *eve
     {
         while (PeekMessageW( &msg, 0, 0, 0, PM_REMOVE ))
         {
-            ok( 0, "got msg %#x hwnd %p\n", msg.message, msg.hwnd );
             TranslateMessage( &msg );
             DispatchMessageW( &msg );
         }
@@ -163,7 +162,7 @@ static BOOL test_input_lost( DWORD version )
 
     winetest_push_context( "%#lx", version );
 
-    cleanup_registry_keys( expect_vidpid_str );
+    cleanup_registry_keys();
 
     desc.report_descriptor_len = sizeof(report_desc);
     memcpy( desc.report_descriptor_buf, report_desc, sizeof(report_desc) );
@@ -222,7 +221,7 @@ static BOOL test_input_lost( DWORD version )
 
 done:
     hid_device_stop( &desc, 1 );
-    cleanup_registry_keys( expect_vidpid_str );
+    cleanup_registry_keys();
 
     winetest_pop_context();
     return device != NULL;
