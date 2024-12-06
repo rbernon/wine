@@ -10,8 +10,6 @@
 
 #include <corecrt_wstdio.h>
 
-#include <stdlib.h>
-
 /* file._flag flags */
 #ifndef _UCRT
 #define _IOREAD          0x0001

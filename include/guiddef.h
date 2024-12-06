@@ -158,10 +158,10 @@ typedef GUID FMTID,*LPFMTID;
 #define IsEqualGUID(rguid1, rguid2) (!memcmp(&(rguid1), &(rguid2), sizeof(GUID)))
 inline int InlineIsEqualGUID(REFGUID rguid1, REFGUID rguid2)
 {
-   return (((const UINT *)&rguid1)[0] == ((const UINT *)&rguid2)[0] &&
-           ((const UINT *)&rguid1)[1] == ((const UINT *)&rguid2)[1] &&
-           ((const UINT *)&rguid1)[2] == ((const UINT *)&rguid2)[2] &&
-           ((const UINT *)&rguid1)[3] == ((const UINT *)&rguid2)[3]);
+   return (((unsigned int *)&rguid1)[0] == ((unsigned int *)&rguid2)[0] &&
+           ((unsigned int *)&rguid1)[1] == ((unsigned int *)&rguid2)[1] &&
+           ((unsigned int *)&rguid1)[2] == ((unsigned int *)&rguid2)[2] &&
+           ((unsigned int *)&rguid1)[3] == ((unsigned int *)&rguid2)[3]);
 }
 #else
 #define IsEqualGUID(rguid1, rguid2) (!memcmp(rguid1, rguid2, sizeof(GUID)))
