@@ -8,5 +8,4 @@ SOURCES = \
 	dmband.idl \
 	dmband_main.c \
 	dmobject.c \
-	dmtrack.c
 	version.rc

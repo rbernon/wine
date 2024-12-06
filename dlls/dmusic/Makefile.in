@@ -1,6 +1,5 @@
 MODULE    = dmusic.dll
-IMPORTS   = $(FLUIDSYNTH_PE_LIBS) dxguid uuid ole32 advapi32 dsound user32 winmm
-EXTRAINCL = $(FLUIDSYNTH_PE_CFLAGS)
+IMPORTS   = dxguid uuid ole32 advapi32 dsound user32 winmm
 
 SOURCES = \
 	band.c \
