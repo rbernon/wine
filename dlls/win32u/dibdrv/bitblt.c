@@ -435,8 +435,8 @@ static const unsigned char BITBLT_Opcodes[256][MAX_OP_LEN] =
     { OP(PAT,DST,R2_WHITE) }                                        /* 0xff  1              */
 };
 
-static int get_overlap( const struct dib *dst, const RECT *dst_rect,
-                        const struct dib *src, const RECT *src_rect )
+static int get_overlap( const dib_info *dst, const RECT *dst_rect,
+                        const dib_info *src, const RECT *src_rect )
 {
     const char *src_top, *dst_top;
     int height, ret = 0;
@@ -470,8 +470,8 @@ static int get_overlap( const struct dib *dst, const RECT *dst_rect,
     return ret;
 }
 
-static void copy_rect( struct dib *dst, const RECT *dst_rect, const struct dib *src, const RECT *src_rect,
-                       const struct clipped_rects *clipped_rects, INT rop2 )
+static void copy_rect( dib_info *dst, const RECT *dst_rect, const dib_info *src, const RECT *src_rect,
+                        const struct clipped_rects *clipped_rects, INT rop2 )
 {
     POINT origin;
     const RECT *rects;
@@ -556,7 +556,7 @@ static void copy_rect( struct dib *dst, const RECT *dst_rect, const struct dib *
     }
 }
 
-static void mask_rect( struct dib *dst, const RECT *dst_rect, const struct dib *src, const RECT *src_rect,
+static void mask_rect( dib_info *dst, const RECT *dst_rect, const dib_info *src, const RECT *src_rect,
                        const struct clipped_rects *clipped_rects, INT rop2 )
 {
     POINT origin;
@@ -585,7 +585,7 @@ static void mask_rect( struct dib *dst, const RECT *dst_rect, const struct dib *
     }
 }
 
-static DWORD blend_rect( struct dib *dst, const RECT *dst_rect, const struct dib *src, const RECT *src_rect,
+static DWORD blend_rect( dib_info *dst, const RECT *dst_rect, const dib_info *src, const RECT *src_rect,
                          HRGN clip, BLENDFUNCTION blend )
 {
     POINT offset;
@@ -680,7 +680,7 @@ static void get_gradient_triangle_vertices( const GRADIENT_TRIANGLE *tri, const 
     bounds->bottom = v[2].y;
 }
 
-static BOOL gradient_rect( struct dib *dib, TRIVERTEX *v, int mode, HRGN clip, const RECT *bounds )
+static BOOL gradient_rect( dib_info *dib, TRIVERTEX *v, int mode, HRGN clip, const RECT *bounds )
 {
     int i;
     struct clipped_rects clipped_rects;
@@ -695,7 +695,7 @@ static BOOL gradient_rect( struct dib *dib, TRIVERTEX *v, int mode, HRGN clip, c
     return ret;
 }
 
-static DWORD copy_src_bits( struct dib *src, RECT *src_rect )
+static DWORD copy_src_bits( dib_info *src, RECT *src_rect )
 {
     int y, stride = get_dib_stride( src->width, src->bit_count );
     int height = src_rect->bottom - src_rect->top;
@@ -720,7 +720,7 @@ static DWORD copy_src_bits( struct dib *src, RECT *src_rect )
     return ERROR_SUCCESS;
 }
 
-static DWORD create_tmp_dib( const struct dib *copy, int width, int height, struct dib *ret )
+static DWORD create_tmp_dib( const dib_info *copy, int width, int height, dib_info *ret )
 {
     copy_dib_color_info( ret, copy );
     ret->width = width;
@@ -738,11 +738,11 @@ static DWORD create_tmp_dib( const struct dib *copy, int width, int height, stru
     return ret->bits.ptr ? ERROR_SUCCESS : ERROR_OUTOFMEMORY;
 }
 
-static DWORD execute_rop( dibdrv_physdev *pdev, const RECT *dst_rect, struct dib *src,
+static DWORD execute_rop( dibdrv_physdev *pdev, const RECT *dst_rect, dib_info *src,
                           const RECT *src_rect, const struct clipped_rects *clipped_rects,
                           const POINT *brush_org, DWORD rop )
 {
-    struct dib *dibs[3], *result = src, tmp;
+    dib_info *dibs[3], *result = src, tmp;
     RECT rects[3];
     POINT origin;
     int width  = dst_rect->right - dst_rect->left;
@@ -799,7 +799,7 @@ static DWORD execute_rop( dibdrv_physdev *pdev, const RECT *dst_rect, struct dib
         }
     }
 
-    if (dibs[TMP]) free_dib( dibs[TMP] );
+    if (dibs[TMP]) free_dib_info( dibs[TMP] );
 
     if (result == src)
         copy_rect( dibs[DST], &rects[DST], dibs[SRC], &rects[SRC], clipped_rects, R2_COPYPEN );
@@ -807,7 +807,7 @@ static DWORD execute_rop( dibdrv_physdev *pdev, const RECT *dst_rect, struct dib
     return ERROR_SUCCESS;
 }
 
-static void set_color_info( const struct dib *dib, BITMAPINFO *info )
+static void set_color_info( const dib_info *dib, BITMAPINFO *info )
 {
     DWORD *masks = (DWORD *)info->bmiColors;
 
@@ -843,7 +843,8 @@ static void set_color_info( const struct dib *dib, BITMAPINFO *info )
     }
 }
 
-static DWORD get_image_dib( struct dib *dib, BITMAPINFO *info, struct gdi_image_bits *bits, struct bitblt_coords *src )
+static DWORD get_image_dib_info( dib_info *dib, BITMAPINFO *info,
+                                 struct gdi_image_bits *bits, struct bitblt_coords *src )
 {
     info->bmiHeader.biSize          = sizeof(info->bmiHeader);
     info->bmiHeader.biPlanes        = 1;
@@ -875,10 +876,10 @@ static DWORD get_image_dib( struct dib *dib, BITMAPINFO *info, struct gdi_image_
 DWORD get_image_from_bitmap( BITMAPOBJ *bmp, BITMAPINFO *info,
                              struct gdi_image_bits *bits, struct bitblt_coords *src )
 {
-    struct dib dib;
+    dib_info dib;
 
-    if (!init_dib_from_bitmapobj( &dib, bmp )) return ERROR_OUTOFMEMORY;
-    return get_image_dib( &dib, info, bits, src );
+    if (!init_dib_info_from_bitmapobj( &dib, bmp )) return ERROR_OUTOFMEMORY;
+    return get_image_dib_info( &dib, info, bits, src );
 }
 
 /***********************************************************************
@@ -891,10 +892,10 @@ DWORD dibdrv_GetImage( PHYSDEV dev, BITMAPINFO *info, struct gdi_image_bits *bit
 
     TRACE( "%p %p\n", dev, info );
 
-    return get_image_dib( &pdev->dib, info, bits, src );
+    return get_image_dib_info( &pdev->dib, info, bits, src );
 }
 
-static BOOL matching_color_info( const struct dib *dib, const BITMAPINFO *info, BOOL allow_mask_rect )
+static BOOL matching_color_info( const dib_info *dib, const BITMAPINFO *info, BOOL allow_mask_rect )
 {
     const RGBQUAD *color_table = info->bmiColors;
 
@@ -954,14 +955,14 @@ DWORD put_image_into_bitmap( BITMAPOBJ *bmp, HRGN clip, BITMAPINFO *info,
                              struct bitblt_coords *dst )
 {
     struct clipped_rects clipped_rects;
-    struct dib dib, src_dib;
+    dib_info dib, src_dib;
 
-    if (!init_dib_from_bitmapobj( &dib, bmp )) return ERROR_OUTOFMEMORY;
+    if (!init_dib_info_from_bitmapobj( &dib, bmp )) return ERROR_OUTOFMEMORY;
     if (!matching_color_info( &dib, info, FALSE )) goto update_format;
     if (!bits) return ERROR_SUCCESS;
     if ((src->width != dst->width) || (src->height != dst->height)) return ERROR_TRANSFORM_NOT_SUPPORTED;
 
-    init_dib_from_bitmapinfo( &src_dib, info, bits->ptr );
+    init_dib_info_from_bitmapinfo( &src_dib, info, bits->ptr );
     src_dib.bits.is_copy = bits->is_copy;
 
     if (get_clipped_rects( &dib, &dst->visrect, clip, &clipped_rects ))
@@ -994,7 +995,7 @@ DWORD dibdrv_PutImage( PHYSDEV dev, HRGN clip, BITMAPINFO *info,
     DC *dc = get_physdev_dc( dev );
     struct clipped_rects clipped_rects;
     DWORD ret = ERROR_SUCCESS;
-    struct dib src_dib;
+    dib_info src_dib;
     HRGN tmp_rgn = 0;
     dibdrv_physdev *pdev = get_dibdrv_pdev( dev );
     BOOL stretch = (src->width != dst->width) || (src->height != dst->height);
@@ -1009,7 +1010,7 @@ DWORD dibdrv_PutImage( PHYSDEV dev, HRGN clip, BITMAPINFO *info,
     if (info->bmiHeader.biBitCount == 1 && pdev->dib.bit_count != 1 && !info->bmiHeader.biClrUsed)
         get_mono_dc_colors( dc, pdev->dib.color_table_size, info, 2 );
 
-    init_dib_from_bitmapinfo( &src_dib, info, bits->ptr );
+    init_dib_info_from_bitmapinfo( &src_dib, info, bits->ptr );
     src_dib.bits.is_copy = bits->is_copy;
 
     if (clip && pdev->clip)
@@ -1036,7 +1037,7 @@ DWORD dibdrv_PutImage( PHYSDEV dev, HRGN clip, BITMAPINFO *info,
                                &dc->attr->brush_org, rop );
         free_clipped_rects( &clipped_rects );
     }
-    free_dib( &src_dib );
+    free_dib_info( &src_dib );
     if (tmp_rgn) NtGdiDeleteObjectApp( tmp_rgn );
     return ret;
 
@@ -1054,7 +1055,7 @@ DWORD dibdrv_BlendImage( PHYSDEV dev, BITMAPINFO *info, const struct gdi_image_b
                          struct bitblt_coords *src, struct bitblt_coords *dst, BLENDFUNCTION blend )
 {
     dibdrv_physdev *pdev = get_dibdrv_pdev( dev );
-    struct dib src_dib;
+    dib_info src_dib;
     DWORD *masks = (DWORD *)info->bmiColors;
 
     TRACE( "%p %p\n", dev, info );
@@ -1071,7 +1072,7 @@ DWORD dibdrv_BlendImage( PHYSDEV dev, BITMAPINFO *info, const struct gdi_image_b
     if (!bits) return ERROR_SUCCESS;
     if ((src->width != dst->width) || (src->height != dst->height)) return ERROR_TRANSFORM_NOT_SUPPORTED;
 
-    init_dib_from_bitmapinfo( &src_dib, info, bits->ptr );
+    init_dib_info_from_bitmapinfo( &src_dib, info, bits->ptr );
     src_dib.bits.is_copy = bits->is_copy;
     add_clipped_bounds( pdev, &dst->visrect, pdev->clip );
     return blend_rect( &pdev->dib, &dst->visrect, &src_dib, &src->visrect, pdev->clip, blend );
@@ -1201,23 +1202,23 @@ DWORD stretch_bitmapinfo( const BITMAPINFO *src_info, void *src_bits, struct bit
                           const BITMAPINFO *dst_info, void *dst_bits, struct bitblt_coords *dst,
                           INT mode )
 {
-    struct dib src_dib, dst_dib;
+    dib_info src_dib, dst_dib;
     POINT dst_start, src_start, dst_end, src_end;
     RECT rect;
     BOOL hstretch, vstretch;
     struct stretch_params v_params, h_params;
     int err;
     DWORD ret;
-    void (* row_fn)(const struct dib *dst_dib, const POINT *dst_start,
-                    const struct dib *src_dib, const POINT *src_start,
+    void (* row_fn)(const dib_info *dst_dib, const POINT *dst_start,
+                    const dib_info *src_dib, const POINT *src_start,
                     const struct stretch_params *params, int mode, BOOL keep_dst);
 
     TRACE("dst %d, %d - %d x %d visrect %s src %d, %d - %d x %d visrect %s\n",
           dst->x, dst->y, dst->width, dst->height, wine_dbgstr_rect(&dst->visrect),
           src->x, src->y, src->width, src->height, wine_dbgstr_rect(&src->visrect));
 
-    init_dib_from_bitmapinfo( &src_dib, src_info, src_bits );
-    init_dib_from_bitmapinfo( &dst_dib, dst_info, dst_bits );
+    init_dib_info_from_bitmapinfo( &src_dib, src_info, src_bits );
+    init_dib_info_from_bitmapinfo( &dst_dib, dst_info, dst_bits );
 
     if (mode == HALFTONE)
     {
@@ -1322,10 +1323,10 @@ DWORD blend_bitmapinfo( const BITMAPINFO *src_info, void *src_bits, struct bitbl
                         const BITMAPINFO *dst_info, void *dst_bits, struct bitblt_coords *dst,
                         BLENDFUNCTION blend )
 {
-    struct dib src_dib, dst_dib;
+    dib_info src_dib, dst_dib;
 
-    init_dib_from_bitmapinfo( &src_dib, src_info, src_bits );
-    init_dib_from_bitmapinfo( &dst_dib, dst_info, dst_bits );
+    init_dib_info_from_bitmapinfo( &src_dib, src_info, src_bits );
+    init_dib_info_from_bitmapinfo( &dst_dib, dst_info, dst_bits );
 
     return blend_rect( &dst_dib, &dst->visrect, &src_dib, &src->visrect, NULL, blend );
 }
@@ -1333,7 +1334,7 @@ DWORD blend_bitmapinfo( const BITMAPINFO *src_info, void *src_bits, struct bitbl
 DWORD gradient_bitmapinfo( const BITMAPINFO *info, void *bits, TRIVERTEX *vert_array, ULONG nvert,
                            void *grad_array, ULONG ngrad, ULONG mode, const POINT *dev_pts, HRGN rgn )
 {
-    struct dib dib;
+    dib_info dib;
     const GRADIENT_TRIANGLE *tri = grad_array;
     const GRADIENT_RECT *rect = grad_array;
     unsigned int i;
@@ -1342,7 +1343,7 @@ DWORD gradient_bitmapinfo( const BITMAPINFO *info, void *bits, TRIVERTEX *vert_a
     RECT rc;
     DWORD ret = ERROR_SUCCESS;
 
-    init_dib_from_bitmapinfo( &dib, info, bits );
+    init_dib_info_from_bitmapinfo( &dib, info, bits );
 
     switch (mode)
     {
@@ -1392,10 +1393,10 @@ DWORD gradient_bitmapinfo( const BITMAPINFO *info, void *bits, TRIVERTEX *vert_a
 
 COLORREF get_pixel_bitmapinfo( const BITMAPINFO *info, void *bits, struct bitblt_coords *src )
 {
-    struct dib dib;
+    dib_info dib;
     DWORD pixel;
 
-    init_dib_from_bitmapinfo( &dib, info, bits );
+    init_dib_info_from_bitmapinfo( &dib, info, bits );
     pixel = dib.funcs->get_pixel( &dib, src->x, src->y );
     return dib.funcs->pixel_to_colorref( &dib, pixel );
 }
