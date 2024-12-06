@@ -599,7 +599,7 @@ static XcursorImage *create_xcursor_frame( HDC hdc, const ICONINFOEXW *iinfo, HA
     image->yhot = iinfo->yHotspot;
 
     image->delay = 100; /* fallback delay, 100 ms */
-    if (NtUserGetCursorFrameInfo(icon, istep, &delay_jiffies, &num_steps) != 0) /* FIXME DPI */
+    if (NtUserGetCursorFrameInfo(icon, istep, &delay_jiffies, &num_steps) != 0)
         image->delay = (100 * delay_jiffies) / 6; /* convert jiffies (1/60s) to milliseconds */
     else
         WARN("Failed to retrieve animated cursor frame-rate for frame %d.\n", istep);
