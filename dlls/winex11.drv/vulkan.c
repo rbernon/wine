@@ -96,13 +96,14 @@ static VkResult X11DRV_vulkan_surface_create( HWND hwnd, VkInstance instance, Vk
         ERR("Failed to allocate vulkan surface for hwnd=%p\n", hwnd);
         return VK_ERROR_OUT_OF_HOST_MEMORY;
     }
-    if (!(surface->window = create_client_window( hwnd, &default_visual, default_colormap )))
+    NtUserGetClientRect( hwnd, &surface->rect, NtUserGetDpiForWindow( hwnd ) );
+
+    if (!(surface->window = create_client_window( hwnd, surface->rect, &default_visual, default_colormap )))
     {
         ERR("Failed to allocate client window for hwnd=%p\n", hwnd);
         free( surface );
         return VK_ERROR_OUT_OF_HOST_MEMORY;
     }
-    NtUserGetClientRect( hwnd, &surface->rect, NtUserGetDpiForWindow( hwnd ) );
 
     info.window = surface->window;
     if (pvkCreateXlibSurfaceKHR( instance, &info, NULL /* allocator */, handle ))
