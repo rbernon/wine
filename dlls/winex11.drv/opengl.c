@@ -1126,7 +1126,7 @@ static struct gl_drawable *create_gl_drawable( HWND hwnd, const struct glx_pixel
         gl->colormap = XCreateColormap( gdi_display, get_dummy_parent(), visual->visual,
                                         (visual->class == PseudoColor || visual->class == GrayScale ||
                                          visual->class == DirectColor) ? AllocAll : AllocNone );
-        gl->window = create_client_window( hwnd, visual, gl->colormap );
+        gl->window = create_client_window( hwnd, gl->rect, visual, gl->colormap );
         if (gl->window)
             gl->drawable = pglXCreateWindow( gdi_display, gl->format->fbconfig, gl->window, NULL );
         ERR( "%p created client %lx drawable %lx\n", hwnd, gl->window, gl->drawable );
@@ -1138,7 +1138,7 @@ static struct gl_drawable *create_gl_drawable( HWND hwnd, const struct glx_pixel
         gl->colormap = XCreateColormap( gdi_display, get_dummy_parent(), visual->visual,
                                         (visual->class == PseudoColor || visual->class == GrayScale ||
                                          visual->class == DirectColor) ? AllocAll : AllocNone );
-        gl->window = create_client_window( hwnd, visual, gl->colormap );
+        gl->window = create_client_window( hwnd, gl->rect, visual, gl->colormap );
         if (gl->window)
         {
             struct x11drv_win_data *data;
