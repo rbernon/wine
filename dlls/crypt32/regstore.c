@@ -45,7 +45,7 @@ typedef struct _WINE_REGSTOREINFO
     struct list      ctlsToDelete;
 } WINE_REGSTOREINFO;
 
-static void CRYPT_HashToStr( const BYTE *hash, LPWSTR asciiHash )
+static void CRYPT_HashToStr(const BYTE *hash, LPWSTR asciiHash)
 {
     DWORD i;
 
@@ -56,7 +56,7 @@ static void CRYPT_HashToStr( const BYTE *hash, LPWSTR asciiHash )
         wsprintfW(asciiHash + i * 2, L"%02X", hash[i]);
 }
 
-void CRYPT_RegReadSerializedFromReg( HKEY key, DWORD contextType, HCERTSTORE store, DWORD disposition )
+void CRYPT_RegReadSerializedFromReg(HKEY key, DWORD contextType, HCERTSTORE store, DWORD disposition)
 {
     LONG rc;
     DWORD index = 0;
@@ -148,7 +148,7 @@ void CRYPT_RegReadSerializedFromReg( HKEY key, DWORD contextType, HCERTSTORE sto
     } while (!rc);
 }
 
-static void CRYPT_RegReadFromReg( HKEY key, HCERTSTORE store, DWORD disposition )
+static void CRYPT_RegReadFromReg(HKEY key, HCERTSTORE store, DWORD disposition)
 {
     static const WCHAR * const subKeys[] = { L"Certificates", L"CRLs", L"CTLs" };
     static const DWORD contextFlags[] = { CERT_STORE_CERTIFICATE_CONTEXT_FLAG,
@@ -237,7 +237,7 @@ BOOL CRYPT_SerializeContextsToReg(HKEY key, DWORD flags,
     return ret;
 }
 
-static BOOL CRYPT_RegWriteToReg( WINE_REGSTOREINFO *store )
+static BOOL CRYPT_RegWriteToReg(WINE_REGSTOREINFO *store)
 {
     static const WCHAR * const subKeys[] = { L"Certificates", L"CRLs", L"CTLs" };
     const WINE_CONTEXT_INTERFACE * const interfaces[] = { pCertInterface,
@@ -294,7 +294,7 @@ static BOOL CRYPT_RegWriteToReg( WINE_REGSTOREINFO *store )
 /* If force is true or the registry store is dirty, writes the contents of the
  * store to the registry.
  */
-static BOOL CRYPT_RegFlushStore( WINE_REGSTOREINFO *store, BOOL force )
+static BOOL CRYPT_RegFlushStore(WINE_REGSTOREINFO *store, BOOL force)
 {
     BOOL ret;
 
@@ -311,7 +311,7 @@ static BOOL CRYPT_RegFlushStore( WINE_REGSTOREINFO *store, BOOL force )
     return ret;
 }
 
-static void WINAPI CRYPT_RegCloseStore( HCERTSTORE hCertStore, DWORD dwFlags )
+static void WINAPI CRYPT_RegCloseStore(HCERTSTORE hCertStore, DWORD dwFlags)
 {
     WINE_REGSTOREINFO *store = hCertStore;
 
