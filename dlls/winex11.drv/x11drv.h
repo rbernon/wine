@@ -67,6 +67,7 @@ typedef int Status;
 #include "unixlib.h"
 #include "wine/list.h"
 #include "wine/debug.h"
+#include "mwm.h"
 
 #define MAX_DASHLEN 16
 
@@ -611,6 +612,7 @@ struct window_state
 {
     UINT wm_state;
     UINT net_wm_state;
+    MwmHints mwm_hints;
     RECT rect;
 };
 
@@ -648,6 +650,7 @@ struct x11drv_win_data
     struct window_state current_state; /* window state tracking the current X11 state */
     unsigned long wm_state_serial;     /* serial of last pending WM_STATE request */
     unsigned long net_wm_state_serial; /* serial of last pending _NET_WM_STATE request */
+    unsigned long mwm_hints_serial;    /* serial of last pending _MOTIF_WM_HINTS request */
     unsigned long configure_serial;    /* serial of last pending configure request */
 };
 
@@ -665,6 +668,7 @@ extern void destroy_vk_surface( HWND hwnd );
 extern BOOL window_has_pending_wm_state( HWND hwnd, UINT state );
 extern void window_wm_state_notify( struct x11drv_win_data *data, unsigned long serial, UINT value );
 extern void window_net_wm_state_notify( struct x11drv_win_data *data, unsigned long serial, UINT value );
+extern void window_mwm_hints_notify( struct x11drv_win_data *data, unsigned long serial, const MwmHints *hints );
 extern void window_configure_notify( struct x11drv_win_data *data, unsigned long serial, const RECT *rect );
 extern BOOL get_window_state_updates( HWND hwnd, UINT *state_cmd, UINT *config_cmd, RECT *rect );
 
