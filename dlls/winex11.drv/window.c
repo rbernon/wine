@@ -1441,8 +1441,8 @@ static void window_set_wm_state( struct x11drv_win_data *data, UINT new_state )
     case MAKELONG(WithdrawnState, IconicState):
     case MAKELONG(WithdrawnState, NormalState):
         remove_startup_notification( data->display, data->whole_window );
-        set_wm_hints( data );
         update_net_wm_states( data );
+        set_wm_hints( data );
         sync_window_style( data );
         update_net_wm_fullscreen_monitors( data );
         break;
@@ -1783,8 +1783,8 @@ static void sync_window_position( struct x11drv_win_data *data, UINT swp_flags, 
     }
 
     set_size_hints( data, style );
-    set_mwm_hints( data, style, ex_style );
     update_net_wm_states( data );
+    set_mwm_hints( data, style, ex_style );
 
     new_rect = data->rects.visible;
 
@@ -3010,8 +3010,8 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, HWND owner_hint, UIN
         }
         else
         {
-            if (swp_flags & (SWP_FRAMECHANGED|SWP_STATECHANGED)) set_wm_hints( data );
             update_net_wm_states( data );
+            if (swp_flags & (SWP_FRAMECHANGED|SWP_STATECHANGED)) set_wm_hints( data );
         }
     }
 
