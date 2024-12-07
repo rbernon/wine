@@ -900,6 +900,7 @@ static void window_set_mwm_hints( struct x11drv_win_data *data, const MwmHints *
 
     data->desired_state.mwm_hints = *new_hints;
     if (!data->whole_window) return; /* no window, nothing to update */
+    if (data->mwm_hints_serial) return; /* another _MOTIF_WM_HINTS update is pending, wait for it to complete */
     if (!memcmp( old_hints, new_hints, sizeof(*new_hints) )) return; /* hints are the same, nothing to update */
 
     data->pending_state.mwm_hints = *new_hints;
@@ -1719,8 +1720,11 @@ void window_mwm_hints_notify( struct x11drv_win_data *data, unsigned long serial
     received = wine_dbg_sprintf( "_MOTIF_WM_HINTS %s/%lu", debugstr_mwm_hints(value), serial );
     expected = *expect_serial ? wine_dbg_sprintf( ", expected %s/%lu", debugstr_mwm_hints(pending), *expect_serial ) : "";
 
-    handle_state_change( data, serial, expect_serial, sizeof(value), &value,
-                         desired, pending, current, expected, received, NULL );
+    if (!handle_state_change( data, serial, expect_serial, sizeof(value), &value,
+                              desired, pending, current, expected, received, NULL ))
+        return;
+
+    window_set_mwm_hints( data, &data->desired_state.mwm_hints );
 }
 
 void window_configure_notify( struct x11drv_win_data *data, unsigned long serial, const RECT *value )
