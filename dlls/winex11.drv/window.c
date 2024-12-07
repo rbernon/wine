@@ -899,6 +899,8 @@ static void set_size_hints( struct x11drv_win_data *data, DWORD style )
 }
 
 
+static void window_set_wm_state( struct x11drv_win_data *data, UINT new_state );
+
 static void window_set_mwm_hints( struct x11drv_win_data *data, const MwmHints *new_hints )
 {
     const MwmHints *old_hints = &data->pending_state.mwm_hints;
@@ -906,6 +908,30 @@ static void window_set_mwm_hints( struct x11drv_win_data *data, const MwmHints *
     data->desired_state.mwm_hints = *new_hints;
     if (!data->whole_window) return; /* no window, nothing to update */
     if (!memcmp( old_hints, new_hints, sizeof(*new_hints) )) return; /* hints are the same, nothing to update */
+
+    /* When removing decorations, Mutter sends UnmapNotify, FocusOut, ReparentNotify, MapNotify, WM_TAKE_FOCUS
+     * event sequence. We won't receive any WM_STATE property changes and cannot use it to detect when it's done,
+     * so explicitly request the Unmap / Map sequence ourselves, so we can follow the WM_STATE property changes.
+     *
+     * When adding decorations to a window in NormalState, Mutter first iconifies the window, then restores it
+     * after the same sequence. It however sometimes fails to restore focus to the window.
+     *
+     * In both cases, we will receive _MOTIF_WM_HINT PropertyNotify change right away and will then be unable to
+     * handle the non-atomic event sequence that follows.
+     *
+     * Instead, explicitly request an unmap / map sequence ourselves and track the corresponding events, overriding
+     * the Mutter generated sequence, while achieving the same thing and getting WM_TAKE_FOCUS event when the
+     * window is mapped again.
+     */
+    if (data->managed && data->pending_state.wm_state == NormalState &&
+        !old_hints->decorations != !new_hints->decorations)
+    {
+        if (data->wm_state_serial) return; /* another WM_STATE update is pending, wait for it to complete */
+        WARN( "window %p/%lx adds/removes decorations, remapping\n", data->hwnd, data->whole_window );
+        NtUserSetProp( data->hwnd, focus_time_prop, (HANDLE)-1 );
+        window_set_wm_state( data, WithdrawnState );
+        window_set_wm_state( data, NormalState );
+    }
 
     data->pending_state.mwm_hints = *new_hints;
     data->mwm_hints_serial = NextRequest( data->display );
@@ -1680,8 +1706,6 @@ void window_wm_state_notify( struct x11drv_win_data *data, unsigned long serial,
 
     received = wine_dbg_sprintf( "WM_STATE %#x/%lu", value, serial );
     expected = *expect_serial ? wine_dbg_sprintf( ", expected %#x/%lu", *pending, *expect_serial ) : "";
-    /* ignore Metacity/Mutter transient NormalState during WithdrawnState <-> IconicState transitions */
-    if (value == NormalState && *current + *pending == IconicState) reason = "transient ";
 
     if (!handle_state_change( data, serial, expect_serial, sizeof(value), &value,
                               desired, pending, current, expected, received, reason ))
@@ -1691,6 +1715,7 @@ void window_wm_state_notify( struct x11drv_win_data *data, unsigned long serial,
     window_set_wm_state( data, data->desired_state.wm_state );
     window_set_net_wm_state( data, data->desired_state.net_wm_state );
     window_set_config( data, &data->desired_state.rect, FALSE );
+    window_set_mwm_hints( data, &data->desired_state.mwm_hints );
 
     if (data->current_state.wm_state == NormalState) NtUserSetProp( data->hwnd, focus_time_prop, (HANDLE)time );
     else if (!data->wm_state_serial) NtUserRemoveProp( data->hwnd, focus_time_prop );
@@ -1713,6 +1738,7 @@ void window_net_wm_state_notify( struct x11drv_win_data *data, unsigned long ser
     window_set_wm_state( data, data->desired_state.wm_state );
     window_set_net_wm_state( data, data->desired_state.net_wm_state );
     window_set_config( data, &data->desired_state.rect, FALSE );
+    window_set_mwm_hints( data, &data->desired_state.mwm_hints );
 }
 
 void window_mwm_hints_notify( struct x11drv_win_data *data, unsigned long serial, const MwmHints *value )
