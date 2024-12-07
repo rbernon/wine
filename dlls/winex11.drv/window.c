@@ -272,7 +272,7 @@ static void remove_startup_notification(Display *display, Window window)
 
     if (!(id = getenv( "DESKTOP_STARTUP_ID" )) || !id[0]) return;
 
-    if ((src = strstr( id, "_TIME" ))) update_user_time( display, window, atol( src + 5 ) );
+    if ((src = strstr( id, "_TIME" ))) update_user_time( display, window, atol( src + 5 ), FALSE );
 
     pos = snprintf(message, sizeof(message), "remove: ID=");
     message[pos++] = '"';
@@ -1146,10 +1146,12 @@ Window init_clip_window(void)
 /***********************************************************************
  *     update_user_time
  */
-void update_user_time( Display *display, Window window, Time time )
+void update_user_time( Display *display, Window window, Time time, BOOL force )
 {
-    XChangeProperty( display, window, x11drv_atom(_NET_WM_USER_TIME), XA_CARDINAL,
-                     32, PropModeReplace, (unsigned char *)&time, 1 );
+    if (!force && (time == -1 || time == 0)) time = 1;
+    if (time == -1) XDeleteProperty( display, window, x11drv_atom(_NET_WM_USER_TIME) );
+    else XChangeProperty( display, window, x11drv_atom(_NET_WM_USER_TIME), XA_CARDINAL,
+                          32, PropModeReplace, (unsigned char *)&time, 1 );
 }
 
 /* Update _NET_WM_FULLSCREEN_MONITORS when _NET_WM_STATE_FULLSCREEN is set to support fullscreen
@@ -1460,7 +1462,14 @@ static void window_set_wm_state( struct x11drv_win_data *data, UINT new_state, U
         break;
     }
 
-    if (new_state != NormalState && data->has_focus && data->hwnd != foreground)
+    if (new_state == NormalState)
+    {
+        /* try forcing activation if the window is supposed to be foreground */
+        if (data->hwnd == foreground) swp_flags = 0;
+        if (swp_flags & SWP_NOACTIVATE) update_user_time( data->display, data->whole_window, 0, TRUE );
+        else update_user_time( data->display, data->whole_window, -1, TRUE );
+    }
+    else if (data->has_focus && data->hwnd != foreground)
     {
         Window window = X11DRV_get_whole_window( foreground );
         WARN( "Inconsistent input focus, activating window %p/%lx\n", foreground, window );

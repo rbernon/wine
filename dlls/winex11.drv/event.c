@@ -701,7 +701,7 @@ static void handle_wm_protocols( HWND hwnd, XClientMessageEvent *event )
 
     if (protocol == x11drv_atom(WM_DELETE_WINDOW))
     {
-        update_user_time( event->display, event->window, event_time );
+        update_user_time( event->display, event->window, event_time, FALSE );
 
         if (hwnd == NtUserGetDesktopWindow())
         {
