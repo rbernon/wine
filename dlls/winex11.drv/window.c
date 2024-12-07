@@ -53,7 +53,6 @@
 
 #include "wine/debug.h"
 #include "wine/server.h"
-#include "mwm.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(x11drv);
 WINE_DECLARE_DEBUG_CHANNEL(systray);
@@ -106,6 +105,11 @@ static const WCHAR clip_window_prop[] =
     {'_','_','w','i','n','e','_','x','1','1','_','c','l','i','p','_','w','i','n','d','o','w',0};
 static const WCHAR focus_time_prop[] =
     {'_','_','w','i','n','e','_','x','1','1','_','f','o','c','u','s','_','t','i','m','e',0};
+
+static const char *debugstr_mwm_hints( const MwmHints *hints )
+{
+    return wine_dbg_sprintf( "%lx,%lx", hints->functions, hints->decorations );
+}
 
 static pthread_mutex_t win_data_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -889,6 +893,23 @@ static void set_size_hints( struct x11drv_win_data *data, DWORD style )
 }
 
 
+static void window_set_mwm_hints( struct x11drv_win_data *data, const MwmHints *new_hints, UINT swp_flags )
+{
+    const MwmHints *old_hints = &data->pending_state.mwm_hints;
+
+    data->desired_state.mwm_hints = *new_hints;
+    if (!data->whole_window) return; /* no window, nothing to update */
+    if (!memcmp( old_hints, new_hints, sizeof(*new_hints) )) return; /* hints are the same, nothing to update */
+
+    data->pending_state.mwm_hints = *new_hints;
+    data->mwm_hints_serial = NextRequest( data->display );
+    TRACE( "window %p/%lx, requesting _MOTIF_WM_HINTS %s serial %lu\n", data->hwnd, data->whole_window,
+           debugstr_mwm_hints(&data->pending_state.mwm_hints), data->mwm_hints_serial );
+    XChangeProperty( data->display, data->whole_window, x11drv_atom(_MOTIF_WM_HINTS), x11drv_atom(_MOTIF_WM_HINTS),
+                     32, PropModeReplace, (unsigned char *)new_hints, sizeof(*new_hints) / sizeof(long) );
+}
+
+
 /***********************************************************************
  *              set_mwm_hints
  */
@@ -923,15 +944,12 @@ static void set_mwm_hints( struct x11drv_win_data *data, UINT style, UINT ex_sty
         }
     }
 
-    TRACE( "%p setting mwm hints to %lx,%lx (style %x exstyle %x)\n",
-           data->hwnd, mwm_hints.decorations, mwm_hints.functions, style, ex_style );
-
     mwm_hints.flags = MWM_HINTS_FUNCTIONS | MWM_HINTS_DECORATIONS;
     mwm_hints.input_mode = 0;
     mwm_hints.status = 0;
-    XChangeProperty( data->display, data->whole_window, x11drv_atom(_MOTIF_WM_HINTS),
-                     x11drv_atom(_MOTIF_WM_HINTS), 32, PropModeReplace,
-                     (unsigned char*)&mwm_hints, sizeof(mwm_hints)/sizeof(long) );
+    TRACE( "%p setting mwm hints to %s (style %x exstyle %x)\n",
+           data->hwnd, debugstr_mwm_hints(&mwm_hints), style, ex_style );
+    window_set_mwm_hints( data, &mwm_hints, swp_flags );
 }
 
 
@@ -1694,6 +1712,19 @@ void window_net_wm_state_notify( struct x11drv_win_data *data, unsigned long ser
     window_set_wm_state( data, data->desired_state.wm_state, data->desired_state.swp_flags );
     window_set_net_wm_state( data, data->desired_state.net_wm_state );
     window_set_config( data, &data->desired_state.rect, FALSE, data->desired_state.swp_flags );
+}
+
+void window_mwm_hints_notify( struct x11drv_win_data *data, unsigned long serial, const MwmHints *value )
+{
+    MwmHints *desired = &data->desired_state.mwm_hints, *pending = &data->pending_state.mwm_hints, *current = &data->current_state.mwm_hints;
+    unsigned long *expect_serial = &data->mwm_hints_serial;
+    const char *expected, *received;
+
+    received = wine_dbg_sprintf( "_MOTIF_WM_HINTS %s/%lu", debugstr_mwm_hints(value), serial );
+    expected = *expect_serial ? wine_dbg_sprintf( ", expected %s/%lu", debugstr_mwm_hints(pending), *expect_serial ) : "";
+
+    window_handle_state_change( data, serial, expect_serial, sizeof(*value), value,
+                                desired, pending, current, expected, received, NULL );
 }
 
 void window_configure_notify( struct x11drv_win_data *data, unsigned long serial, const RECT *value )
