@@ -893,6 +893,8 @@ static void set_size_hints( struct x11drv_win_data *data, DWORD style )
 }
 
 
+static void window_set_wm_state( struct x11drv_win_data *data, UINT new_state, UINT swp_flags, BOOL transient );
+
 static void window_set_mwm_hints( struct x11drv_win_data *data, const MwmHints *new_hints, UINT swp_flags )
 {
     const MwmHints *old_hints = &data->pending_state.mwm_hints;
@@ -900,6 +902,27 @@ static void window_set_mwm_hints( struct x11drv_win_data *data, const MwmHints *
     data->desired_state.mwm_hints = *new_hints;
     if (!data->whole_window) return; /* no window, nothing to update */
     if (!memcmp( old_hints, new_hints, sizeof(*new_hints) )) return; /* hints are the same, nothing to update */
+
+    /* When removing decorations, Mutter sends UnmapNotify, FocusOut, ReparentNotify, MapNotify, WM_TAKE_FOCUS
+     * event sequence. When adding decorations to a window in NormalState, Mutter first iconifies the window,
+     * then restores it after the same sequence.
+     *
+     * In both cases, we will receive _MOTIF_WM_HINT PropertyNotify change right away and will then be unable to
+     * handle the non-atomic event sequence that follows: we don't receive any WM_STATE property changes, and
+     * cannot use it to detect when it's done, or to decide whether to ignore the FocusOut event.
+     *
+     * Instead, explicitly request an unmap / map sequence ourselves and track the corresponding events, overriding
+     * the Mutter generated sequence, while achieving the same thing and getting WM_TAKE_FOCUS event when the
+     * window is mapped again.
+     */
+    if (data->managed && data->pending_state.wm_state == NormalState &&
+        !old_hints->decorations != !new_hints->decorations)
+    {
+        if (data->wm_state_serial) return; /* another WM_STATE update is pending, wait for it to complete */
+        WARN( "window %p/%lx adds/removes decorations, remapping\n", data->hwnd, data->whole_window );
+        window_set_wm_state( data, WithdrawnState, 0, TRUE );
+        window_set_wm_state( data, NormalState, swp_flags, FALSE );
+    }
 
     data->pending_state.mwm_hints = *new_hints;
     data->mwm_hints_serial = NextRequest( data->display );
@@ -1410,7 +1433,7 @@ static void set_xembed_flags( struct x11drv_win_data *data, unsigned long flags 
                      x11drv_atom(_XEMBED_INFO), 32, PropModeReplace, (unsigned char*)info, 2 );
 }
 
-static void window_set_wm_state( struct x11drv_win_data *data, UINT new_state, UINT swp_flags )
+static void window_set_wm_state( struct x11drv_win_data *data, UINT new_state, UINT swp_flags, BOOL transient )
 {
     UINT old_state = data->pending_state.wm_state;
     HWND foreground = NtUserGetForegroundWindow();
@@ -1452,7 +1475,7 @@ static void window_set_wm_state( struct x11drv_win_data *data, UINT new_state, U
         break;
     }
 
-    if (new_state == NormalState) NtUserSetProp( data->hwnd, focus_time_prop, (HANDLE)-1 );
+    if (new_state == NormalState || transient) NtUserSetProp( data->hwnd, focus_time_prop, (HANDLE)-1 );
     else NtUserRemoveProp( data->hwnd, focus_time_prop );
 
     if (new_state == NormalState)
@@ -1512,7 +1535,7 @@ static void map_window( HWND hwnd, DWORD new_style, BOOL swp_flags )
 
     if (!(data = get_win_data( hwnd ))) return;
     TRACE( "win %p/%lx\n", data->hwnd, data->whole_window );
-    window_set_wm_state( data, (new_style & WS_MINIMIZE) ? IconicState : NormalState, swp_flags );
+    window_set_wm_state( data, (new_style & WS_MINIMIZE) ? IconicState : NormalState, swp_flags, FALSE );
     release_win_data( data );
 }
 
@@ -1526,7 +1549,7 @@ static void unmap_window( HWND hwnd )
 
     if (!(data = get_win_data( hwnd ))) return;
     TRACE( "win %p/%lx\n", data->hwnd, data->whole_window );
-    window_set_wm_state( data, WithdrawnState, 0 );
+    window_set_wm_state( data, WithdrawnState, 0, FALSE );
     release_win_data( data );
 }
 
@@ -1679,17 +1702,16 @@ void window_wm_state_notify( struct x11drv_win_data *data, unsigned long serial,
 
     received = wine_dbg_sprintf( "WM_STATE %#x/%lu", value, serial );
     expected = *expect_serial ? wine_dbg_sprintf( ", expected %#x/%lu", *pending, *expect_serial ) : "";
-    /* ignore Metacity/Mutter transient NormalState during WithdrawnState <-> IconicState transitions */
-    if (value == NormalState && *current + *pending == IconicState) reason = "transient ";
 
     if (!window_handle_state_change( data, serial, expect_serial, sizeof(value), &value,
                                      desired, pending, current, expected, received, reason ))
         return;
 
     /* send any pending changes from the desired state */
-    window_set_wm_state( data, data->desired_state.wm_state, data->desired_state.swp_flags );
+    window_set_wm_state( data, data->desired_state.wm_state, data->desired_state.swp_flags, FALSE );
     window_set_net_wm_state( data, data->desired_state.net_wm_state );
     window_set_config( data, &data->desired_state.rect, FALSE, data->desired_state.swp_flags );
+    window_set_mwm_hints( data, &data->desired_state.mwm_hints, data->desired_state.swp_flags );
 
     if (data->current_state.wm_state == NormalState) NtUserSetProp( data->hwnd, focus_time_prop, (HANDLE)time );
     else if (!data->wm_state_serial) NtUserRemoveProp( data->hwnd, focus_time_prop );
@@ -1709,9 +1731,10 @@ void window_net_wm_state_notify( struct x11drv_win_data *data, unsigned long ser
         return;
 
     /* send any pending changes from the desired state */
-    window_set_wm_state( data, data->desired_state.wm_state, data->desired_state.swp_flags );
+    window_set_wm_state( data, data->desired_state.wm_state, data->desired_state.swp_flags, FALSE );
     window_set_net_wm_state( data, data->desired_state.net_wm_state );
     window_set_config( data, &data->desired_state.rect, FALSE, data->desired_state.swp_flags );
+    window_set_mwm_hints( data, &data->desired_state.mwm_hints, data->desired_state.swp_flags );
 }
 
 void window_mwm_hints_notify( struct x11drv_win_data *data, unsigned long serial, const MwmHints *value )
@@ -1768,10 +1791,10 @@ BOOL window_should_take_focus( HWND hwnd, HWND foreground, Time time )
 void make_window_embedded( struct x11drv_win_data *data )
 {
     /* the window cannot be mapped before being embedded */
-    window_set_wm_state( data, WithdrawnState, 0 );
+    window_set_wm_state( data, WithdrawnState, 0, FALSE );
     data->embedded = TRUE;
     data->managed = TRUE;
-    window_set_wm_state( data, NormalState, SWP_NOACTIVATE );
+    window_set_wm_state( data, NormalState, SWP_NOACTIVATE, FALSE );
 }
 
 
@@ -2583,7 +2606,7 @@ BOOL X11DRV_SystrayDockRemove( HWND hwnd )
 
     if ((data = get_win_data( hwnd )))
     {
-        if ((ret = data->embedded)) window_set_wm_state( data, WithdrawnState, 0 );
+        if ((ret = data->embedded)) window_set_wm_state( data, WithdrawnState, 0, FALSE );
         release_win_data( data );
     }
 
@@ -3018,7 +3041,7 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, HWND owner_hint, UIN
         }
         else if ((swp_flags & SWP_STATECHANGED) && ((old_style ^ new_style) & WS_MINIMIZE))
         {
-            window_set_wm_state( data, (new_style & WS_MINIMIZE) ? IconicState : NormalState, swp_flags );
+            window_set_wm_state( data, (new_style & WS_MINIMIZE) ? IconicState : NormalState, swp_flags, FALSE );
             update_net_wm_states( data );
         }
         else
