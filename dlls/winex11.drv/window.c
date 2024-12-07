@@ -1111,35 +1111,6 @@ void update_user_time( Display *display, Window window, Time time, BOOL force )
                           32, PropModeReplace, (unsigned char *)&time, 1 );
 }
 
-static void update_desktop_fullscreen( Display *display )
-{
-    XEvent xev;
-
-    if (!is_virtual_desktop()) return;
-
-    xev.xclient.type = ClientMessage;
-    xev.xclient.window = root_window;
-    xev.xclient.message_type = x11drv_atom(_NET_WM_STATE);
-    xev.xclient.serial = 0;
-    xev.xclient.display = display;
-    xev.xclient.send_event = True;
-    xev.xclient.format = 32;
-    xev.xclient.data.l[0] = is_desktop_fullscreen() ? _NET_WM_STATE_ADD : _NET_WM_STATE_REMOVE;
-    xev.xclient.data.l[1] = x11drv_atom(_NET_WM_STATE_FULLSCREEN);
-    xev.xclient.data.l[2] = 0;
-    xev.xclient.data.l[3] = 1;
-
-    TRACE("action=%li\n", xev.xclient.data.l[0]);
-
-    XSendEvent( display, DefaultRootWindow(display), False,
-                SubstructureRedirectMask | SubstructureNotifyMask, &xev );
-
-    xev.xclient.data.l[1] = x11drv_atom(_NET_WM_STATE_MAXIMIZED_VERT);
-    xev.xclient.data.l[2] = x11drv_atom(_NET_WM_STATE_MAXIMIZED_HORZ);
-    XSendEvent( display, DefaultRootWindow(display), False,
-                SubstructureRedirectMask | SubstructureNotifyMask, &xev );
-}
-
 /* Update _NET_WM_FULLSCREEN_MONITORS when _NET_WM_STATE_FULLSCREEN is set to support fullscreen
  * windows spanning multiple monitors */
 static void update_net_wm_fullscreen_monitors( struct x11drv_win_data *data )
@@ -1190,7 +1161,7 @@ static void update_net_wm_fullscreen_monitors( struct x11drv_win_data *data )
         xev.xclient.format = 32;
         xev.xclient.data.l[4] = 1;
         memcpy( xev.xclient.data.l, monitors, sizeof(monitors) );
-        XSendEvent( data->display, root_window, False,
+        XSendEvent( data->display, DefaultRootWindow( data->display ), False,
                     SubstructureRedirectMask | SubstructureNotifyMask, &xev );
     }
     data->net_wm_fullscreen_monitors_set = TRUE;
@@ -1254,7 +1225,7 @@ static void window_set_net_wm_state( struct x11drv_win_data *data, UINT new_stat
             data->net_wm_state_serial = NextRequest( data->display );
             TRACE( "window %p/%lx, requesting _NET_WM_STATE %#x serial %lu\n", data->hwnd, data->whole_window,
                    data->pending_state.net_wm_state, data->net_wm_state_serial );
-            XSendEvent( data->display, root_window, False,
+            XSendEvent( data->display, DefaultRootWindow( data->display ), False,
                         SubstructureRedirectMask | SubstructureNotifyMask, &xev );
         }
     }
@@ -1327,18 +1298,21 @@ static void window_set_config( struct x11drv_win_data *data, const RECT *new_rec
  */
 static void update_net_wm_states( struct x11drv_win_data *data )
 {
+    static const UINT fullscreen_mask = (1 << NET_WM_STATE_MAXIMIZED) | (1 << NET_WM_STATE_FULLSCREEN);
     UINT style, ex_style, new_state = 0;
 
     if (!data->managed || data->embedded) return;
     if (data->whole_window == root_window)
     {
-        update_desktop_fullscreen(data->display);
+        if (!is_virtual_desktop()) return;
+        new_state = is_desktop_fullscreen() ? fullscreen_mask : 0;
+        window_set_net_wm_state( data, new_state );
         return;
     }
 
     style = NtUserGetWindowLongW( data->hwnd, GWL_STYLE );
     if (style & WS_MINIMIZE)
-        new_state |= data->desired_state.net_wm_state & ((1 << NET_WM_STATE_FULLSCREEN)|(1 << NET_WM_STATE_MAXIMIZED));
+        new_state |= data->desired_state.net_wm_state & fullscreen_mask;
     if (data->is_fullscreen)
     {
         if ((style & WS_MAXIMIZE) && (style & WS_CAPTION) == WS_CAPTION)
@@ -2353,6 +2327,7 @@ BOOL X11DRV_DestroyNotify( HWND hwnd, XEvent *event )
 /* initialize the desktop window id in the desktop manager process */
 static BOOL create_desktop_win_data( Window win, HWND hwnd )
 {
+    static const UINT fullscreen_mask = (1 << NET_WM_STATE_MAXIMIZED) | (1 << NET_WM_STATE_FULLSCREEN);
     struct x11drv_thread_data *thread_data = x11drv_thread_data();
     Display *display = thread_data->display;
     struct x11drv_win_data *data;
@@ -2362,6 +2337,7 @@ static BOOL create_desktop_win_data( Window win, HWND hwnd )
     data->managed = TRUE;
     NtUserSetProp( data->hwnd, whole_window_prop, (HANDLE)win );
     set_initial_wm_hints( display, win );
+    if (is_desktop_fullscreen()) window_set_net_wm_state( data, fullscreen_mask );
     release_win_data( data );
     if (thread_data->clip_window) XReparentWindow( display, thread_data->clip_window, win, 0, 0 );
     return TRUE;
@@ -2405,13 +2381,6 @@ void X11DRV_SetDesktopWindow( HWND hwnd )
         {
             ERR( "Failed to create virtual desktop window data\n" );
             root_window = DefaultRootWindow( gdi_display );
-        }
-        else if (is_desktop_fullscreen())
-        {
-            Display *display = x11drv_thread_data()->display;
-            TRACE("setting desktop to fullscreen\n");
-            XChangeProperty( display, root_window, x11drv_atom(_NET_WM_STATE), XA_ATOM, 32, PropModeReplace,
-                             (unsigned char*)&x11drv_atom(_NET_WM_STATE_FULLSCREEN), 1 );
         }
     }
     else
