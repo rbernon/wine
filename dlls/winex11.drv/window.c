@@ -2125,12 +2125,6 @@ static void create_whole_window( struct x11drv_win_data *data )
     HRGN win_rgn;
     POINT pos;
 
-    if (!data->managed && is_window_managed( data->hwnd, SWP_NOACTIVATE, &data->rects.window ))
-    {
-        TRACE( "making win %p/%lx managed\n", data->hwnd, data->whole_window );
-        data->managed = TRUE;
-    }
-
     if ((win_rgn = NtGdiCreateRectRgn( 0, 0, 0, 0 )) &&
         NtUserGetWindowRgnEx( data->hwnd, win_rgn, 0 ) == ERROR)
     {
@@ -2142,6 +2136,7 @@ static void create_whole_window( struct x11drv_win_data *data )
     if (data->vis.visualid != default_visual.visualid)
         data->whole_colormap = XCreateColormap( data->display, root_window, data->vis.visual, AllocNone );
 
+    data->managed = TRUE;
     mask = get_window_attributes( data, &attr );
 
     if (!(cx = data->rects.visible.right - data->rects.visible.left)) cx = 1;
@@ -2158,6 +2153,7 @@ static void create_whole_window( struct x11drv_win_data *data )
     data->pending_state.rect = data->current_state.rect;
     data->desired_state.rect = data->current_state.rect;
 
+    if (!is_window_managed( data->hwnd, SWP_NOACTIVATE, &data->rects.window )) data->managed = FALSE;
     x11drv_xinput2_enable( data->display, data->whole_window );
     set_initial_wm_hints( data->display, data->whole_window );
     set_wm_hints( data, 0 );
