@@ -610,6 +610,7 @@ enum x11drv_net_wm_state
 
 struct window_state
 {
+    UINT swp_flags;
     UINT wm_state;
     UINT net_wm_state;
     MwmHints mwm_hints;
