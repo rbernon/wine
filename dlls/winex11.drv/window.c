@@ -110,6 +110,8 @@ static const WCHAR client_window_prop[] =
     {'_','_','w','i','n','e','_','x','1','1','_','c','l','i','e','n','t','_','w','i','n','d','o','w',0};
 static const WCHAR clip_window_prop[] =
     {'_','_','w','i','n','e','_','x','1','1','_','c','l','i','p','_','w','i','n','d','o','w',0};
+static const WCHAR focus_time_prop[] =
+    {'_','_','w','i','n','e','_','x','1','1','_','f','o','c','u','s','_','t','i','m','e',0};
 
 static pthread_mutex_t win_data_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -1622,7 +1624,7 @@ BOOL X11DRV_GetWindowStateUpdates( HWND hwnd, UINT *state_cmd, UINT *config_cmd,
     return *state_cmd || *config_cmd;
 }
 
-void window_wm_state_notify( struct x11drv_win_data *data, unsigned long serial, UINT value )
+void window_wm_state_notify( struct x11drv_win_data *data, unsigned long serial, UINT value, Time time )
 {
     UINT *desired = &data->desired_state.wm_state, *pending = &data->pending_state.wm_state, *current = &data->current_state.wm_state;
     unsigned long *expect_serial = &data->wm_state_serial;
@@ -1659,6 +1661,9 @@ void window_wm_state_notify( struct x11drv_win_data *data, unsigned long serial,
     window_set_wm_state( data, data->desired_state.wm_state );
     window_set_net_wm_state( data, data->desired_state.net_wm_state );
     window_set_config( data, &data->desired_state.rect, FALSE );
+
+    if (data->current_state.wm_state == NormalState) NtUserSetProp( data->hwnd, focus_time_prop, (HANDLE)time );
+    else if (!data->wm_state_serial) NtUserRemoveProp( data->hwnd, focus_time_prop );
 }
 
 void window_net_wm_state_notify( struct x11drv_win_data *data, unsigned long serial, UINT value )
@@ -1741,6 +1746,12 @@ BOOL window_has_pending_wm_state( HWND hwnd, UINT state )
     release_win_data( data );
 
     return pending;
+}
+
+BOOL window_should_take_focus( HWND hwnd, Time time )
+{
+    Time focus_time = (UINT_PTR)NtUserGetProp( hwnd, focus_time_prop );
+    return !focus_time || (int)(focus_time - time) < 0;
 }
 
 /***********************************************************************
