@@ -1277,24 +1277,33 @@ static void window_set_net_wm_state( struct x11drv_win_data *data, UINT new_stat
 static void window_set_config( struct x11drv_win_data *data, const RECT *new_rect, BOOL above, UINT swp_flags )
 {
     static const UINT fullscreen_mask = (1 << NET_WM_STATE_MAXIMIZED) | (1 << NET_WM_STATE_FULLSCREEN);
-    UINT style = NtUserGetWindowLongW( data->hwnd, GWL_STYLE ), mask = 0;
+    UINT style = NtUserGetWindowLongW( data->hwnd, GWL_STYLE ), mask = 0, net_wm_state = -1;
     const RECT *old_rect = &data->pending_state.rect;
     XWindowChanges changes;
+    BOOL is_maximized;
 
     data->desired_state.rect = *new_rect;
     if (!data->whole_window) return; /* no window, nothing to update */
     if (EqualRect( old_rect, new_rect ) && !above) return; /* rects are the same, no need to be raised, nothing to update */
 
-    if (data->pending_state.wm_state == NormalState && data->net_wm_state_serial &&
-        !(data->pending_state.net_wm_state & fullscreen_mask) &&
-        (data->current_state.net_wm_state & fullscreen_mask))
+    /* Kwin internal maximized state tracking gets bogus if a window configure request is sent to a maximized
+     * window, and it loses track of whether the window was maximized state.
+     *
+     * Moving a maximized window to a different monitor requires sending a configure request but KWin bug makes
+     * no difference to requests with only position changes, and they trigger it all the same.
+     *
+     * Instead, explicitly request an unmap / map sequence ourselves and track the corresponding events, overriding
+     * the Mutter generated sequence, while achieving the same thing and getting WM_TAKE_FOCUS event when the
+     * window is mapped again.
+     */
+    is_maximized = (data->pending_state.net_wm_state | data->current_state.net_wm_state) & fullscreen_mask;
+    if (data->managed && data->pending_state.wm_state == NormalState && is_maximized)
     {
-        /* Some window managers are sending a ConfigureNotify event with the fullscreen size when
-         * exiting a fullscreen window, with a serial that we cannot predict. Handling that event
-         * will override the Win32 window size and make the window fullscreen again.
-         */
-        WARN( "window %p/%lx is exiting maximize/fullscreen, delaying request\n", data->hwnd, data->whole_window );
-        return;
+        if (data->wm_state_serial) return; /* another WM_STATE update is pending, wait for it to complete */
+        if (data->net_wm_state_serial) return; /* another _NET_WM_STATE update is pending, wait for it to complete */
+        WARN( "window %p/%lx is maximized/fullscreen, temporarily restoring\n", data->hwnd, data->whole_window );
+        net_wm_state = data->pending_state.net_wm_state;
+        window_set_net_wm_state( data, net_wm_state & ~fullscreen_mask );
     }
 
     /* resizing a managed maximized window is not allowed */
@@ -1332,6 +1341,8 @@ static void window_set_config( struct x11drv_win_data *data, const RECT *new_rec
     TRACE( "window %p/%lx, requesting config %s above %u, serial %lu\n", data->hwnd, data->whole_window,
            wine_dbgstr_rect(new_rect), above, data->configure_serial );
     XReconfigureWMWindow( data->display, data->whole_window, data->vis.screen, mask, &changes );
+
+    if (net_wm_state != -1) window_set_net_wm_state( data, net_wm_state );
 }
 
 /***********************************************************************
@@ -1824,7 +1835,6 @@ static void sync_window_position( struct x11drv_win_data *data, UINT swp_flags, 
     }
 
     set_size_hints( data, style );
-    set_mwm_hints( data, style, ex_style, swp_flags );
     update_net_wm_states( data );
 
     new_rect = data->rects.visible;
@@ -1835,6 +1845,7 @@ static void sync_window_position( struct x11drv_win_data *data, UINT swp_flags, 
                                         window_rect.top - old_rects->window.top );
 
     window_set_config( data, &new_rect, above, swp_flags );
+    set_mwm_hints( data, style, ex_style, swp_flags );
 }
 
 
