@@ -849,10 +849,13 @@ static BOOL X11DRV_FocusIn( HWND hwnd, XEvent *xev )
 {
     HWND foreground = NtUserGetForegroundWindow();
     XFocusChangeEvent *event = &xev->xfocus;
+    struct x11drv_win_data *data;
     BOOL was_grabbed;
 
     if (event->detail == NotifyPointer) return FALSE;
-    if (!hwnd) return FALSE;
+    if (!(data = get_win_data( hwnd ))) return FALSE;
+    data->has_focus = 1;
+    release_win_data( data );
 
     if (window_has_pending_wm_state( hwnd, -1 ))
     {
@@ -934,6 +937,7 @@ static BOOL X11DRV_FocusOut( HWND hwnd, XEvent *xev )
 {
     HWND foreground = NtUserGetForegroundWindow();
     XFocusChangeEvent *event = &xev->xfocus;
+    struct x11drv_win_data *data;
 
     if (event->detail == NotifyPointer)
     {
@@ -946,7 +950,9 @@ static BOOL X11DRV_FocusOut( HWND hwnd, XEvent *xev )
         }
         return TRUE;
     }
-    if (!hwnd) return FALSE;
+    if (!(data = get_win_data( hwnd ))) return FALSE;
+    data->has_focus = 0;
+    release_win_data( data );
 
     if (window_has_pending_wm_state( hwnd, NormalState )) /* ignore FocusOut only if the window is being shown */
     {

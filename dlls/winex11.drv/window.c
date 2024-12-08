@@ -1441,6 +1441,7 @@ static void set_xembed_flags( struct x11drv_win_data *data, unsigned long flags 
 static void window_set_wm_state( struct x11drv_win_data *data, UINT new_state )
 {
     UINT old_state = data->pending_state.wm_state;
+    HWND foreground = NtUserGetForegroundWindow();
 
     data->desired_state.wm_state = new_state;
     if (!data->whole_window) return; /* no window, nothing to update */
@@ -1476,6 +1477,13 @@ static void window_set_wm_state( struct x11drv_win_data *data, UINT new_state )
     case MAKELONG(NormalState, IconicState):
         set_wm_hints( data );
         break;
+    }
+
+    if (new_state != NormalState && data->has_focus && data->hwnd != foreground)
+    {
+        Window window = X11DRV_get_whole_window( foreground );
+        WARN( "Inconsistent input focus, activating window %p/%lx\n", foreground, window );
+        XSetInputFocus( data->display, window, RevertToParent, CurrentTime );
     }
 
     data->pending_state.wm_state = new_state;
