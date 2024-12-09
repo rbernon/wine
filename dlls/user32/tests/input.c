@@ -6636,9 +6636,6 @@ START_TEST(input)
     if (argc >= 3 && !strcmp( argv[2], "test_system_messages_with_rawinput_nolegacy" ))
         return test_system_messages_with_rawinput_nolegacy();
 
-test_basic_window();
-return;
-
     run_in_desktop( argv, "test_input_desktop", 1 );
     test_keynames();
     test_key_map();
