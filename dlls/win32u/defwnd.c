@@ -2953,7 +2953,7 @@ static void update_children_window_state( HWND hwnd )
     int i;
 
     if (!(children = list_window_children( hwnd ))) return;
-    for (i = 0; children[i]; i++) update_window_state( children[i], TRUE );
+    for (i = 0; children[i]; i++) update_window_state( children[i] );
     free( children );
 }
 
