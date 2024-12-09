@@ -13,6 +13,23 @@
  * Copyright 2021-2024 The Khronos Group Inc.
  * SPDX-License-Identifier: Apache-2.0 OR MIT
  *
+ * and from OpenXR xr.xml file covered
+ * by the following copyright and permission notice:
+ *
+ * Copyright (c) 2017-2024, The Khronos Group Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ *
+ * ------------------------------------------------------------------------
+ *
+ * This file, xr.xml, is the OpenXR API Registry. It is a critically important
+ * and normative part of the OpenXR Specification, including a canonical
+ * machine-readable definition of the API, parameter and member validation
+ * language incorporated into the Specification and reference pages, and other
+ * material which is registered by Khronos, such as tags used by extension and
+ * layer authors. The only authoritative version of xr.xml is the one
+ * maintained in the default branch of the Khronos OpenXR GitHub project.
+ *
  */
 
 #ifndef __WINE_VULKAN_LOADER_THUNKS_H
@@ -21,8 +38,10 @@
 enum unix_call
 {
     unix_init,
+    unix_init_openxr,
     unix_is_available_instance_function,
     unix_is_available_device_function,
+    unix_is_available_xr_instance_function,
     unix_vkAcquireNextImage2KHR,
     unix_vkAcquireNextImageKHR,
     unix_vkAcquireProfilingLockKHR,
@@ -642,6 +661,90 @@ enum unix_call
     unix_vkWaitSemaphoresKHR,
     unix_vkWriteAccelerationStructuresPropertiesKHR,
     unix_vkWriteMicromapsPropertiesEXT,
+    unix_xrAcquireSwapchainImage,
+    unix_xrApplyHapticFeedback,
+    unix_xrAttachSessionActionSets,
+    unix_xrBeginFrame,
+    unix_xrBeginSession,
+    unix_xrCancelFutureEXT,
+    unix_xrConvertTimeToWin32PerformanceCounterKHR,
+    unix_xrConvertWin32PerformanceCounterToTimeKHR,
+    unix_xrCreateAction,
+    unix_xrCreateActionSet,
+    unix_xrCreateActionSpace,
+    unix_xrCreateInstance,
+    unix_xrCreateReferenceSpace,
+    unix_xrCreateSession,
+    unix_xrCreateSwapchain,
+    unix_xrCreateVulkanDeviceKHR,
+    unix_xrCreateVulkanInstanceKHR,
+    unix_xrDestroyAction,
+    unix_xrDestroyActionSet,
+    unix_xrDestroyInstance,
+    unix_xrDestroySession,
+    unix_xrDestroySpace,
+    unix_xrDestroySwapchain,
+    unix_xrEndFrame,
+    unix_xrEndSession,
+    unix_xrEnumerateBoundSourcesForAction,
+    unix_xrEnumerateEnvironmentBlendModes,
+    unix_xrEnumerateExternalCamerasOCULUS,
+    unix_xrEnumerateInstanceExtensionProperties,
+    unix_xrEnumerateReferenceSpaces,
+    unix_xrEnumerateSwapchainFormats,
+    unix_xrEnumerateSwapchainImages,
+    unix_xrEnumerateViewConfigurationViews,
+    unix_xrEnumerateViewConfigurations,
+    unix_xrGetActionStateBoolean,
+    unix_xrGetActionStateFloat,
+    unix_xrGetActionStatePose,
+    unix_xrGetActionStateVector2f,
+    unix_xrGetAudioInputDeviceGuidOculus,
+    unix_xrGetAudioOutputDeviceGuidOculus,
+    unix_xrGetCurrentInteractionProfile,
+    unix_xrGetD3D11GraphicsRequirementsKHR,
+    unix_xrGetD3D12GraphicsRequirementsKHR,
+    unix_xrGetInputSourceLocalizedName,
+    unix_xrGetInstanceProperties,
+    unix_xrGetMetalGraphicsRequirementsKHR,
+    unix_xrGetReferenceSpaceBoundsRect,
+    unix_xrGetSystem,
+    unix_xrGetSystemProperties,
+    unix_xrGetViewConfigurationProperties,
+    unix_xrGetVisibilityMaskKHR,
+    unix_xrGetVulkanDeviceExtensionsKHR,
+    unix_xrGetVulkanGraphicsDevice2KHR,
+    unix_xrGetVulkanGraphicsDeviceKHR,
+    unix_xrGetVulkanGraphicsRequirements2KHR,
+    unix_xrGetVulkanGraphicsRequirementsKHR,
+    unix_xrGetVulkanInstanceExtensionsKHR,
+    unix_xrLocateSpace,
+    unix_xrLocateSpaces,
+    unix_xrLocateSpacesKHR,
+    unix_xrLocateViews,
+    unix_xrPathToString,
+    unix_xrPerfSettingsSetPerformanceLevelEXT,
+    unix_xrPollEvent,
+    unix_xrPollFutureEXT,
+    unix_xrReleaseSwapchainImage,
+    unix_xrRequestExitSession,
+    unix_xrResultToString,
+    unix_xrSetAndroidApplicationThreadKHR,
+    unix_xrSetDigitalLensControlALMALENCE,
+    unix_xrSetInputDeviceActiveEXT,
+    unix_xrSetInputDeviceLocationEXT,
+    unix_xrSetInputDeviceStateBoolEXT,
+    unix_xrSetInputDeviceStateFloatEXT,
+    unix_xrSetInputDeviceStateVector2fEXT,
+    unix_xrSetTrackingOptimizationSettingsHintQCOM,
+    unix_xrStopHapticFeedback,
+    unix_xrStringToPath,
+    unix_xrStructureTypeToString,
+    unix_xrSuggestInteractionProfileBindings,
+    unix_xrSyncActions,
+    unix_xrThermalGetTemperatureTrendEXT,
+    unix_xrWaitFrame,
+    unix_xrWaitSwapchainImage,
     unix_count,
 };
 
@@ -5443,6 +5546,687 @@ struct vkWriteMicromapsPropertiesEXT_params
     void *pData;
     size_t stride;
     VkResult result;
+};
+
+struct xrAcquireSwapchainImage_params
+{
+    XrSwapchain swapchain;
+    const XrSwapchainImageAcquireInfo *acquireInfo;
+    uint32_t *index;
+    XrResult result;
+};
+
+struct xrApplyHapticFeedback_params
+{
+    XrSession session;
+    const XrHapticActionInfo *hapticActionInfo;
+    const XrHapticBaseHeader *hapticFeedback;
+    XrResult result;
+};
+
+struct xrAttachSessionActionSets_params
+{
+    XrSession session;
+    const XrSessionActionSetsAttachInfo *attachInfo;
+    XrResult result;
+};
+
+struct xrBeginFrame_params
+{
+    XrSession session;
+    const XrFrameBeginInfo *frameBeginInfo;
+    XrResult result;
+};
+
+struct xrBeginSession_params
+{
+    XrSession session;
+    const XrSessionBeginInfo *beginInfo;
+    XrResult result;
+};
+
+struct xrCancelFutureEXT_params
+{
+    XrInstance instance;
+    const XrFutureCancelInfoEXT *cancelInfo;
+    XrResult result;
+};
+
+struct xrConvertTimeToWin32PerformanceCounterKHR_params
+{
+    XrInstance instance;
+    XrTime time;
+    LARGE_INTEGER *performanceCounter;
+    XrResult result;
+};
+
+struct xrConvertWin32PerformanceCounterToTimeKHR_params
+{
+    XrInstance instance;
+    const LARGE_INTEGER *performanceCounter;
+    XrTime *time;
+    XrResult result;
+};
+
+struct xrCreateAction_params
+{
+    XrActionSet actionSet;
+    const XrActionCreateInfo *createInfo;
+    XrAction *action;
+    XrResult result;
+};
+
+struct xrCreateActionSet_params
+{
+    XrInstance instance;
+    const XrActionSetCreateInfo *createInfo;
+    XrActionSet *actionSet;
+    XrResult result;
+};
+
+struct xrCreateActionSpace_params
+{
+    XrSession session;
+    const XrActionSpaceCreateInfo *createInfo;
+    XrSpace *space;
+    XrResult result;
+};
+
+struct xrCreateInstance_params
+{
+    const XrInstanceCreateInfo *createInfo;
+    XrInstance *instance;
+    XrResult result;
+};
+
+struct xrCreateReferenceSpace_params
+{
+    XrSession session;
+    const XrReferenceSpaceCreateInfo *createInfo;
+    XrSpace *space;
+    XrResult result;
+};
+
+struct xrCreateSession_params
+{
+    XrInstance instance;
+    const XrSessionCreateInfo *createInfo;
+    XrSession *session;
+    XrResult result;
+};
+
+struct xrCreateSwapchain_params
+{
+    XrSession session;
+    const XrSwapchainCreateInfo *createInfo;
+    XrSwapchain *swapchain;
+    XrResult result;
+};
+
+struct xrCreateVulkanDeviceKHR_params
+{
+    XrInstance instance;
+    const XrVulkanDeviceCreateInfoKHR *createInfo;
+    VkDevice *vulkanDevice;
+    VkResult *vulkanResult;
+    XrResult result;
+};
+
+struct xrCreateVulkanInstanceKHR_params
+{
+    XrInstance instance;
+    const XrVulkanInstanceCreateInfoKHR *createInfo;
+    VkInstance *vulkanInstance;
+    VkResult *vulkanResult;
+    XrResult result;
+};
+
+struct xrDestroyAction_params
+{
+    XrAction action;
+    XrResult result;
+};
+
+struct xrDestroyActionSet_params
+{
+    XrActionSet actionSet;
+    XrResult result;
+};
+
+struct xrDestroyInstance_params
+{
+    XrInstance instance;
+    XrResult result;
+};
+
+struct xrDestroySession_params
+{
+    XrSession session;
+    XrResult result;
+};
+
+struct xrDestroySpace_params
+{
+    XrSpace space;
+    XrResult result;
+};
+
+struct xrDestroySwapchain_params
+{
+    XrSwapchain swapchain;
+    XrResult result;
+};
+
+struct xrEndFrame_params
+{
+    XrSession session;
+    const XrFrameEndInfo *frameEndInfo;
+    XrResult result;
+};
+
+struct xrEndSession_params
+{
+    XrSession session;
+    XrResult result;
+};
+
+struct xrEnumerateBoundSourcesForAction_params
+{
+    XrSession session;
+    const XrBoundSourcesForActionEnumerateInfo *enumerateInfo;
+    uint32_t sourceCapacityInput;
+    uint32_t *sourceCountOutput;
+    XrPath *sources;
+    XrResult result;
+};
+
+struct xrEnumerateEnvironmentBlendModes_params
+{
+    XrInstance instance;
+    XrSystemId DECLSPEC_ALIGN(8) systemId;
+    XrViewConfigurationType viewConfigurationType;
+    uint32_t environmentBlendModeCapacityInput;
+    uint32_t *environmentBlendModeCountOutput;
+    XrEnvironmentBlendMode *environmentBlendModes;
+    XrResult result;
+};
+
+struct xrEnumerateExternalCamerasOCULUS_params
+{
+    XrSession session;
+    uint32_t cameraCapacityInput;
+    uint32_t *cameraCountOutput;
+    XrExternalCameraOCULUS *cameras;
+    XrResult result;
+};
+
+struct xrEnumerateInstanceExtensionProperties_params
+{
+    const char *layerName;
+    uint32_t propertyCapacityInput;
+    uint32_t *propertyCountOutput;
+    XrExtensionProperties *properties;
+    XrResult result;
+};
+
+struct xrEnumerateReferenceSpaces_params
+{
+    XrSession session;
+    uint32_t spaceCapacityInput;
+    uint32_t *spaceCountOutput;
+    XrReferenceSpaceType *spaces;
+    XrResult result;
+};
+
+struct xrEnumerateSwapchainFormats_params
+{
+    XrSession session;
+    uint32_t formatCapacityInput;
+    uint32_t *formatCountOutput;
+    int64_t *formats;
+    XrResult result;
+};
+
+struct xrEnumerateSwapchainImages_params
+{
+    XrSwapchain swapchain;
+    uint32_t imageCapacityInput;
+    uint32_t *imageCountOutput;
+    XrSwapchainImageBaseHeader *images;
+    XrResult result;
+};
+
+struct xrEnumerateViewConfigurationViews_params
+{
+    XrInstance instance;
+    XrSystemId DECLSPEC_ALIGN(8) systemId;
+    XrViewConfigurationType viewConfigurationType;
+    uint32_t viewCapacityInput;
+    uint32_t *viewCountOutput;
+    XrViewConfigurationView *views;
+    XrResult result;
+};
+
+struct xrEnumerateViewConfigurations_params
+{
+    XrInstance instance;
+    XrSystemId DECLSPEC_ALIGN(8) systemId;
+    uint32_t viewConfigurationTypeCapacityInput;
+    uint32_t *viewConfigurationTypeCountOutput;
+    XrViewConfigurationType *viewConfigurationTypes;
+    XrResult result;
+};
+
+struct xrGetActionStateBoolean_params
+{
+    XrSession session;
+    const XrActionStateGetInfo *getInfo;
+    XrActionStateBoolean *state;
+    XrResult result;
+};
+
+struct xrGetActionStateFloat_params
+{
+    XrSession session;
+    const XrActionStateGetInfo *getInfo;
+    XrActionStateFloat *state;
+    XrResult result;
+};
+
+struct xrGetActionStatePose_params
+{
+    XrSession session;
+    const XrActionStateGetInfo *getInfo;
+    XrActionStatePose *state;
+    XrResult result;
+};
+
+struct xrGetActionStateVector2f_params
+{
+    XrSession session;
+    const XrActionStateGetInfo *getInfo;
+    XrActionStateVector2f *state;
+    XrResult result;
+};
+
+struct xrGetAudioInputDeviceGuidOculus_params
+{
+    XrInstance instance;
+    wchar_t *buffer;
+    XrResult result;
+};
+
+struct xrGetAudioOutputDeviceGuidOculus_params
+{
+    XrInstance instance;
+    wchar_t *buffer;
+    XrResult result;
+};
+
+struct xrGetCurrentInteractionProfile_params
+{
+    XrSession session;
+    XrPath DECLSPEC_ALIGN(8) topLevelUserPath;
+    XrInteractionProfileState *interactionProfile;
+    XrResult result;
+};
+
+struct xrGetD3D11GraphicsRequirementsKHR_params
+{
+    XrInstance instance;
+    XrSystemId DECLSPEC_ALIGN(8) systemId;
+    XrGraphicsRequirementsD3D11KHR *graphicsRequirements;
+    XrResult result;
+};
+
+struct xrGetD3D12GraphicsRequirementsKHR_params
+{
+    XrInstance instance;
+    XrSystemId DECLSPEC_ALIGN(8) systemId;
+    XrGraphicsRequirementsD3D12KHR *graphicsRequirements;
+    XrResult result;
+};
+
+struct xrGetInputSourceLocalizedName_params
+{
+    XrSession session;
+    const XrInputSourceLocalizedNameGetInfo *getInfo;
+    uint32_t bufferCapacityInput;
+    uint32_t *bufferCountOutput;
+    char *buffer;
+    XrResult result;
+};
+
+struct xrGetInstanceProperties_params
+{
+    XrInstance instance;
+    XrInstanceProperties *instanceProperties;
+    XrResult result;
+};
+
+struct xrGetMetalGraphicsRequirementsKHR_params
+{
+    XrInstance instance;
+    XrSystemId DECLSPEC_ALIGN(8) systemId;
+    XrGraphicsRequirementsMetalKHR *graphicsRequirements;
+    XrResult result;
+};
+
+struct xrGetReferenceSpaceBoundsRect_params
+{
+    XrSession session;
+    XrReferenceSpaceType referenceSpaceType;
+    XrExtent2Df *bounds;
+    XrResult result;
+};
+
+struct xrGetSystem_params
+{
+    XrInstance instance;
+    const XrSystemGetInfo *getInfo;
+    XrSystemId *systemId;
+    XrResult result;
+};
+
+struct xrGetSystemProperties_params
+{
+    XrInstance instance;
+    XrSystemId DECLSPEC_ALIGN(8) systemId;
+    XrSystemProperties *properties;
+    XrResult result;
+};
+
+struct xrGetViewConfigurationProperties_params
+{
+    XrInstance instance;
+    XrSystemId DECLSPEC_ALIGN(8) systemId;
+    XrViewConfigurationType viewConfigurationType;
+    XrViewConfigurationProperties *configurationProperties;
+    XrResult result;
+};
+
+struct xrGetVisibilityMaskKHR_params
+{
+    XrSession session;
+    XrViewConfigurationType viewConfigurationType;
+    uint32_t viewIndex;
+    XrVisibilityMaskTypeKHR visibilityMaskType;
+    XrVisibilityMaskKHR *visibilityMask;
+    XrResult result;
+};
+
+struct xrGetVulkanDeviceExtensionsKHR_params
+{
+    XrInstance instance;
+    XrSystemId DECLSPEC_ALIGN(8) systemId;
+    uint32_t bufferCapacityInput;
+    uint32_t *bufferCountOutput;
+    char *buffer;
+    XrResult result;
+};
+
+struct xrGetVulkanGraphicsDevice2KHR_params
+{
+    XrInstance instance;
+    const XrVulkanGraphicsDeviceGetInfoKHR *getInfo;
+    VkPhysicalDevice *vulkanPhysicalDevice;
+    XrResult result;
+};
+
+struct xrGetVulkanGraphicsDeviceKHR_params
+{
+    XrInstance instance;
+    XrSystemId DECLSPEC_ALIGN(8) systemId;
+    VkInstance vkInstance;
+    VkPhysicalDevice *vkPhysicalDevice;
+    XrResult result;
+};
+
+struct xrGetVulkanGraphicsRequirements2KHR_params
+{
+    XrInstance instance;
+    XrSystemId DECLSPEC_ALIGN(8) systemId;
+    XrGraphicsRequirementsVulkanKHR *graphicsRequirements;
+    XrResult result;
+};
+
+struct xrGetVulkanGraphicsRequirementsKHR_params
+{
+    XrInstance instance;
+    XrSystemId DECLSPEC_ALIGN(8) systemId;
+    XrGraphicsRequirementsVulkanKHR *graphicsRequirements;
+    XrResult result;
+};
+
+struct xrGetVulkanInstanceExtensionsKHR_params
+{
+    XrInstance instance;
+    XrSystemId DECLSPEC_ALIGN(8) systemId;
+    uint32_t bufferCapacityInput;
+    uint32_t *bufferCountOutput;
+    char *buffer;
+    XrResult result;
+};
+
+struct xrLocateSpace_params
+{
+    XrSpace space;
+    XrSpace baseSpace;
+    XrTime time;
+    XrSpaceLocation *location;
+    XrResult result;
+};
+
+struct xrLocateSpaces_params
+{
+    XrSession session;
+    const XrSpacesLocateInfo *locateInfo;
+    XrSpaceLocations *spaceLocations;
+    XrResult result;
+};
+
+struct xrLocateSpacesKHR_params
+{
+    XrSession session;
+    const XrSpacesLocateInfo *locateInfo;
+    XrSpaceLocations *spaceLocations;
+    XrResult result;
+};
+
+struct xrLocateViews_params
+{
+    XrSession session;
+    const XrViewLocateInfo *viewLocateInfo;
+    XrViewState *viewState;
+    uint32_t viewCapacityInput;
+    uint32_t *viewCountOutput;
+    XrView *views;
+    XrResult result;
+};
+
+struct xrPathToString_params
+{
+    XrInstance instance;
+    XrPath DECLSPEC_ALIGN(8) path;
+    uint32_t bufferCapacityInput;
+    uint32_t *bufferCountOutput;
+    char *buffer;
+    XrResult result;
+};
+
+struct xrPerfSettingsSetPerformanceLevelEXT_params
+{
+    XrSession session;
+    XrPerfSettingsDomainEXT domain;
+    XrPerfSettingsLevelEXT level;
+    XrResult result;
+};
+
+struct xrPollEvent_params
+{
+    XrInstance instance;
+    XrEventDataBuffer *eventData;
+    XrResult result;
+};
+
+struct xrPollFutureEXT_params
+{
+    XrInstance instance;
+    const XrFuturePollInfoEXT *pollInfo;
+    XrFuturePollResultEXT *pollResult;
+    XrResult result;
+};
+
+struct xrReleaseSwapchainImage_params
+{
+    XrSwapchain swapchain;
+    const XrSwapchainImageReleaseInfo *releaseInfo;
+    XrResult result;
+};
+
+struct xrRequestExitSession_params
+{
+    XrSession session;
+    XrResult result;
+};
+
+struct xrResultToString_params
+{
+    XrInstance instance;
+    XrResult value;
+    char *buffer;
+    XrResult result;
+};
+
+struct xrSetAndroidApplicationThreadKHR_params
+{
+    XrSession session;
+    XrAndroidThreadTypeKHR threadType;
+    uint32_t threadId;
+    XrResult result;
+};
+
+struct xrSetDigitalLensControlALMALENCE_params
+{
+    XrSession session;
+    const XrDigitalLensControlALMALENCE *digitalLensControl;
+    XrResult result;
+};
+
+struct xrSetInputDeviceActiveEXT_params
+{
+    XrSession session;
+    XrPath DECLSPEC_ALIGN(8) interactionProfile;
+    XrPath DECLSPEC_ALIGN(8) topLevelPath;
+    XrBool32 isActive;
+    XrResult result;
+};
+
+struct xrSetInputDeviceLocationEXT_params
+{
+    XrSession session;
+    XrPath DECLSPEC_ALIGN(8) topLevelPath;
+    XrPath DECLSPEC_ALIGN(8) inputSourcePath;
+    XrSpace space;
+    XrPosef pose;
+    XrResult result;
+};
+
+struct xrSetInputDeviceStateBoolEXT_params
+{
+    XrSession session;
+    XrPath DECLSPEC_ALIGN(8) topLevelPath;
+    XrPath DECLSPEC_ALIGN(8) inputSourcePath;
+    XrBool32 state;
+    XrResult result;
+};
+
+struct xrSetInputDeviceStateFloatEXT_params
+{
+    XrSession session;
+    XrPath DECLSPEC_ALIGN(8) topLevelPath;
+    XrPath DECLSPEC_ALIGN(8) inputSourcePath;
+    float state;
+    XrResult result;
+};
+
+struct xrSetInputDeviceStateVector2fEXT_params
+{
+    XrSession session;
+    XrPath DECLSPEC_ALIGN(8) topLevelPath;
+    XrPath DECLSPEC_ALIGN(8) inputSourcePath;
+    XrVector2f state;
+    XrResult result;
+};
+
+struct xrSetTrackingOptimizationSettingsHintQCOM_params
+{
+    XrSession session;
+    XrTrackingOptimizationSettingsDomainQCOM domain;
+    XrTrackingOptimizationSettingsHintQCOM hint;
+    XrResult result;
+};
+
+struct xrStopHapticFeedback_params
+{
+    XrSession session;
+    const XrHapticActionInfo *hapticActionInfo;
+    XrResult result;
+};
+
+struct xrStringToPath_params
+{
+    XrInstance instance;
+    const char *pathString;
+    XrPath *path;
+    XrResult result;
+};
+
+struct xrStructureTypeToString_params
+{
+    XrInstance instance;
+    XrStructureType value;
+    char *buffer;
+    XrResult result;
+};
+
+struct xrSuggestInteractionProfileBindings_params
+{
+    XrInstance instance;
+    const XrInteractionProfileSuggestedBinding *suggestedBindings;
+    XrResult result;
+};
+
+struct xrSyncActions_params
+{
+    XrSession session;
+    const XrActionsSyncInfo *syncInfo;
+    XrResult result;
+};
+
+struct xrThermalGetTemperatureTrendEXT_params
+{
+    XrSession session;
+    XrPerfSettingsDomainEXT domain;
+    XrPerfSettingsNotificationLevelEXT *notificationLevel;
+    float *tempHeadroom;
+    float *tempSlope;
+    XrResult result;
+};
+
+struct xrWaitFrame_params
+{
+    XrSession session;
+    const XrFrameWaitInfo *frameWaitInfo;
+    XrFrameState *frameState;
+    XrResult result;
+};
+
+struct xrWaitSwapchainImage_params
+{
+    XrSwapchain swapchain;
+    const XrSwapchainImageWaitInfo *waitInfo;
+    XrResult result;
 };
 
 #endif /* __WINE_VULKAN_LOADER_THUNKS_H */
