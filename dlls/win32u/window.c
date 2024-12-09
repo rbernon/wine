@@ -1182,7 +1182,7 @@ ULONG set_window_style( HWND hwnd, ULONG set_bits, ULONG clear_bits )
     if (!ok) return 0;
 
     user_driver->pSetWindowStyle( hwnd, GWL_STYLE, &style );
-    if (made_visible) update_window_state( hwnd );
+    if (made_visible) update_window_state( hwnd, TRUE );
 
     return style.styleOld;
 }
@@ -1429,7 +1429,7 @@ LONG_PTR set_window_long( HWND hwnd, INT offset, UINT size, LONG_PTR newval, BOO
         style.styleOld = retval;
         style.styleNew = newval;
         user_driver->pSetWindowStyle( hwnd, offset, &style );
-        if (made_visible || layered) update_window_state( hwnd );
+        if (made_visible || layered) update_window_state( hwnd, TRUE );
         send_message( hwnd, WM_STYLECHANGED, offset, (LPARAM)&style );
     }
 
@@ -1480,7 +1480,7 @@ BOOL win32u_set_window_pixel_format( HWND hwnd, int format, BOOL internal )
         win->pixel_format = format;
     release_win_ptr( win );
 
-    update_window_state( hwnd );
+    update_window_state( hwnd, TRUE );
     return TRUE;
 }
 
@@ -2040,7 +2040,7 @@ static void update_children_window_state( HWND hwnd )
     for (i = 0; children[i]; i++)
     {
         if (!window_has_client_surface( children[i] )) continue;
-        update_window_state( children[i] );
+        update_window_state( children[i], TRUE );
     }
 
     free( children );
@@ -2447,7 +2447,7 @@ BOOL WINAPI NtUserSetLayeredWindowAttributes( HWND hwnd, COLORREF key, BYTE alph
     if (ret)
     {
         user_driver->pSetLayeredWindowAttributes( hwnd, key, alpha, flags );
-        update_window_state( hwnd );
+        update_window_state( hwnd, TRUE );
     }
 
     return ret;
@@ -4610,32 +4610,55 @@ UINT WINAPI NtUserArrangeIconicWindows( HWND parent )
  *
  * Trigger an update of the window's driver state and surface.
  */
-void update_window_state( HWND hwnd )
+void update_window_state( HWND hwnd, BOOL driver_state )
 {
-    static const UINT swp_flags = SWP_NOSIZE | SWP_NOMOVE | SWP_NOCLIENTSIZE | SWP_NOCLIENTMOVE |
-                                  SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOREDRAW;
-    UINT context;
-    RECT valid_rects[2], surface_rect;
-    struct window_surface *surface;
-    struct window_rects new_rects;
+    UINT state_cmd, config_cmd;
+    RECT window_rect;
 
     if (!hwnd || hwnd == get_desktop_window()) return;
     if (!is_current_thread_window( hwnd ))
     {
-        NtUserPostMessage( hwnd, WM_WINE_UPDATEWINDOWSTATE, 0, 0 );
+        NtUserPostMessage( hwnd, WM_WINE_UPDATEWINDOWSTATE, driver_state, 0 );
         return;
     }
 
-    context = set_thread_dpi_awareness_context( get_window_dpi_awareness_context( hwnd ));
-    get_window_rects( hwnd, COORDS_PARENT, &new_rects, get_thread_dpi() );
-    valid_rects[0] = valid_rects[1] = new_rects.client;
+    if (user_driver->pGetWindowStateUpdates( hwnd, &state_cmd, &config_cmd, &window_rect ))
+    {
+        if (state_cmd)
+        {
+            if (LOWORD(state_cmd) == SC_RESTORE && HIWORD(state_cmd)) NtUserSetActiveWindow( hwnd );
+            send_message( hwnd, WM_SYSCOMMAND, LOWORD(state_cmd), 0 );
 
-    surface = get_window_surface( hwnd, swp_flags, FALSE, &new_rects, &surface_rect );
-    apply_window_pos( hwnd, 0, swp_flags, surface, &new_rects, valid_rects );
-    if (surface) window_surface_release( surface );
+            /* state change might have changed the window config already, check again */
+            user_driver->pGetWindowStateUpdates( hwnd, &state_cmd, &config_cmd, &window_rect );
+            if (state_cmd) WARN( "window %p state needs another update, ignoring\n", hwnd );
+        }
+        if (config_cmd)
+        {
+            if (LOWORD(config_cmd) == SC_MOVE) NtUserSetRawWindowPos( hwnd, window_rect, HIWORD(config_cmd), FALSE );
+            else send_message( hwnd, WM_SYSCOMMAND, LOWORD(config_cmd), 0 );
+        }
+    }
+    else if (driver_state)
+    {
+        static const UINT swp_flags = SWP_NOSIZE | SWP_NOMOVE | SWP_NOCLIENTSIZE | SWP_NOCLIENTMOVE |
+                                      SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOREDRAW;
+        UINT context;
+        RECT valid_rects[2], surface_rect;
+        struct window_surface *surface;
+        struct window_rects new_rects;
 
-    set_thread_dpi_awareness_context( context );
-    vulkan_update_surfaces( hwnd );
+        context = set_thread_dpi_awareness_context( get_window_dpi_awareness_context( hwnd ));
+        get_window_rects( hwnd, COORDS_PARENT, &new_rects, get_thread_dpi() );
+        valid_rects[0] = valid_rects[1] = new_rects.client;
+
+        surface = get_window_surface( hwnd, swp_flags, FALSE, &new_rects, &surface_rect );
+        apply_window_pos( hwnd, 0, swp_flags, surface, &new_rects, valid_rects );
+        if (surface) window_surface_release( surface );
+
+        set_thread_dpi_awareness_context( context );
+        vulkan_update_surfaces( hwnd );
+    }
 }
 
 /***********************************************************************

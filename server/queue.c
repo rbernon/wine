@@ -898,6 +898,7 @@ static int merge_message( struct thread_input *input, const struct message *msg 
     if (msg->msg == WM_MOUSEMOVE) return merge_mousemove( input, msg );
     if (msg->msg == WM_WINE_CLIPCURSOR) return merge_unique_message( input, WM_WINE_CLIPCURSOR, msg );
     if (msg->msg == WM_WINE_SETCURSOR) return merge_unique_message( input, WM_WINE_SETCURSOR, msg );
+    if (msg->msg == WM_WINE_UPDATEWINDOWSTATE) return merge_unique_message( input, WM_WINE_UPDATEWINDOWSTATE, msg );
     return 0;
 }
 
@@ -3245,14 +3246,17 @@ DECL_HANDLER(send_message)
             set_queue_bits( recv_queue, QS_SENDMESSAGE );
             break;
         case MSG_POSTED:
-            list_add_tail( &recv_queue->msg_list[POST_MESSAGE], &msg->entry );
+        {
             set_queue_bits( recv_queue, QS_POSTMESSAGE|QS_ALLPOSTMESSAGE );
-            if (msg->msg == WM_HOTKEY)
+            if (msg->msg == WM_HOTKEY) set_queue_bits( recv_queue, QS_HOTKEY );
+            if (merge_message( recv_queue->input, msg )) free_message( msg );
+            else
             {
-                set_queue_bits( recv_queue, QS_HOTKEY );
-                recv_queue->hotkey_count++;
+                list_add_tail( &recv_queue->msg_list[POST_MESSAGE], &msg->entry );
+                if (msg->msg == WM_HOTKEY) recv_queue->hotkey_count++;
             }
             break;
+        }
         case MSG_HARDWARE:  /* should use send_hardware_message instead */
         case MSG_CALLBACK_RESULT:  /* cannot send this one */
         case MSG_HOOK_LL:  /* generated internally */
