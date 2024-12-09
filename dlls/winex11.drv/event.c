@@ -1118,7 +1118,7 @@ static BOOL X11DRV_ConfigureNotify( HWND hwnd, XEvent *xev )
 
     release_win_data( data );
 
-    return NtUserPostMessage( hwnd, WM_WINE_UPDATEWINDOWSTATE, FALSE, 0 );
+    return NtUserPostMessage( hwnd, WM_WINE_WINDOW_STATE_CHANGED, 0, 0 );
 }
 
 /***********************************************************************
@@ -1158,7 +1158,7 @@ static BOOL X11DRV_GravityNotify( HWND hwnd, XEvent *xev )
 
     release_win_data( data );
 
-    return NtUserPostMessage( hwnd, WM_WINE_UPDATEWINDOWSTATE, FALSE, 0 );
+    return NtUserPostMessage( hwnd, WM_WINE_WINDOW_STATE_CHANGED, 0, 0 );
 }
 
 /***********************************************************************
@@ -1242,7 +1242,7 @@ static void handle_wm_state_notify( HWND hwnd, XPropertyEvent *event )
     window_wm_state_notify( data, event->serial, value, event->time );
     release_win_data( data );
 
-    NtUserPostMessage( hwnd, WM_WINE_UPDATEWINDOWSTATE, FALSE, 0 );
+    NtUserPostMessage( hwnd, WM_WINE_WINDOW_STATE_CHANGED, 0, 0 );
 }
 
 static void handle_xembed_info_notify( HWND hwnd, XPropertyEvent *event )
@@ -1266,7 +1266,7 @@ static void handle_net_wm_state_notify( HWND hwnd, XPropertyEvent *event )
     window_net_wm_state_notify( data, event->serial, value );
     release_win_data( data );
 
-    NtUserPostMessage( hwnd, WM_WINE_UPDATEWINDOWSTATE, FALSE, 0 );
+    NtUserPostMessage( hwnd, WM_WINE_WINDOW_STATE_CHANGED, 0, 0 );
 }
 
 static void handle_mwm_hints_notify( HWND hwnd, XPropertyEvent *event )
