@@ -1820,9 +1820,9 @@ static void sync_window_position( struct x11drv_win_data *data, UINT swp_flags )
     }
 
     set_size_hints( data, style );
-    set_mwm_hints( data, style, ex_style );
     update_net_wm_states( data );
     window_set_config( data, &data->rects.visible, above );
+    set_mwm_hints( data, style, ex_style );
 }
 
 
