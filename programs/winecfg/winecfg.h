@@ -54,6 +54,7 @@ extern WCHAR* current_app; /* NULL means editing global settings  */
 
 void set_reg_key(HKEY root, const WCHAR *path, const WCHAR *name, const WCHAR *value);
 void set_reg_key_dword(HKEY root, const WCHAR *path, const WCHAR *name, DWORD value);
+DWORD get_reg_key_dword(HKEY root, const WCHAR *path, const WCHAR *name, DWORD def);
 WCHAR *get_reg_key(HKEY root, const WCHAR *path, const WCHAR *name, const WCHAR *def)
     __WINE_DEALLOC(free) __WINE_MALLOC;
 
@@ -121,8 +122,8 @@ BOOL browse_for_unix_folder(HWND dialog, WCHAR *pszPath);
 extern struct drive drives[26]; /* one for each drive letter */
 
 /* Some basic utilities to make win32 suck less */
-#define disable(id) EnableWindow(GetDlgItem(dialog, id), 0);
-#define enable(id) EnableWindow(GetDlgItem(dialog, id), 1);
+#define disable(id) EnableWindow(GetDlgItem(dialog, id), 0)
+#define enable(id) EnableWindow(GetDlgItem(dialog, id), 1)
 void PRINTERROR(void); /* WINE_TRACE() the plaintext error message from GetLastError() */
 
 /* create a unicode string from a string in Unix locale */
