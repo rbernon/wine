@@ -1825,7 +1825,6 @@ static void sync_window_position( struct x11drv_win_data *data, UINT swp_flags, 
     }
 
     set_size_hints( data, style );
-    set_mwm_hints( data, style, ex_style );
     update_net_wm_states( data );
 
     new_rect = data->rects.visible;
@@ -1836,6 +1835,7 @@ static void sync_window_position( struct x11drv_win_data *data, UINT swp_flags, 
                                                             window_rect.top - old_rects->window.top );
 
     window_set_config( data, &new_rect, above );
+    set_mwm_hints( data, style, ex_style );
 }
 
 
