@@ -1581,7 +1581,7 @@ static UINT add_screen_size( SIZE *sizes, UINT count, SIZE size )
 static SIZE *get_screen_sizes( const DEVMODEW *maximum, const DEVMODEW *modes, UINT modes_count,
                                UINT *sizes_count )
 {
-    static SIZE default_sizes[] =
+    static SIZE lowres_sizes[] =
     {
         /* 4:3 */
         { 320,  240},
@@ -1589,6 +1589,15 @@ static SIZE *get_screen_sizes( const DEVMODEW *maximum, const DEVMODEW *modes, U
         { 512,  384},
         { 640,  480},
         { 768,  576},
+        /* 16:9 */
+        { 960,  540},
+        /* 16:10 */
+        { 320,  200},
+        { 640,  400},
+    };
+    static SIZE default_sizes[] =
+    {
+        /* 4:3 */
         { 800,  600},
         {1024,  768},
         {1152,  864},
@@ -1604,8 +1613,6 @@ static SIZE *get_screen_sizes( const DEVMODEW *maximum, const DEVMODEW *modes, U
         {2560, 1440},
         {3840, 2160},
         /* 16:10 */
-        { 320,  200},
-        { 640,  400},
         {1280,  800},
         {1440,  900},
         {1680, 1050},
@@ -1620,7 +1627,7 @@ static SIZE *get_screen_sizes( const DEVMODEW *maximum, const DEVMODEW *modes, U
     const DEVMODEW *mode;
     UINT i, count;
 
-    count = 1 + ARRAY_SIZE(default_sizes) + modes_count;
+    count = 1 + ARRAY_SIZE(default_sizes) + ARRAY_SIZE(lowres_sizes) + modes_count;
     if (!(sizes = malloc( count * sizeof(*sizes) ))) return NULL;
 
     count = add_screen_size( sizes, 0, max_size );
@@ -1629,6 +1636,9 @@ static SIZE *get_screen_sizes( const DEVMODEW *maximum, const DEVMODEW *modes, U
         if (default_sizes[i].cx > max_size.cx || default_sizes[i].cy > max_size.cy) continue;
         count += add_screen_size( sizes, count, default_sizes[i] );
     }
+
+    memcpy( sizes + count, lowres_sizes, ARRAY_SIZE(lowres_sizes) * sizeof(*sizes) );
+    count += ARRAY_SIZE(lowres_sizes);
 
     for (mode = modes; mode && modes_count; mode = NEXT_DEVMODEW(mode), modes_count--)
     {
