@@ -1569,6 +1569,15 @@ static void add_monitor( const struct gdi_monitor *gdi_monitor, void *param )
     }
 }
 
+static UINT add_screen_size( SIZE *sizes, UINT count, SIZE size )
+{
+    UINT i = 0;
+
+    while (i < count && memcmp( sizes + i, &size, sizeof(size) )) i++;
+    if (i == count) sizes[i] = size;
+    return i == count ? 1 : 0;
+}
+
 static SIZE *get_screen_sizes( const DEVMODEW *maximum, const DEVMODEW *modes, UINT modes_count,
                                UINT *sizes_count )
 {
@@ -1606,12 +1615,29 @@ static SIZE *get_screen_sizes( const DEVMODEW *maximum, const DEVMODEW *modes, U
         {1280, 1024},
         {2560, 2048},
     };
-    SIZE *sizes;
-    UINT count;
+    UINT max_width = devmode_get( maximum, DM_PELSWIDTH ), max_height = devmode_get( maximum, DM_PELSHEIGHT );
+    SIZE *sizes, max_size = {.cx = max( max_width, max_height ), .cy = min( max_width, max_height )};
+    const DEVMODEW *mode;
+    UINT i, count;
 
-    count = ARRAY_SIZE(default_sizes);
+    count = 1 + ARRAY_SIZE(default_sizes) + modes_count;
     if (!(sizes = malloc( count * sizeof(*sizes) ))) return NULL;
-    memcpy( sizes, default_sizes, count * sizeof(*sizes) );
+
+    count = add_screen_size( sizes, 0, max_size );
+    for (i = 0; i < ARRAY_SIZE(default_sizes); i++)
+    {
+        if (default_sizes[i].cx > max_size.cx || default_sizes[i].cy > max_size.cy) continue;
+        count += add_screen_size( sizes, count, default_sizes[i] );
+    }
+
+    for (mode = modes; mode && modes_count; mode = NEXT_DEVMODEW(mode), modes_count--)
+    {
+        UINT width = devmode_get( mode, DM_PELSWIDTH ), height = devmode_get( mode, DM_PELSHEIGHT );
+        SIZE size = {.cx = max( width, height ), .cy = min( width, height )};
+        if (!size.cx || size.cx < 800 || size.cx > max_size.cx) continue;
+        if (!size.cy || size.cy < 600 || size.cy > max_size.cy) continue;
+        count += add_screen_size( sizes, count, size );
+    }
 
     *sizes_count = count;
     return sizes;
