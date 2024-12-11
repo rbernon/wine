@@ -1623,6 +1623,8 @@ static SIZE *get_screen_sizes( const DEVMODEW *maximum, const DEVMODEW *modes, U
     const DEVMODEW *mode;
     UINT i, count;
 
+    const char *env;
+
     count = 1 + ARRAY_SIZE(default_sizes) + ARRAY_SIZE(lowres_sizes) + modes_count;
     if (!(sizes = malloc( count * sizeof(*sizes) ))) return NULL;
 
@@ -1633,8 +1635,12 @@ static SIZE *get_screen_sizes( const DEVMODEW *maximum, const DEVMODEW *modes, U
         count += add_screen_size( sizes, count, default_sizes[i] );
     }
 
-    memcpy( sizes + count, lowres_sizes, ARRAY_SIZE(lowres_sizes) * sizeof(*sizes) );
-    count += ARRAY_SIZE(lowres_sizes);
+    /* Titan Souls renders incorrectly if we report modes smaller than 800x600 */
+    if (!(env = getenv( "SteamAppId" )) || strcmp( env, "297130" ))
+    {
+        memcpy( sizes + count, lowres_sizes, ARRAY_SIZE(lowres_sizes) * sizeof(*sizes) );
+        count += ARRAY_SIZE(lowres_sizes);
+    }
 
     for (mode = modes; mode && modes_count; mode = NEXT_DEVMODEW(mode), modes_count--)
     {
