@@ -194,6 +194,25 @@ static HFONT X11DRV_SelectFont( PHYSDEV dev, HFONT hfont, UINT *aa_flags )
     return dev->funcs->pSelectFont( dev, hfont, aa_flags );
 }
 
+static const char *debugstr_region( HRGN hrgn )
+{
+    char buffer[1024], *buf = buffer;
+    DWORD i, size;
+    RGNDATA *data = NULL;
+    RECT *rect;
+
+    if (!hrgn) return wine_dbg_sprintf( "(null)" );
+    if (!(size = NtGdiGetRegionData( hrgn, 0, NULL ))) return wine_dbg_sprintf( "(error)" );
+    if (!(data = malloc( size ))) return wine_dbg_sprintf( "(error)" );
+    NtGdiGetRegionData( hrgn, size, data );
+    buf += sprintf( buf, "%d:", (int)data->rdh.nCount );
+    for (i = 0, rect = (RECT *)data->Buffer; i < data->rdh.nCount; i++, rect++)
+        buf += sprintf( buf,  " %s", wine_dbgstr_rect( rect ));
+    free( data );
+
+    return wine_dbg_sprintf( "%s", buffer );
+}
+
 static BOOL needs_client_window_clipping( HWND hwnd )
 {
     RECT rect, client;
@@ -210,10 +229,11 @@ static BOOL needs_client_window_clipping( HWND hwnd )
         ret = NtGdiGetRandomRgn( hdc, region, SYSRGN );
         if (ret > 0 && (ret = NtGdiGetRgnBox( region, &rect )) < NULLREGION) ret = 0;
         if (ret == SIMPLEREGION && EqualRect( &rect, &client )) ret = 0;
-        NtGdiDeleteObjectApp( region );
     }
     NtUserReleaseDC( hwnd, hdc );
 
+ERR("hwnd %p client %s region %s ret %u\n", hwnd, wine_dbgstr_rect(&client), debugstr_region(region), ret);
+    if (region) NtGdiDeleteObjectApp( region );
     return ret > 0;
 }
 
