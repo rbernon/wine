@@ -632,9 +632,8 @@ static HRESULT WINAPI h264_encoder_factory_CreateInstance(IClassFactory *iface, 
 
     if ((status = winedmo_transform_check(MFMediaType_Video, MFVideoFormat_NV12, MFVideoFormat_H264)))
     {
-        static const GUID CLSID_wg_h264_encoder = {0x6c34de69,0x4670,0x46cd,{0x8c,0xb4,0x1f,0x2f,0xa1,0xdf,0xfb,0x65}};
         WARN("Unsupported winedmo transform, status %#lx.\n", status);
-        return CoCreateInstance(&CLSID_wg_h264_encoder, outer, CLSCTX_INPROC_SERVER, riid, out);
+        return E_NOTIMPL;
     }
 
     *out = NULL;

@@ -694,9 +694,8 @@ static HRESULT WINAPI aac_decoder_factory_CreateInstance(IClassFactory *iface, I
 
     if ((status = winedmo_transform_check(MFMediaType_Audio, MFAudioFormat_AAC, MFAudioFormat_Float)))
     {
-        static const GUID CLSID_wg_aac_decoder = {0xe7889a8a,0x2083,0x4844,{0x83,0x70,0x5e,0xe3,0x49,0xb1,0x45,0x03}};
         WARN("Unsupported winedmo transform, status %#lx.\n", status);
-        return CoCreateInstance(&CLSID_wg_aac_decoder, outer, CLSCTX_INPROC_SERVER, riid, out);
+        return E_NOTIMPL;
     }
 
     *out = NULL;
