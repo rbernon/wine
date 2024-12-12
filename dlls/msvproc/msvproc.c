@@ -829,8 +829,9 @@ static HRESULT WINAPI video_processor_factory_CreateInstance(IClassFactory *ifac
 
     if ((status = winedmo_transform_check(MFMediaType_Video, MFVideoFormat_NV12, MFVideoFormat_RGB32)))
     {
+        static const GUID CLSID_wg_video_processor = {0xd527607f,0x89cb,0x4e94,{0x95,0x71,0xbc,0xfe,0x62,0x17,0x56,0x13}};
         WARN("Unsupported winedmo transform, status %#lx.\n", status);
-        return E_NOTIMPL;
+        return CoCreateInstance(&CLSID_wg_video_processor, outer, CLSCTX_INPROC_SERVER, riid, out);
     }
 
     *out = NULL;

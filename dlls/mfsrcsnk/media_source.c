@@ -1892,15 +1892,29 @@ static HRESULT byte_stream_plugin_create(IUnknown *outer, REFIID riid, void **ou
     return hr;
 }
 
+static BOOL use_gst_byte_stream_handler(void)
+{
+    BOOL result;
+    DWORD size = sizeof(result);
+
+    /* @@ Wine registry key: HKCU\Software\Wine\MediaFoundation */
+    if (!RegGetValueW( HKEY_CURRENT_USER, L"Software\\Wine\\MediaFoundation", L"UseGstByteStreamHandler",
+                       RRF_RT_REG_DWORD, NULL, &result, &size ))
+        return !getenv("WINE_NEW_MEDIA_SOURCE");
+
+    return !getenv("WINE_NEW_MEDIA_SOURCE");
+}
+
 static HRESULT WINAPI asf_byte_stream_plugin_factory_CreateInstance(IClassFactory *iface,
         IUnknown *outer, REFIID riid, void **out)
 {
     NTSTATUS status;
 
-    if ((status = winedmo_demuxer_check("video/x-ms-asf")))
+    if ((status = winedmo_demuxer_check("video/x-ms-asf")) || use_gst_byte_stream_handler())
     {
-        WARN("Unsupported demuxer, status %#lx.\n", status);
-        return E_NOTIMPL;
+        static const GUID CLSID_GStreamerByteStreamHandler = {0x317df618,0x5e5a,0x468a,{0x9f,0x15,0xd8,0x27,0xa9,0xa0,0x81,0x62}};
+        if (status) WARN("Unsupported demuxer, status %#lx.\n", status);
+        return CoCreateInstance(&CLSID_GStreamerByteStreamHandler, outer, CLSCTX_INPROC_SERVER, riid, out);
     }
 
     return byte_stream_plugin_create(outer, riid, out);
@@ -1922,10 +1936,11 @@ static HRESULT WINAPI avi_byte_stream_plugin_factory_CreateInstance(IClassFactor
 {
     NTSTATUS status;
 
-    if ((status = winedmo_demuxer_check("video/avi")))
+    if ((status = winedmo_demuxer_check("video/avi")) || use_gst_byte_stream_handler())
     {
-        WARN("Unsupported demuxer, status %#lx.\n", status);
-        return E_NOTIMPL;
+        static const GUID CLSID_GStreamerByteStreamHandler = {0x317df618,0x5e5a,0x468a,{0x9f,0x15,0xd8,0x27,0xa9,0xa0,0x81,0x62}};
+        if (status) WARN("Unsupported demuxer, status %#lx.\n", status);
+        return CoCreateInstance(&CLSID_GStreamerByteStreamHandler, outer, CLSCTX_INPROC_SERVER, riid, out);
     }
 
     return byte_stream_plugin_create(outer, riid, out);
@@ -1947,10 +1962,11 @@ static HRESULT WINAPI mpeg4_byte_stream_plugin_factory_CreateInstance(IClassFact
 {
     NTSTATUS status;
 
-    if ((status = winedmo_demuxer_check("video/mp4")))
+    if ((status = winedmo_demuxer_check("video/mp4")) || use_gst_byte_stream_handler())
     {
-        WARN("Unsupported demuxer, status %#lx.\n", status);
-        return E_NOTIMPL;
+        static const GUID CLSID_GStreamerByteStreamHandler = {0x317df618,0x5e5a,0x468a,{0x9f,0x15,0xd8,0x27,0xa9,0xa0,0x81,0x62}};
+        if (status) WARN("Unsupported demuxer, status %#lx.\n", status);
+        return CoCreateInstance(&CLSID_GStreamerByteStreamHandler, outer, CLSCTX_INPROC_SERVER, riid, out);
     }
 
     return byte_stream_plugin_create(outer, riid, out);
@@ -1972,10 +1988,11 @@ static HRESULT WINAPI wav_byte_stream_plugin_factory_CreateInstance(IClassFactor
 {
     NTSTATUS status;
 
-    if ((status = winedmo_demuxer_check("audio/wav")))
+    if ((status = winedmo_demuxer_check("audio/wav")) || use_gst_byte_stream_handler())
     {
-        WARN("Unsupported demuxer, status %#lx.\n", status);
-        return E_NOTIMPL;
+        static const GUID CLSID_GStreamerByteStreamHandler = {0x317df618,0x5e5a,0x468a,{0x9f,0x15,0xd8,0x27,0xa9,0xa0,0x81,0x62}};
+        if (status) WARN("Unsupported demuxer, status %#lx.\n", status);
+        return CoCreateInstance(&CLSID_GStreamerByteStreamHandler, outer, CLSCTX_INPROC_SERVER, riid, out);
     }
 
     return byte_stream_plugin_create(outer, riid, out);
