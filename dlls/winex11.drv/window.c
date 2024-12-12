@@ -1654,10 +1654,12 @@ BOOL X11DRV_GetWindowStateUpdates( HWND hwnd, UINT *state_cmd, UINT *config_cmd,
     *state_cmd = window_update_client_state( data );
     *config_cmd = window_update_client_config( data );
     *rect = window_rect_from_visible( &data->rects, data->current_state.rect );
+    if (*state_cmd || *config_cmd)
+        TRACE( "window %p/%lx returning state_cmd %#x, config_cmd %#x, rect %s\n", data->hwnd,
+               data->whole_window, *state_cmd, *config_cmd, wine_dbgstr_rect(rect) );
 
     release_win_data( data );
 
-    TRACE( "returning state_cmd %#x, config_cmd %#x, rect %s\n", *state_cmd, *config_cmd, wine_dbgstr_rect(rect) );
     return *state_cmd || *config_cmd;
 }
 
