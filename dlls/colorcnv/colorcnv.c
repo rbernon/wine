@@ -1077,8 +1077,9 @@ static HRESULT WINAPI color_converter_factory_CreateInstance(IClassFactory *ifac
 
     if ((status = winedmo_transform_check(MFMediaType_Video, MFVideoFormat_NV12, MFVideoFormat_RGB32)))
     {
+        static const GUID CLSID_wg_color_converter = {0xf47e2da5,0xe370,0x47b7,{0x90,0x3a,0x07,0x8d,0xdd,0x45,0xa5,0xcc}};
         WARN("Unsupported winedmo transform, status %#lx.\n", status);
-        return E_NOTIMPL;
+        return CoCreateInstance(&CLSID_wg_color_converter, outer, CLSCTX_INPROC_SERVER, riid, out);
     }
 
     *out = NULL;
