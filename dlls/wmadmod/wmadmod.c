@@ -1114,9 +1114,8 @@ static HRESULT WINAPI wma_decoder_factory_CreateInstance(IClassFactory *iface, I
 
     if ((status = winedmo_transform_check(MFMediaType_Audio, MFAudioFormat_WMAudioV8, MFAudioFormat_Float)))
     {
-        static const GUID CLSID_wg_wma_decoder = {0x5b4d4e54,0x0620,0x4cf9,{0x94,0xae,0x78,0x23,0x96,0x5c,0x28,0xb6}};
         WARN("Unsupported winedmo transform, status %#lx.\n", status);
-        return CoCreateInstance(&CLSID_wg_wma_decoder, outer, CLSCTX_INPROC_SERVER, riid, out);
+        return E_NOTIMPL;
     }
 
     *out = NULL;
