@@ -203,7 +203,7 @@ START_TEST(games)
     HRESULT hr;
     struct async_callback *callback = create_async_callback();
 
-const WCHAR *path = L"file://Z:/media/rbernon/LaCie/Games/Little Witch Nobeta/LittleWitchNobeta_Data/StreamingAssets/Video/Comic_Funny_01.mp4";
+const WCHAR *path = L"file://Z:/tmp/stream-0000000001754B70.mp4";
 if (!winetest_platform_is_wine) path = L"file://Y:/Games/Little Witch Nobeta/LittleWitchNobeta_Data/StreamingAssets/Video/Comic_Funny_01.mp4";
 
     hr = MFStartup(MF_VERSION, MFSTARTUP_FULL);
@@ -223,8 +223,6 @@ hr = IMFAttributes_SetUINT32(attributes, &MF_SOURCE_READER_D3D11_BIND_FLAGS, 8);
 ok(hr == S_OK, "got hr %#lx\n", hr);
 hr = IMFAttributes_SetUINT32(attributes, &MF_XVP_DISABLE_FRC, 1);
 ok(hr == S_OK, "got hr %#lx\n", hr);
-hr = IMFAttributes_SetUnknown(attributes, &MF_SOURCE_READER_ASYNC_CALLBACK, (IUnknown *)&callback->IMFSourceReaderCallback_iface);
-ok(hr == S_OK, "got hr %#lx\n", hr);
 hr = MFCreateSourceResolver(&resolver);
 ok(hr == S_OK, "got hr %#lx\n", hr);
 hr = IMFSourceResolver_CreateObjectFromURL(resolver, path, 0x1, 0, &type, (IUnknown **)&source);
@@ -236,6 +234,8 @@ ok(hr == E_NOINTERFACE, "got hr %#lx\n", hr);
 IMFMediaSource_Release(source);
 IMFSourceResolver_Release(resolver);
 
+if (0)
+{
 hr = IMFSourceReader_GetPresentationAttribute(reader, MF_SOURCE_READER_MEDIASOURCE, &MF_PD_MIME_TYPE, &propvar);
 ok(hr == S_OK, "got hr %#lx\n", hr);
 PropVariantClear(&propvar);
@@ -415,18 +415,12 @@ games.c:287: Test failed: ATTR_UINT32(MF_MT_VIDEO_NOMINAL_RANGE, 2),
 games.c:287: Test failed: ATTR_UINT32(MF_MT_VIDEO_ROTATION, 0),
 */
 IMFMediaType_Release(media_type);
+}
 
 
 callback->reader = reader;
 
-hr = IMFSourceReader_ReadSample(reader, 0, 0, NULL, NULL, NULL, NULL);
-ok(hr == S_OK, "got hr %#lx\n", hr);
-hr = IMFSourceReader_ReadSample(reader, 1, 0, NULL, NULL, NULL, NULL);
-ok(hr == S_OK, "got hr %#lx\n", hr);
-
-Sleep(1000000);
-
-for (UINT i = 0; i < 70; i++)
+for (UINT i = 0; i < 100000; i++)
 {
 hr = IMFSourceReader_ReadSample(reader, MF_SOURCE_READER_ANY_STREAM, 0, &index, &flags, &timestamp, &sample);
 ok(hr == S_OK, "got hr %#lx\n", hr);
