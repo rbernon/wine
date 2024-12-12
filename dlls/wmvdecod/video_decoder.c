@@ -1727,9 +1727,8 @@ static HRESULT WINAPI h264_decoder_factory_CreateInstance(IClassFactory *iface, 
 
     if ((status = winedmo_transform_check(MFMediaType_Video, MFVideoFormat_H264, MFVideoFormat_NV12)))
     {
-        static const GUID CLSID_wg_h264_decoder = {0x1f1e273d,0x12c0,0x4b3a,{0x8e,0x9b,0x19,0x33,0xc2,0x49,0x8a,0xea}};
         WARN("Unsupported winedmo transform, status %#lx.\n", status);
-        return CoCreateInstance(&CLSID_wg_h264_decoder, outer, CLSCTX_INPROC_SERVER, riid, out);
+        return E_NOTIMPL;
     }
 
     *out = NULL;
@@ -1809,9 +1808,8 @@ static HRESULT WINAPI wmv_decoder_factory_CreateInstance(IClassFactory *iface, I
 
     if ((status = winedmo_transform_check(MFMediaType_Video, MFVideoFormat_WMV2, MFVideoFormat_NV12)))
     {
-        static const GUID CLSID_wg_wmv_decoder = {0x62ee5ddb,0x4f52,0x48e2,{0x89,0x28,0x78,0x7b,0x02,0x53,0xa0,0xbc}};
         WARN("Unsupported winedmo transform, status %#lx.\n", status);
-        return CoCreateInstance(&CLSID_wg_wmv_decoder, outer, CLSCTX_INPROC_SERVER, riid, out);
+        return E_NOTIMPL;
     }
 
     *out = NULL;
