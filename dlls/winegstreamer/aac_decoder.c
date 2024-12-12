@@ -1,5 +1,6 @@
-/*
- * Copyright 2024 Rémi Bernon for CodeWeavers
+/* AAC Decoder Transform
+ *
+ * Copyright 2022 Rémi Bernon for CodeWeavers
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,33 +17,24 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#include <stddef.h>
-#include <stdarg.h>
+#include "gst_private.h"
 
-#define COBJMACROS
-#include "windef.h"
-#include "winbase.h"
-
-#include "ks.h"
-#include "ksmedia.h"
 #include "mfapi.h"
 #include "mferror.h"
-#include "mfidl.h"
-#include "rpcproxy.h"
+#include "mfobjects.h"
+#include "mftransform.h"
 #include "wmcodecdsp.h"
+#include "ks.h"
+#include "ksmedia.h"
 
 #include "wine/debug.h"
-#include "wine/winedmo.h"
 
-WINE_DEFAULT_DEBUG_CHANNEL(dmo);
-
-#include "initguid.h"
-
-DEFINE_MEDIATYPE_GUID(MFAudioFormat_RAW_AAC,WAVE_FORMAT_RAW_AAC1);
+WINE_DEFAULT_DEBUG_CHANNEL(mfplat);
+WINE_DECLARE_DEBUG_CHANNEL(winediag);
 
 #define NEXT_WAVEFORMATEXTENSIBLE(format) (WAVEFORMATEXTENSIBLE *)((BYTE *)(&(format)->Format + 1) + (format)->Format.cbSize)
 
-static WAVEFORMATEXTENSIBLE const aac_decoder_outputs[] =
+static WAVEFORMATEXTENSIBLE const aac_decoder_output_types[] =
 {
     {.Format = {.wFormatTag = WAVE_FORMAT_IEEE_FLOAT, .wBitsPerSample = 32, .nSamplesPerSec = 48000, .nChannels = 2,
                 .cbSize = sizeof(WAVEFORMATEXTENSIBLE) - sizeof(WAVEFORMATEX)}},
@@ -72,46 +64,31 @@ struct aac_decoder
     IMFMediaType *input_type;
     IMFMediaType *output_type;
 
-    IMFSample *input_sample;
-    struct winedmo_transform winedmo_transform;
+    wg_transform_t wg_transform;
+    struct wg_sample_queue *wg_sample_queue;
 };
 
-static struct aac_decoder *aac_decoder_from_IMFTransform(IMFTransform *iface)
+static struct aac_decoder *impl_from_IMFTransform(IMFTransform *iface)
 {
     return CONTAINING_RECORD(iface, struct aac_decoder, IMFTransform_iface);
 }
 
-static HRESULT try_create_decoder(struct aac_decoder *decoder)
+static HRESULT try_create_wg_transform(struct aac_decoder *decoder)
 {
-    union winedmo_format *input_format, *output_format;
-    UINT format_size;
-    NTSTATUS status;
-    HRESULT hr;
+    struct wg_transform_attrs attrs = {0};
 
-    winedmo_transform_destroy(&decoder->winedmo_transform);
-
-    if (FAILED(hr = MFCreateWaveFormatExFromMFMediaType(decoder->input_type, (WAVEFORMATEX **)&input_format, &format_size, 0)))
-        return hr;
-    if (FAILED(hr = MFCreateWaveFormatExFromMFMediaType(decoder->output_type, (WAVEFORMATEX **)&output_format, &format_size, 0)))
+    if (decoder->wg_transform)
     {
-        CoTaskMemFree(input_format);
-        return hr;
+        wg_transform_destroy(decoder->wg_transform);
+        decoder->wg_transform = 0;
     }
 
-    if ((status = winedmo_transform_create(MFMediaType_Audio, input_format, output_format, &decoder->winedmo_transform)))
-    {
-        ERR("FAILED %#lx\n", status);
-        hr = HRESULT_FROM_NT(status);
-    }
-
-    CoTaskMemFree(output_format);
-    CoTaskMemFree(input_format);
-    return hr;
+    return wg_transform_create_mf(decoder->input_type, decoder->output_type, &attrs, &decoder->wg_transform);
 }
 
-static HRESULT WINAPI aac_decoder_QueryInterface(IMFTransform *iface, REFIID iid, void **out)
+static HRESULT WINAPI transform_QueryInterface(IMFTransform *iface, REFIID iid, void **out)
 {
-    struct aac_decoder *decoder = aac_decoder_from_IMFTransform(iface);
+    struct aac_decoder *decoder = impl_from_IMFTransform(iface);
 
     TRACE("iface %p, iid %s, out %p.\n", iface, debugstr_guid(iid), out);
 
@@ -128,37 +105,37 @@ static HRESULT WINAPI aac_decoder_QueryInterface(IMFTransform *iface, REFIID iid
     return S_OK;
 }
 
-static ULONG WINAPI aac_decoder_AddRef(IMFTransform *iface)
+static ULONG WINAPI transform_AddRef(IMFTransform *iface)
 {
-    struct aac_decoder *decoder = aac_decoder_from_IMFTransform(iface);
+    struct aac_decoder *decoder = impl_from_IMFTransform(iface);
     ULONG refcount = InterlockedIncrement(&decoder->refcount);
     TRACE("iface %p increasing refcount to %lu.\n", decoder, refcount);
     return refcount;
 }
 
-static ULONG WINAPI aac_decoder_Release(IMFTransform *iface)
+static ULONG WINAPI transform_Release(IMFTransform *iface)
 {
-    struct aac_decoder *decoder = aac_decoder_from_IMFTransform(iface);
+    struct aac_decoder *decoder = impl_from_IMFTransform(iface);
     ULONG refcount = InterlockedDecrement(&decoder->refcount);
 
     TRACE("iface %p decreasing refcount to %lu.\n", decoder, refcount);
 
     if (!refcount)
     {
-        if (decoder->input_sample)
-            IMFSample_Release(decoder->input_sample);
-        winedmo_transform_destroy(&decoder->winedmo_transform);
+        if (decoder->wg_transform)
+            wg_transform_destroy(decoder->wg_transform);
         if (decoder->input_type)
             IMFMediaType_Release(decoder->input_type);
         if (decoder->output_type)
             IMFMediaType_Release(decoder->output_type);
+        wg_sample_queue_destroy(decoder->wg_sample_queue);
         free(decoder);
     }
 
     return refcount;
 }
 
-static HRESULT WINAPI aac_decoder_GetStreamLimits(IMFTransform *iface, DWORD *input_minimum,
+static HRESULT WINAPI transform_GetStreamLimits(IMFTransform *iface, DWORD *input_minimum,
         DWORD *input_maximum, DWORD *output_minimum, DWORD *output_maximum)
 {
     TRACE("iface %p, input_minimum %p, input_maximum %p, output_minimum %p, output_maximum %p.\n",
@@ -167,14 +144,14 @@ static HRESULT WINAPI aac_decoder_GetStreamLimits(IMFTransform *iface, DWORD *in
     return S_OK;
 }
 
-static HRESULT WINAPI aac_decoder_GetStreamCount(IMFTransform *iface, DWORD *inputs, DWORD *outputs)
+static HRESULT WINAPI transform_GetStreamCount(IMFTransform *iface, DWORD *inputs, DWORD *outputs)
 {
     TRACE("iface %p, inputs %p, outputs %p.\n", iface, inputs, outputs);
     *inputs = *outputs = 1;
     return S_OK;
 }
 
-static HRESULT WINAPI aac_decoder_GetStreamIDs(IMFTransform *iface, DWORD input_size, DWORD *inputs,
+static HRESULT WINAPI transform_GetStreamIDs(IMFTransform *iface, DWORD input_size, DWORD *inputs,
         DWORD output_size, DWORD *outputs)
 {
     TRACE("iface %p, input_size %lu, inputs %p, output_size %lu, outputs %p.\n", iface,
@@ -182,7 +159,7 @@ static HRESULT WINAPI aac_decoder_GetStreamIDs(IMFTransform *iface, DWORD input_
     return E_NOTIMPL;
 }
 
-static HRESULT WINAPI aac_decoder_GetInputStreamInfo(IMFTransform *iface, DWORD id, MFT_INPUT_STREAM_INFO *info)
+static HRESULT WINAPI transform_GetInputStreamInfo(IMFTransform *iface, DWORD id, MFT_INPUT_STREAM_INFO *info)
 {
     TRACE("iface %p, id %#lx, info %p.\n", iface, id, info);
 
@@ -196,7 +173,7 @@ static HRESULT WINAPI aac_decoder_GetInputStreamInfo(IMFTransform *iface, DWORD 
     return S_OK;
 }
 
-static HRESULT WINAPI aac_decoder_GetOutputStreamInfo(IMFTransform *iface, DWORD id, MFT_OUTPUT_STREAM_INFO *info)
+static HRESULT WINAPI transform_GetOutputStreamInfo(IMFTransform *iface, DWORD id, MFT_OUTPUT_STREAM_INFO *info)
 {
     TRACE("iface %p, id %#lx, info %p.\n", iface, id, info);
 
@@ -210,40 +187,40 @@ static HRESULT WINAPI aac_decoder_GetOutputStreamInfo(IMFTransform *iface, DWORD
     return S_OK;
 }
 
-static HRESULT WINAPI aac_decoder_GetAttributes(IMFTransform *iface, IMFAttributes **attributes)
+static HRESULT WINAPI transform_GetAttributes(IMFTransform *iface, IMFAttributes **attributes)
 {
     TRACE("iface %p, attributes %p.\n", iface, attributes);
     return E_NOTIMPL;
 }
 
-static HRESULT WINAPI aac_decoder_GetInputStreamAttributes(IMFTransform *iface, DWORD id, IMFAttributes **attributes)
+static HRESULT WINAPI transform_GetInputStreamAttributes(IMFTransform *iface, DWORD id, IMFAttributes **attributes)
 {
     TRACE("iface %p, id %#lx, attributes %p.\n", iface, id, attributes);
     return E_NOTIMPL;
 }
 
-static HRESULT WINAPI aac_decoder_GetOutputStreamAttributes(IMFTransform *iface, DWORD id, IMFAttributes **attributes)
+static HRESULT WINAPI transform_GetOutputStreamAttributes(IMFTransform *iface, DWORD id, IMFAttributes **attributes)
 {
     TRACE("iface %p, id %#lx, attributes %p.\n", iface, id, attributes);
     return E_NOTIMPL;
 }
 
-static HRESULT WINAPI aac_decoder_DeleteInputStream(IMFTransform *iface, DWORD id)
+static HRESULT WINAPI transform_DeleteInputStream(IMFTransform *iface, DWORD id)
 {
     TRACE("iface %p, id %#lx.\n", iface, id);
     return E_NOTIMPL;
 }
 
-static HRESULT WINAPI aac_decoder_AddInputStreams(IMFTransform *iface, DWORD streams, DWORD *ids)
+static HRESULT WINAPI transform_AddInputStreams(IMFTransform *iface, DWORD streams, DWORD *ids)
 {
     TRACE("iface %p, streams %lu, ids %p.\n", iface, streams, ids);
     return E_NOTIMPL;
 }
 
-static HRESULT WINAPI aac_decoder_GetInputAvailableType(IMFTransform *iface, DWORD id, DWORD index,
+static HRESULT WINAPI transform_GetInputAvailableType(IMFTransform *iface, DWORD id, DWORD index,
         IMFMediaType **type)
 {
-    struct aac_decoder *decoder = aac_decoder_from_IMFTransform(iface);
+    struct aac_decoder *decoder = impl_from_IMFTransform(iface);
     const WAVEFORMATEXTENSIBLE *format = decoder->input_types;
     UINT count = decoder->input_type_count;
 
@@ -257,10 +234,10 @@ static HRESULT WINAPI aac_decoder_GetInputAvailableType(IMFTransform *iface, DWO
     return count ? MFCreateAudioMediaType(&format->Format, (IMFAudioMediaType **)type) : MF_E_NO_MORE_TYPES;
 }
 
-static HRESULT WINAPI aac_decoder_GetOutputAvailableType(IMFTransform *iface, DWORD id, DWORD index,
+static HRESULT WINAPI transform_GetOutputAvailableType(IMFTransform *iface, DWORD id, DWORD index,
         IMFMediaType **type)
 {
-    struct aac_decoder *decoder = aac_decoder_from_IMFTransform(iface);
+    struct aac_decoder *decoder = impl_from_IMFTransform(iface);
     UINT32 channel_count, sample_rate;
     WAVEFORMATEXTENSIBLE wfx = {{0}};
     IMFMediaType *media_type;
@@ -275,7 +252,7 @@ static HRESULT WINAPI aac_decoder_GetOutputAvailableType(IMFTransform *iface, DW
     if (!decoder->input_type)
         return MF_E_TRANSFORM_TYPE_NOT_SET;
 
-    wfx = aac_decoder_outputs[index % ARRAY_SIZE(aac_decoder_outputs)];
+    wfx = aac_decoder_output_types[index % ARRAY_SIZE(aac_decoder_output_types)];
 
     if (FAILED(hr = IMFMediaType_GetUINT32(decoder->input_type, &MF_MT_AUDIO_NUM_CHANNELS, &channel_count))
             || !channel_count)
@@ -286,15 +263,15 @@ static HRESULT WINAPI aac_decoder_GetOutputAvailableType(IMFTransform *iface, DW
     if (channel_count >= ARRAY_SIZE(default_channel_mask))
         return MF_E_INVALIDMEDIATYPE;
 
-    if (channel_count > 2 && index >= ARRAY_SIZE(aac_decoder_outputs))
+    if (channel_count > 2 && index >= ARRAY_SIZE(aac_decoder_output_types))
     {
         /* If there are more than two channels in the input type GetOutputAvailableType additionally lists
          * types with 2 channels. */
-        index -= ARRAY_SIZE(aac_decoder_outputs);
+        index -= ARRAY_SIZE(aac_decoder_output_types);
         channel_count = 2;
     }
 
-    if (index >= ARRAY_SIZE(aac_decoder_outputs))
+    if (index >= ARRAY_SIZE(aac_decoder_output_types))
         return MF_E_NO_MORE_TYPES;
 
     wfx.Format.nChannels = channel_count;
@@ -335,9 +312,9 @@ static BOOL matches_format(const WAVEFORMATEXTENSIBLE *a, const WAVEFORMATEXTENS
     return a->Format.wFormatTag == b->Format.wFormatTag;
 }
 
-static HRESULT WINAPI aac_decoder_SetInputType(IMFTransform *iface, DWORD id, IMFMediaType *type, DWORD flags)
+static HRESULT WINAPI transform_SetInputType(IMFTransform *iface, DWORD id, IMFMediaType *type, DWORD flags)
 {
-    struct aac_decoder *decoder = aac_decoder_from_IMFTransform(iface);
+    struct aac_decoder *decoder = impl_from_IMFTransform(iface);
     UINT32 size, count = decoder->input_type_count;
     WAVEFORMATEXTENSIBLE *format, wfx;
     HRESULT hr;
@@ -359,7 +336,11 @@ static HRESULT WINAPI aac_decoder_SetInputType(IMFTransform *iface, DWORD id, IM
             IMFMediaType_Release(decoder->output_type);
             decoder->output_type = NULL;
         }
-        winedmo_transform_destroy(&decoder->winedmo_transform);
+        if (decoder->wg_transform)
+        {
+            wg_transform_destroy(decoder->wg_transform);
+            decoder->wg_transform = 0;
+        }
 
         return S_OK;
     }
@@ -392,9 +373,9 @@ static HRESULT WINAPI aac_decoder_SetInputType(IMFTransform *iface, DWORD id, IM
     return IMFMediaType_CopyAllItems(type, (IMFAttributes *)decoder->input_type);
 }
 
-static HRESULT WINAPI aac_decoder_SetOutputType(IMFTransform *iface, DWORD id, IMFMediaType *type, DWORD flags)
+static HRESULT WINAPI transform_SetOutputType(IMFTransform *iface, DWORD id, IMFMediaType *type, DWORD flags)
 {
-    struct aac_decoder *decoder = aac_decoder_from_IMFTransform(iface);
+    struct aac_decoder *decoder = impl_from_IMFTransform(iface);
     WAVEFORMATEXTENSIBLE *format, wfx;
     UINT32 size;
     HRESULT hr;
@@ -412,7 +393,11 @@ static HRESULT WINAPI aac_decoder_SetOutputType(IMFTransform *iface, DWORD id, I
             IMFMediaType_Release(decoder->output_type);
             decoder->input_type = NULL;
         }
-        winedmo_transform_destroy(&decoder->winedmo_transform);
+        if (decoder->wg_transform)
+        {
+            wg_transform_destroy(decoder->wg_transform);
+            decoder->wg_transform = 0;
+        }
 
         return S_OK;
     }
@@ -426,10 +411,10 @@ static HRESULT WINAPI aac_decoder_SetOutputType(IMFTransform *iface, DWORD id, I
     wfx = *format;
     CoTaskMemFree(format);
 
-    for (i = 0; i < ARRAY_SIZE(aac_decoder_outputs); ++i)
-        if (matches_format(&aac_decoder_outputs[i], &wfx))
+    for (i = 0; i < ARRAY_SIZE(aac_decoder_output_types); ++i)
+        if (matches_format(&aac_decoder_output_types[i], &wfx))
             break;
-    if (i == ARRAY_SIZE(aac_decoder_outputs))
+    if (i == ARRAY_SIZE(aac_decoder_output_types))
         return MF_E_INVALIDMEDIATYPE;
 
     if (!wfx.Format.wBitsPerSample || !wfx.Format.nChannels || !wfx.Format.nSamplesPerSec)
@@ -443,7 +428,7 @@ static HRESULT WINAPI aac_decoder_SetOutputType(IMFTransform *iface, DWORD id, I
     if (FAILED(hr = IMFMediaType_CopyAllItems(type, (IMFAttributes *)decoder->output_type)))
         return hr;
 
-    if (FAILED(hr = try_create_decoder(decoder)))
+    if (FAILED(hr = try_create_wg_transform(decoder)))
         goto failed;
 
     return S_OK;
@@ -454,9 +439,9 @@ failed:
     return hr;
 }
 
-static HRESULT WINAPI aac_decoder_GetInputCurrentType(IMFTransform *iface, DWORD id, IMFMediaType **out)
+static HRESULT WINAPI transform_GetInputCurrentType(IMFTransform *iface, DWORD id, IMFMediaType **out)
 {
-    struct aac_decoder *decoder = aac_decoder_from_IMFTransform(iface);
+    struct aac_decoder *decoder = impl_from_IMFTransform(iface);
     IMFMediaType *type;
     HRESULT hr;
 
@@ -476,9 +461,9 @@ static HRESULT WINAPI aac_decoder_GetInputCurrentType(IMFTransform *iface, DWORD
     return hr;
 }
 
-static HRESULT WINAPI aac_decoder_GetOutputCurrentType(IMFTransform *iface, DWORD id, IMFMediaType **out)
+static HRESULT WINAPI transform_GetOutputCurrentType(IMFTransform *iface, DWORD id, IMFMediaType **out)
 {
-    struct aac_decoder *decoder = aac_decoder_from_IMFTransform(iface);
+    struct aac_decoder *decoder = impl_from_IMFTransform(iface);
     IMFMediaType *type;
     HRESULT hr;
 
@@ -498,176 +483,121 @@ static HRESULT WINAPI aac_decoder_GetOutputCurrentType(IMFTransform *iface, DWOR
     return hr;
 }
 
-static HRESULT WINAPI aac_decoder_GetInputStatus(IMFTransform *iface, DWORD id, DWORD *flags)
+static HRESULT WINAPI transform_GetInputStatus(IMFTransform *iface, DWORD id, DWORD *flags)
 {
-    struct aac_decoder *decoder = aac_decoder_from_IMFTransform(iface);
+    struct aac_decoder *decoder = impl_from_IMFTransform(iface);
+    bool accepts_input;
 
     TRACE("iface %p, id %#lx, flags %p.\n", iface, id, flags);
 
-    if (!decoder->winedmo_transform.handle)
+    if (!decoder->wg_transform)
         return MF_E_TRANSFORM_TYPE_NOT_SET;
 
-    *flags = decoder->input_sample ? 0 : MFT_INPUT_STATUS_ACCEPT_DATA;
+    if (!wg_transform_get_status(decoder->wg_transform, &accepts_input))
+        return E_FAIL;
+
+    *flags = accepts_input ? MFT_INPUT_STATUS_ACCEPT_DATA : 0;
     return S_OK;
 }
 
-static HRESULT WINAPI aac_decoder_GetOutputStatus(IMFTransform *iface, DWORD *flags)
+static HRESULT WINAPI transform_GetOutputStatus(IMFTransform *iface, DWORD *flags)
 {
     FIXME("iface %p, flags %p stub!\n", iface, flags);
     return E_NOTIMPL;
 }
 
-static HRESULT WINAPI aac_decoder_SetOutputBounds(IMFTransform *iface, LONGLONG lower, LONGLONG upper)
+static HRESULT WINAPI transform_SetOutputBounds(IMFTransform *iface, LONGLONG lower, LONGLONG upper)
 {
     TRACE("iface %p, lower %I64d, upper %I64d.\n", iface, lower, upper);
     return E_NOTIMPL;
 }
 
-static HRESULT WINAPI aac_decoder_ProcessEvent(IMFTransform *iface, DWORD id, IMFMediaEvent *event)
+static HRESULT WINAPI transform_ProcessEvent(IMFTransform *iface, DWORD id, IMFMediaEvent *event)
 {
     FIXME("iface %p, id %#lx, event %p stub!\n", iface, id, event);
     return E_NOTIMPL;
 }
 
-static HRESULT WINAPI aac_decoder_ProcessMessage(IMFTransform *iface, MFT_MESSAGE_TYPE message, ULONG_PTR param)
+static HRESULT WINAPI transform_ProcessMessage(IMFTransform *iface, MFT_MESSAGE_TYPE message, ULONG_PTR param)
 {
-    struct aac_decoder *decoder = aac_decoder_from_IMFTransform(iface);
-
-    TRACE("iface %p, message %#x, param %Ix.\n", iface, message, param);
-
-    switch (message)
-    {
-    case MFT_MESSAGE_COMMAND_DRAIN:
-        if (winedmo_transform_drain(decoder->winedmo_transform, FALSE)) return E_FAIL;
-        return S_OK;
-    case MFT_MESSAGE_COMMAND_FLUSH:
-        if (winedmo_transform_drain(decoder->winedmo_transform, TRUE)) return E_FAIL;
-        return S_OK;
-
-    default:
-        FIXME("Ignoring message %#x.\n", message);
-        return S_OK;
-    }
+    FIXME("iface %p, message %#x, param %p stub!\n", iface, message, (void *)param);
+    return S_OK;
 }
 
-static HRESULT WINAPI aac_decoder_ProcessInput(IMFTransform *iface, DWORD id, IMFSample *sample, DWORD flags)
+static HRESULT WINAPI transform_ProcessInput(IMFTransform *iface, DWORD id, IMFSample *sample, DWORD flags)
 {
-    struct aac_decoder *decoder = aac_decoder_from_IMFTransform(iface);
-    DMO_OUTPUT_DATA_BUFFER input = {0};
-    IMFMediaBuffer *buffer;
-    NTSTATUS status;
-    HRESULT hr;
+    struct aac_decoder *decoder = impl_from_IMFTransform(iface);
 
     TRACE("iface %p, id %#lx, sample %p, flags %#lx.\n", iface, id, sample, flags);
 
-    if (!decoder->winedmo_transform.handle)
+    if (!decoder->wg_transform)
         return MF_E_TRANSFORM_TYPE_NOT_SET;
-    if (decoder->input_sample)
-        return MF_E_NOTACCEPTING;
 
-    if (FAILED(hr = IMFSample_ConvertToContiguousBuffer(sample, &buffer)))
-        return hr;
-    if (SUCCEEDED(hr = MFCreateLegacyMediaBufferOnMFMediaBuffer(sample, buffer, 0, &input.pBuffer)))
-    {
-        if (!(status = winedmo_transform_process_input(decoder->winedmo_transform, &input)))
-            IMFSample_AddRef((decoder->input_sample = sample));
-        else
-        {
-            if (status == STATUS_PENDING) hr = MF_E_NOTACCEPTING;
-            else hr = HRESULT_FROM_NT(status);
-        }
-        IMediaBuffer_Release(input.pBuffer);
-    }
-    IMFMediaBuffer_Release(buffer);
-
-    return hr;
+    return wg_transform_push_mf(decoder->wg_transform, sample, decoder->wg_sample_queue);
 }
 
-static HRESULT WINAPI aac_decoder_ProcessOutput(IMFTransform *iface, DWORD flags, DWORD count,
-        MFT_OUTPUT_DATA_BUFFER *samples, DWORD *samples_status)
+static HRESULT WINAPI transform_ProcessOutput(IMFTransform *iface, DWORD flags, DWORD count,
+        MFT_OUTPUT_DATA_BUFFER *samples, DWORD *status)
 {
-    struct aac_decoder *decoder = aac_decoder_from_IMFTransform(iface);
-    DMO_OUTPUT_DATA_BUFFER output = {0};
+    struct aac_decoder *decoder = impl_from_IMFTransform(iface);
     MFT_OUTPUT_STREAM_INFO info;
-    IMFMediaBuffer *buffer;
-    NTSTATUS status;
     HRESULT hr;
 
-    TRACE("iface %p, flags %#lx, count %lu, samples %p, samples_status %p.\n", iface, flags, count, samples, samples_status);
+    TRACE("iface %p, flags %#lx, count %lu, samples %p, status %p.\n", iface, flags, count, samples, status);
 
     if (count != 1)
         return E_INVALIDARG;
 
-    if (!decoder->winedmo_transform.handle)
+    if (!decoder->wg_transform)
         return MF_E_TRANSFORM_TYPE_NOT_SET;
 
-    *samples_status = samples->dwStatus = 0;
+    *status = samples->dwStatus = 0;
     if (!samples->pSample)
         return E_INVALIDARG;
 
     if (FAILED(hr = IMFTransform_GetOutputStreamInfo(iface, 0, &info)))
         return hr;
 
-    if (FAILED(hr = IMFSample_ConvertToContiguousBuffer(samples->pSample, &buffer)))
-        return hr;
-    if (SUCCEEDED(hr = MFCreateLegacyMediaBufferOnMFMediaBuffer(samples->pSample, buffer, 0, &output.pBuffer)))
-    {
-        if ((status = winedmo_transform_process_output(decoder->winedmo_transform, &output)))
-        {
-            if (status == STATUS_PENDING) hr = MF_E_TRANSFORM_NEED_MORE_INPUT;
-            else hr = HRESULT_FROM_NT(status);
-        }
-        IMediaBuffer_Release(output.pBuffer);
-    }
-    IMFMediaBuffer_Release(buffer);
-
-    if (FAILED(hr))
-    {
-        WARN("Failed to process output, hr %#lx\n", hr);
-        samples->dwStatus = MFT_OUTPUT_DATA_BUFFER_NO_SAMPLE;
-    }
+    if (SUCCEEDED(hr = wg_transform_read_mf(decoder->wg_transform, samples->pSample,
+            info.cbSize, &samples->dwStatus)))
+        wg_sample_queue_flush(decoder->wg_sample_queue, false);
     else
-    {
-        if (output.dwStatus & DMO_OUTPUT_DATA_BUFFERF_INCOMPLETE)
-            samples->dwStatus = MFT_OUTPUT_DATA_BUFFER_INCOMPLETE;
-    }
+        samples->dwStatus = MFT_OUTPUT_DATA_BUFFER_NO_SAMPLE;
 
-    if (decoder->input_sample) IMFSample_Release(decoder->input_sample);
-    decoder->input_sample = NULL;
     return hr;
 }
 
-static const IMFTransformVtbl aac_decoder_vtbl =
+static const IMFTransformVtbl transform_vtbl =
 {
-    aac_decoder_QueryInterface,
-    aac_decoder_AddRef,
-    aac_decoder_Release,
-    aac_decoder_GetStreamLimits,
-    aac_decoder_GetStreamCount,
-    aac_decoder_GetStreamIDs,
-    aac_decoder_GetInputStreamInfo,
-    aac_decoder_GetOutputStreamInfo,
-    aac_decoder_GetAttributes,
-    aac_decoder_GetInputStreamAttributes,
-    aac_decoder_GetOutputStreamAttributes,
-    aac_decoder_DeleteInputStream,
-    aac_decoder_AddInputStreams,
-    aac_decoder_GetInputAvailableType,
-    aac_decoder_GetOutputAvailableType,
-    aac_decoder_SetInputType,
-    aac_decoder_SetOutputType,
-    aac_decoder_GetInputCurrentType,
-    aac_decoder_GetOutputCurrentType,
-    aac_decoder_GetInputStatus,
-    aac_decoder_GetOutputStatus,
-    aac_decoder_SetOutputBounds,
-    aac_decoder_ProcessEvent,
-    aac_decoder_ProcessMessage,
-    aac_decoder_ProcessInput,
-    aac_decoder_ProcessOutput,
+    transform_QueryInterface,
+    transform_AddRef,
+    transform_Release,
+    transform_GetStreamLimits,
+    transform_GetStreamCount,
+    transform_GetStreamIDs,
+    transform_GetInputStreamInfo,
+    transform_GetOutputStreamInfo,
+    transform_GetAttributes,
+    transform_GetInputStreamAttributes,
+    transform_GetOutputStreamAttributes,
+    transform_DeleteInputStream,
+    transform_AddInputStreams,
+    transform_GetInputAvailableType,
+    transform_GetOutputAvailableType,
+    transform_SetInputType,
+    transform_SetOutputType,
+    transform_GetInputCurrentType,
+    transform_GetOutputCurrentType,
+    transform_GetInputStatus,
+    transform_GetOutputStatus,
+    transform_SetOutputBounds,
+    transform_ProcessEvent,
+    transform_ProcessMessage,
+    transform_ProcessInput,
+    transform_ProcessOutput,
 };
 
-static HEAACWAVEINFO aac_decoder_inputs[] =
+static HEAACWAVEINFO aac_decoder_input_types[] =
 {
 #define MAKE_HEAACWAVEINFO(format, payload) \
     {.wfx = {.wFormatTag = format, .nChannels = 6, .nSamplesPerSec = 48000, .nAvgBytesPerSec = 1152000, \
@@ -683,125 +613,34 @@ static HEAACWAVEINFO aac_decoder_inputs[] =
 #undef MAKE_HEAACWAVEINFO
 };
 
-static HRESULT WINAPI aac_decoder_factory_CreateInstance(IClassFactory *iface, IUnknown *outer,
-        REFIID riid, void **out)
+HRESULT aac_decoder_create(REFIID riid, void **ret)
 {
     struct aac_decoder *decoder;
-    NTSTATUS status;
     HRESULT hr;
 
-    TRACE("%p, %s, %p.\n", outer, debugstr_guid(riid), out);
+    TRACE("riid %s, ret %p.\n", debugstr_guid(riid), ret);
 
-    if ((status = winedmo_transform_check(MFMediaType_Audio, MFAudioFormat_AAC, MFAudioFormat_Float)))
+    if (FAILED(hr = check_audio_transform_support(&aac_decoder_input_types[0].wfx, &aac_decoder_output_types[0].Format)))
     {
-        static const GUID CLSID_wg_aac_decoder = {0xe7889a8a,0x2083,0x4844,{0x83,0x70,0x5e,0xe3,0x49,0xb1,0x45,0x03}};
-        WARN("Unsupported winedmo transform, status %#lx.\n", status);
-        return CoCreateInstance(&CLSID_wg_aac_decoder, outer, CLSCTX_INPROC_SERVER, riid, out);
+        ERR_(winediag)("GStreamer doesn't support AAC decoding, please install appropriate plugins\n");
+        return hr;
     }
 
-    *out = NULL;
-    if (outer)
-        return CLASS_E_NOAGGREGATION;
     if (!(decoder = calloc(1, sizeof(*decoder))))
         return E_OUTOFMEMORY;
-    decoder->IMFTransform_iface.lpVtbl = &aac_decoder_vtbl;
+    decoder->input_types = (WAVEFORMATEXTENSIBLE *)aac_decoder_input_types;
+    decoder->input_type_count = ARRAY_SIZE(aac_decoder_input_types);
+
+    if (FAILED(hr = wg_sample_queue_create(&decoder->wg_sample_queue)))
+    {
+        free(decoder);
+        return hr;
+    }
+
+    decoder->IMFTransform_iface.lpVtbl = &transform_vtbl;
     decoder->refcount = 1;
 
-    decoder->input_types = (WAVEFORMATEXTENSIBLE *)aac_decoder_inputs;
-    decoder->input_type_count = ARRAY_SIZE(aac_decoder_inputs);
-    TRACE("created %p\n", decoder);
-
-    hr = IUnknown_QueryInterface(&decoder->IMFTransform_iface, riid, out);
-    IUnknown_Release(&decoder->IMFTransform_iface);
-    return hr;
-}
-
-static HRESULT WINAPI class_factory_QueryInterface(IClassFactory *iface, REFIID riid, void **out)
-{
-    *out = IsEqualGUID(riid, &IID_IClassFactory) || IsEqualGUID(riid, &IID_IUnknown) ? iface : NULL;
-    return *out ? S_OK : E_NOINTERFACE;
-}
-static ULONG WINAPI class_factory_AddRef(IClassFactory *iface)
-{
-    return 2;
-}
-static ULONG WINAPI class_factory_Release(IClassFactory *iface)
-{
-    return 1;
-}
-static HRESULT WINAPI class_factory_LockServer(IClassFactory *iface, BOOL dolock)
-{
-    return S_OK;
-}
-
-static const IClassFactoryVtbl aac_decoder_factory_vtbl =
-{
-    class_factory_QueryInterface,
-    class_factory_AddRef,
-    class_factory_Release,
-    aac_decoder_factory_CreateInstance,
-    class_factory_LockServer,
-};
-
-static IClassFactory aac_decoder_factory = {&aac_decoder_factory_vtbl};
-
-/***********************************************************************
- *              DllGetClassObject (msauddecmft.@)
- */
-HRESULT WINAPI DllGetClassObject(REFCLSID clsid, REFIID riid, void **out)
-{
-    if (IsEqualGUID(clsid, &CLSID_MSAACDecMFT))
-        return IClassFactory_QueryInterface(&aac_decoder_factory, riid, out);
-
-    *out = NULL;
-    FIXME("Unknown clsid %s.\n", debugstr_guid(clsid));
-    return CLASS_E_CLASSNOTAVAILABLE;
-}
-
-/***********************************************************************
- *              DllRegisterServer (msauddecmft.@)
- */
-HRESULT WINAPI DllRegisterServer(void)
-{
-    MFT_REGISTER_TYPE_INFO aac_decoder_mft_inputs[] =
-    {
-        {MFMediaType_Audio, MFAudioFormat_AAC},
-        {MFMediaType_Audio, MFAudioFormat_RAW_AAC},
-        {MFMediaType_Audio, MFAudioFormat_ADTS},
-    };
-    MFT_REGISTER_TYPE_INFO aac_decoder_mft_outputs[] =
-    {
-        {MFMediaType_Audio, MFAudioFormat_Float},
-        {MFMediaType_Audio, MFAudioFormat_PCM},
-    };
-    HRESULT hr;
-
-    TRACE("\n");
-
-    if (FAILED(hr = __wine_register_resources()))
-        return hr;
-    if (FAILED(hr = MFTRegister(CLSID_MSAACDecMFT, MFT_CATEGORY_AUDIO_DECODER,
-            (WCHAR *)L"Microsoft AAC Audio Decoder MFT", MFT_ENUM_FLAG_SYNCMFT,
-            ARRAY_SIZE(aac_decoder_mft_inputs), aac_decoder_mft_inputs,
-            ARRAY_SIZE(aac_decoder_mft_outputs), aac_decoder_mft_outputs, NULL)))
-        return hr;
-
-    return S_OK;
-}
-
-/***********************************************************************
- *              DllUnregisterServer (msauddecmft.@)
- */
-HRESULT WINAPI DllUnregisterServer(void)
-{
-    HRESULT hr;
-
-    TRACE("\n");
-
-    if (FAILED(hr = __wine_unregister_resources()))
-        return hr;
-    if (FAILED(hr = MFTUnregister(CLSID_MSAACDecMFT)))
-        return hr;
-
+    *ret = &decoder->IMFTransform_iface;
+    TRACE("Created decoder %p\n", *ret);
     return S_OK;
 }

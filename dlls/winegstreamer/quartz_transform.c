@@ -1,5 +1,7 @@
 /*
- * Copyright 2024 Rémi Bernon for CodeWeavers
+ * DirectShow transform filters
+ *
+ * Copyright 2022 Anton Baskanov
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,18 +18,14 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#include "quartz_private.h"
+#include "gst_private.h"
+#include "gst_guids.h"
+
+#include "mferror.h"
 #include "mpegtype.h"
 
-#include "wine/winedmo.h"
-#include "wine/debug.h"
-
 WINE_DEFAULT_DEBUG_CHANNEL(quartz);
-
-#include "initguid.h"
-
-DEFINE_GUID(CLSID_MPEGLayer3Decoder,0x38be3000,0xdbf4,0x11d0,0x86,0x0e,0x00,0xa0,0x24,0xcf,0xef,0x6d);
-DEFINE_GUID(MEDIASUBTYPE_MP3,WAVE_FORMAT_MPEGLAYER3,0x0000,0x0010,0x80,0x00,0x00,0xaa,0x00,0x38,0x9b,0x71);
+WINE_DECLARE_DEBUG_CHANNEL(winediag);
 
 struct transform
 {
@@ -42,9 +40,10 @@ struct transform
     IQualityControl source_IQualityControl_iface;
     IQualityControl *qc_sink;
 
-    struct winedmo_transform winedmo_transform;
+    wg_transform_t transform;
+    struct wg_sample_queue *sample_queue;
+
     const struct transform_ops *ops;
-    INT64 time_offset;
 };
 
 struct transform_ops
@@ -96,60 +95,27 @@ static HRESULT transform_query_interface(struct strmbase_filter *iface, REFIID i
     return S_OK;
 }
 
-static HRESULT am_media_type_to_winedmo_format(AM_MEDIA_TYPE *mt, union winedmo_format **format)
-{
-    IMFMediaType *media_type;
-    HRESULT hr;
-    UINT size;
-
-    /* through IMFMediaType to normalize representation to MFVIDEOFORMAT / WAVEFORMATEX */
-    if (FAILED(hr = MFCreateMediaTypeFromRepresentation(AM_MEDIA_TYPE_REPRESENTATION, mt, &media_type)))
-        return hr;
-
-    if (IsEqualGUID(&mt->majortype, &MEDIATYPE_Video))
-        hr = MFCreateMFVideoFormatFromMFMediaType(media_type, (MFVIDEOFORMAT **)format, &size);
-    else if (IsEqualGUID(&mt->majortype, &MEDIATYPE_Audio))
-        hr = MFCreateWaveFormatExFromMFMediaType(media_type, (WAVEFORMATEX **)format, &size, 0);
-    else
-        hr = E_NOTIMPL;
-
-    IMFMediaType_Release(media_type);
-
-    return hr;
-}
-
 static HRESULT transform_init_stream(struct strmbase_filter *iface)
 {
     struct transform *filter = impl_from_strmbase_filter(iface);
-    NTSTATUS status;
+    struct wg_transform_attrs attrs = {0};
     HRESULT hr;
 
     if (filter->source.pin.peer)
     {
-        union winedmo_format *input_format, *output_format;
-
-        /* through IMFMediaType to normalize representation to MFVIDEOFORMAT / WAVEFORMATEX */
-        if (FAILED(hr = am_media_type_to_winedmo_format(&filter->sink.pin.mt, &input_format)))
+        if (FAILED(hr = wg_sample_queue_create(&filter->sample_queue)))
             return hr;
-        if (FAILED(hr = am_media_type_to_winedmo_format(&filter->source.pin.mt, &output_format)))
+
+        if (FAILED(hr = wg_transform_create_quartz(&filter->sink.pin.mt, &filter->source.pin.mt,
+                &attrs, &filter->transform)))
         {
-            CoTaskMemFree(input_format);
+            wg_sample_queue_destroy(filter->sample_queue);
             return hr;
         }
-
-        if ((status = winedmo_transform_create(filter->sink.pin.mt.majortype, input_format, output_format, &filter->winedmo_transform)))
-            hr = HRESULT_FROM_NT(status);
-        CoTaskMemFree(output_format);
-        CoTaskMemFree(input_format);
-
-        if (FAILED(hr))
-            return hr;
 
         hr = IMemAllocator_Commit(filter->source.pAllocator);
         if (FAILED(hr))
             ERR("Failed to commit allocator, hr %#lx.\n", hr);
-
-        filter->time_offset = -1;
     }
 
     return S_OK;
@@ -164,7 +130,8 @@ static HRESULT transform_cleanup_stream(struct strmbase_filter *iface)
         IMemAllocator_Decommit(filter->source.pAllocator);
 
         EnterCriticalSection(&filter->filter.stream_cs);
-        winedmo_transform_destroy(&filter->winedmo_transform);
+        wg_transform_destroy(filter->transform);
+        wg_sample_queue_destroy(filter->sample_queue);
         LeaveCriticalSection(&filter->filter.stream_cs);
     }
 
@@ -324,114 +291,10 @@ static HRESULT transform_sink_query_interface(struct strmbase_pin *pin, REFIID i
     return S_OK;
 }
 
-
-struct buffer_wrapper
-{
-    IMediaBuffer IMediaBuffer_iface;
-    LONG refcount;
-
-    IMediaSample *buffer;
-};
-
-static struct buffer_wrapper *buffer_wrapper_from_IMediaBuffer(IMediaBuffer *iface)
-{
-    return CONTAINING_RECORD(iface, struct buffer_wrapper, IMediaBuffer_iface);
-}
-
-static HRESULT WINAPI buffer_wrapper_QueryInterface(IMediaBuffer *iface, REFIID iid, void **out)
-{
-    struct buffer_wrapper *wrapper = buffer_wrapper_from_IMediaBuffer(iface);
-
-    TRACE("iface %p, iid %s, out %p.\n", iface, debugstr_guid(iid), out);
-
-    if (IsEqualGUID(iid, &IID_IUnknown) || IsEqualGUID(iid, &IID_IMediaBuffer))
-        *out = &wrapper->IMediaBuffer_iface;
-    else
-    {
-        *out = NULL;
-        WARN("%s not implemented, returning E_NOINTERFACE.\n", debugstr_guid(iid));
-        return E_NOINTERFACE;
-    }
-
-    IUnknown_AddRef((IUnknown *)*out);
-    return S_OK;
-}
-
-static ULONG WINAPI buffer_wrapper_AddRef(IMediaBuffer *iface)
-{
-    struct buffer_wrapper *wrapper = buffer_wrapper_from_IMediaBuffer(iface);
-    ULONG refcount = InterlockedIncrement(&wrapper->refcount);
-    TRACE("iface %p increasing refcount to %lu.\n", wrapper, refcount);
-    return refcount;
-}
-
-static ULONG WINAPI buffer_wrapper_Release(IMediaBuffer *iface)
-{
-    struct buffer_wrapper *wrapper = buffer_wrapper_from_IMediaBuffer(iface);
-    ULONG refcount = InterlockedDecrement(&wrapper->refcount);
-
-    TRACE("iface %p decreasing refcount to %lu.\n", wrapper, refcount);
-
-    if (!refcount)
-    {
-        IMediaSample_Release(wrapper->buffer);
-        free(wrapper);
-    }
-
-    return refcount;
-}
-
-static HRESULT WINAPI buffer_wrapper_SetLength(IMediaBuffer *iface, DWORD length)
-{
-    struct buffer_wrapper *wrapper = buffer_wrapper_from_IMediaBuffer(iface);
-    return IMediaSample_SetActualDataLength(wrapper->buffer, length);
-}
-
-static HRESULT WINAPI buffer_wrapper_GetMaxLength(IMediaBuffer *iface, DWORD *max_length)
-{
-    struct buffer_wrapper *wrapper = buffer_wrapper_from_IMediaBuffer(iface);
-    *max_length = IMediaSample_GetSize(wrapper->buffer);
-    return S_OK;
-}
-
-static HRESULT WINAPI buffer_wrapper_GetBufferAndLength(IMediaBuffer *iface, BYTE **buffer, DWORD *length)
-{
-    struct buffer_wrapper *wrapper = buffer_wrapper_from_IMediaBuffer(iface);
-    *length = IMediaSample_GetActualDataLength(wrapper->buffer);
-    return IMediaSample_GetPointer(wrapper->buffer, buffer);
-}
-
-static const IMediaBufferVtbl buffer_wrapper_vtbl =
-{
-    buffer_wrapper_QueryInterface,
-    buffer_wrapper_AddRef,
-    buffer_wrapper_Release,
-    buffer_wrapper_SetLength,
-    buffer_wrapper_GetMaxLength,
-    buffer_wrapper_GetBufferAndLength,
-};
-
-static HRESULT buffer_wrapper_create( IMediaSample *buffer, IMediaBuffer **out )
-{
-    struct buffer_wrapper *wrapper;
-
-    *out = NULL;
-    if (!(wrapper = calloc(1, sizeof(*wrapper))))
-        return E_OUTOFMEMORY;
-    wrapper->IMediaBuffer_iface.lpVtbl = &buffer_wrapper_vtbl;
-    wrapper->refcount = 1;
-
-    IMediaSample_AddRef((wrapper->buffer = buffer));
-    *out = &wrapper->IMediaBuffer_iface;
-    return S_OK;
-}
-
-
-static HRESULT WINAPI transform_sink_receive(struct strmbase_sink *pin, IMediaSample *media_sample)
+static HRESULT WINAPI transform_sink_receive(struct strmbase_sink *pin, IMediaSample *sample)
 {
     struct transform *filter = impl_from_strmbase_filter(pin->pin.filter);
-    DMO_OUTPUT_DATA_BUFFER input = {0};
-    NTSTATUS status;
+    struct wg_sample *wg_sample;
     HRESULT hr;
 
     /* We do not expect pin connection state to change while the filter is
@@ -450,48 +313,33 @@ static HRESULT WINAPI transform_sink_receive(struct strmbase_sink *pin, IMediaSa
     if (filter->sink.flushing)
         return S_FALSE;
 
-    hr = buffer_wrapper_create(media_sample, &input.pBuffer);
+    hr = wg_sample_create_quartz(sample, &wg_sample);
     if (FAILED(hr))
         return hr;
-    if (IMediaSample_GetTime(media_sample, &input.rtTimestamp, &input.rtTimelength) == S_OK)
-        input.dwStatus |= DMO_OUTPUT_DATA_BUFFERF_TIMELENGTH;
-    if (filter->time_offset == -1)
-        filter->time_offset = input.rtTimestamp;
-    input.rtTimestamp = 0;
 
-    if (IMediaSample_IsSyncPoint(media_sample) == S_OK)
-        input.dwStatus |= DMO_OUTPUT_DATA_BUFFERF_SYNCPOINT;
-
-    if ((status = winedmo_transform_process_input(filter->winedmo_transform, &input)))
-        hr = HRESULT_FROM_NT(status);
-    IMediaBuffer_Release(input.pBuffer);
+    hr = wg_transform_push_quartz(filter->transform, wg_sample, filter->sample_queue);
     if (FAILED(hr))
         return hr;
 
     for (;;)
     {
-        DMO_OUTPUT_DATA_BUFFER output = {0};
         IMediaSample *output_sample;
 
         hr = IMemAllocator_GetBuffer(filter->source.pAllocator, &output_sample, NULL, NULL, 0);
         if (FAILED(hr))
             return hr;
 
-        hr = buffer_wrapper_create(output_sample, &output.pBuffer);
+        hr = wg_sample_create_quartz(output_sample, &wg_sample);
         if (FAILED(hr))
         {
             IMediaSample_Release(output_sample);
             return hr;
         }
 
-        if ((status = winedmo_transform_process_output(filter->winedmo_transform, &output)))
-        {
-            if (status == STATUS_PENDING) hr = E_PENDING;
-            else hr = HRESULT_FROM_NT(status);
-        }
-        IMediaBuffer_Release(output.pBuffer);
+        hr = wg_transform_read_quartz(filter->transform, wg_sample);
+        wg_sample_release(wg_sample);
 
-        if (hr == E_PENDING)
+        if (hr == MF_E_TRANSFORM_NEED_MORE_INPUT)
         {
             IMediaSample_Release(output_sample);
             break;
@@ -502,22 +350,7 @@ static HRESULT WINAPI transform_sink_receive(struct strmbase_sink *pin, IMediaSa
             return hr;
         }
 
-        if (output.dwStatus & DMO_OUTPUT_DATA_BUFFERF_TIME)
-        {
-            output.rtTimestamp += filter->time_offset;
-            if (!(output.dwStatus & DMO_OUTPUT_DATA_BUFFERF_TIMELENGTH))
-                IMediaSample_SetTime(output_sample, &output.rtTimestamp, NULL);
-            else
-            {
-                output.rtTimelength += output.rtTimestamp;
-                IMediaSample_SetTime(output_sample, &output.rtTimestamp, &output.rtTimelength);
-            }
-        }
-
-        if (output.dwStatus & DMO_OUTPUT_DATA_BUFFERF_SYNCPOINT)
-            IMediaSample_SetSyncPoint(output_sample, TRUE);
-        else
-            IMediaSample_SetSyncPoint(output_sample, FALSE);
+        wg_sample_queue_flush(filter->sample_queue, false);
 
         hr = IMemInputPin_Receive(filter->source.pMemInputPin, output_sample);
         if (FAILED(hr))
@@ -737,8 +570,8 @@ static HRESULT passthrough_source_qc_notify(struct transform *filter, IBaseFilte
 
 static HRESULT handle_source_qc_notify(struct transform *filter, IBaseFilter *sender, Quality q)
 {
-    UINT64 timestamp;
-    INT64 diff;
+    uint64_t timestamp;
+    int64_t diff;
 
     TRACE("filter %p, sender %p, type %s, proportion %ld, late %s, timestamp %s.\n",
             filter, sender, q.Type == Famine ? "Famine" : "Flood", q.Proportion,
@@ -751,7 +584,7 @@ static HRESULT handle_source_qc_notify(struct transform *filter, IBaseFilter *se
 
     /* The documentation specifies that timestamp + diff must be nonnegative. */
     diff = q.Late;
-    if (diff < 0 && timestamp < (UINT64)-diff)
+    if (diff < 0 && timestamp < (uint64_t)-diff)
         diff = -timestamp;
 
     /* DirectShow "Proportion" describes what percentage of buffers the upstream
@@ -771,118 +604,13 @@ static HRESULT handle_source_qc_notify(struct transform *filter, IBaseFilter *se
         return S_OK;
     }
 
-    return S_OK;
-}
-
-static HRESULT mpeg_layer3_decoder_sink_query_accept(struct transform *filter, const AM_MEDIA_TYPE *mt)
-{
-    const MPEGLAYER3WAVEFORMAT *format;
-
-    if (!IsEqualGUID(&mt->majortype, &MEDIATYPE_Audio)
-            || !IsEqualGUID(&mt->formattype, &FORMAT_WaveFormatEx)
-            || mt->cbFormat < sizeof(MPEGLAYER3WAVEFORMAT))
-        return S_FALSE;
-
-    format = (const MPEGLAYER3WAVEFORMAT *)mt->pbFormat;
-
-    if (format->wfx.wFormatTag != WAVE_FORMAT_MPEGLAYER3)
-        return S_FALSE;
+    /* GST_QOS_TYPE_OVERFLOW is also used for buffers that arrive on time, but
+     * DirectShow filters might use Famine, so check that there actually is an
+     * underrun. */
+    wg_transform_notify_qos(filter->transform, q.Type == Famine && q.Proportion < 1000,
+            1000.0 / q.Proportion, diff, timestamp);
 
     return S_OK;
-}
-
-static HRESULT mpeg_layer3_decoder_source_query_accept(struct transform *filter, const AM_MEDIA_TYPE *mt)
-{
-    if (!filter->sink.pin.peer)
-        return S_FALSE;
-
-    if (!IsEqualGUID(&mt->majortype, &MEDIATYPE_Audio)
-            || !IsEqualGUID(&mt->subtype, &MEDIASUBTYPE_PCM))
-        return S_FALSE;
-
-    return S_OK;
-}
-
-static HRESULT mpeg_layer3_decoder_source_get_media_type(struct transform *filter, unsigned int index, AM_MEDIA_TYPE *mt)
-{
-    const MPEGLAYER3WAVEFORMAT *input_format;
-    WAVEFORMATEX *output_format;
-
-    if (!filter->sink.pin.peer)
-        return VFW_S_NO_MORE_ITEMS;
-
-    if (index > 0)
-        return VFW_S_NO_MORE_ITEMS;
-
-    input_format = (const MPEGLAYER3WAVEFORMAT *)filter->sink.pin.mt.pbFormat;
-
-    output_format = CoTaskMemAlloc(sizeof(*output_format));
-    if (!output_format)
-        return E_OUTOFMEMORY;
-
-    memset(output_format, 0, sizeof(*output_format));
-    output_format->wFormatTag = WAVE_FORMAT_PCM;
-    output_format->nSamplesPerSec = input_format->wfx.nSamplesPerSec;
-    output_format->nChannels = input_format->wfx.nChannels;
-    output_format->wBitsPerSample = 16;
-    output_format->nBlockAlign = output_format->nChannels * output_format->wBitsPerSample / 8;
-    output_format->nAvgBytesPerSec = output_format->nBlockAlign * output_format->nSamplesPerSec;
-
-    memset(mt, 0, sizeof(*mt));
-    mt->majortype = MEDIATYPE_Audio;
-    mt->subtype = MEDIASUBTYPE_PCM;
-    mt->bFixedSizeSamples = TRUE;
-    mt->lSampleSize = 1152 * output_format->nBlockAlign;
-    mt->formattype = FORMAT_WaveFormatEx;
-    mt->cbFormat = sizeof(*output_format);
-    mt->pbFormat = (BYTE *)output_format;
-
-    return S_OK;
-}
-
-static HRESULT mpeg_layer3_decoder_source_decide_buffer_size(struct transform *filter, IMemAllocator *allocator, ALLOCATOR_PROPERTIES *props)
-{
-    ALLOCATOR_PROPERTIES ret_props;
-
-    props->cBuffers = max(props->cBuffers, 8);
-    props->cbBuffer = max(props->cbBuffer, filter->source.pin.mt.lSampleSize * 4);
-    props->cbAlign = max(props->cbAlign, 1);
-
-    return IMemAllocator_SetProperties(allocator, props, &ret_props);
-}
-
-static const struct transform_ops mpeg_layer3_decoder_transform_ops =
-{
-    mpeg_layer3_decoder_sink_query_accept,
-    mpeg_layer3_decoder_source_query_accept,
-    mpeg_layer3_decoder_source_get_media_type,
-    mpeg_layer3_decoder_source_decide_buffer_size,
-    passthrough_source_qc_notify,
-};
-
-HRESULT mpeg_layer3_decoder_create(IUnknown *outer, IUnknown **out)
-{
-    struct transform *object;
-    NTSTATUS status;
-    HRESULT hr;
-
-    if ((status = winedmo_transform_check(MEDIATYPE_Audio, MEDIASUBTYPE_MP3, MEDIASUBTYPE_PCM)))
-    {
-        static const GUID CLSID_wg_mp3_decoder = {0x84cd8e3e,0xb221,0x434a,{0x88,0x82,0x9d,0x6c,0x8d,0xf4,0x90,0xe1}};
-        WARN("Unsupported winedmo transform, status %#lx.\n", status);
-        return CoCreateInstance(&CLSID_wg_mp3_decoder, outer, CLSCTX_INPROC_SERVER, &IID_IUnknown, (void **)out);
-    }
-
-    hr = transform_create(outer, &CLSID_MPEGLayer3Decoder, &mpeg_layer3_decoder_transform_ops, &object);
-    if (FAILED(hr))
-        return hr;
-
-    wcscpy(object->sink.pin.name, L"XForm In");
-    wcscpy(object->source.pin.name, L"XForm Out");
-
-    TRACE("Created MPEG layer-3 decoder %p.\n", object);
-    *out = &object->filter.IUnknown_inner;
-    return hr;
 }
 
 static HRESULT mpeg_audio_codec_sink_query_accept(struct transform *filter, const AM_MEDIA_TYPE *mt)
@@ -1009,15 +737,23 @@ static const struct transform_ops mpeg_audio_codec_transform_ops =
 
 HRESULT mpeg_audio_codec_create(IUnknown *outer, IUnknown **out)
 {
+    static const WAVEFORMATEX output_format =
+    {
+        .wFormatTag = WAVE_FORMAT_PCM, .wBitsPerSample = 16, .nSamplesPerSec = 44100, .nChannels = 1,
+    };
+    static const MPEG1WAVEFORMAT input_format =
+    {
+        .wfx = {.wFormatTag = WAVE_FORMAT_MPEG, .nSamplesPerSec = 44100, .nChannels = 1,
+                .cbSize = sizeof(input_format) - sizeof(WAVEFORMATEX)},
+        .fwHeadLayer = 2,
+    };
     struct transform *object;
-    NTSTATUS status;
     HRESULT hr;
 
-    if ((status = winedmo_transform_check(MEDIATYPE_Audio, MEDIASUBTYPE_MPEG1Audio, MEDIASUBTYPE_PCM)))
+    if (FAILED(hr = check_audio_transform_support(&input_format.wfx, &output_format)))
     {
-        static const GUID CLSID_wg_mpeg_audio_decoder = {0xc9f285f8,0x4380,0x4121,{0x97,0x1f,0x49,0xa9,0x53,0x16,0xc2,0x7b}};
-        WARN("Unsupported winedmo transform, status %#lx.\n", status);
-        return CoCreateInstance(&CLSID_wg_mpeg_audio_decoder, outer, CLSCTX_INPROC_SERVER, &IID_IUnknown, (void **)out);
+        ERR_(winediag)("GStreamer doesn't support MPEG-1 audio decoding, please install appropriate plugins.\n");
+        return hr;
     }
 
     hr = transform_create(outer, &CLSID_CMpegAudioCodec, &mpeg_audio_codec_transform_ops, &object);
@@ -1071,49 +807,44 @@ static HRESULT mpeg_video_codec_source_query_accept(struct transform *filter, co
 
 static HRESULT mpeg_video_codec_source_get_media_type(struct transform *filter, unsigned int index, AM_MEDIA_TYPE *mt)
 {
-    static const GUID *formats[] =
-    {
-        &MEDIASUBTYPE_YV12,
-        &MEDIASUBTYPE_YUY2,
-        &MEDIASUBTYPE_UYVY,
-        &MEDIASUBTYPE_RGB24,
-        &MEDIASUBTYPE_RGB32,
-        &MEDIASUBTYPE_RGB565,
-        &MEDIASUBTYPE_RGB555,
+    static const enum wg_video_format formats[] = {
+        WG_VIDEO_FORMAT_YV12,
+        WG_VIDEO_FORMAT_YUY2,
+        WG_VIDEO_FORMAT_UYVY,
+        WG_VIDEO_FORMAT_BGR,
+        WG_VIDEO_FORMAT_BGRx,
+        WG_VIDEO_FORMAT_RGB16,
+        WG_VIDEO_FORMAT_RGB15,
     };
 
-    const MPEG1VIDEOINFO *mp1 = (MPEG1VIDEOINFO *)filter->sink.pin.mt.pbFormat;
-    VIDEOINFOHEADER *vih;
+    const MPEG1VIDEOINFO *input_format = (MPEG1VIDEOINFO*)filter->sink.pin.mt.pbFormat;
+    struct wg_format wg_format = {};
+    VIDEOINFO *video_format;
 
     if (!filter->sink.pin.peer)
         return VFW_S_NO_MORE_ITEMS;
+
     if (index >= ARRAY_SIZE(formats))
         return VFW_S_NO_MORE_ITEMS;
-    if (!(vih = CoTaskMemAlloc(sizeof(*vih))))
+
+    input_format = (MPEG1VIDEOINFO*)filter->sink.pin.mt.pbFormat;
+    wg_format.major_type = WG_MAJOR_TYPE_VIDEO;
+    wg_format.u.video.format = formats[index];
+    wg_format.u.video.width = input_format->hdr.bmiHeader.biWidth;
+    wg_format.u.video.height = input_format->hdr.bmiHeader.biHeight;
+    wg_format.u.video.fps_n = 10000000;
+    wg_format.u.video.fps_d = input_format->hdr.AvgTimePerFrame;
+    if (!amt_from_wg_format(mt, &wg_format, false))
         return E_OUTOFMEMORY;
 
-    memset(vih, 0, sizeof(*vih));
-    vih->bmiHeader.biSize = sizeof(vih->bmiHeader);
-    vih->bmiHeader.biPlanes = 1;
-    vih->bmiHeader.biWidth = mp1->hdr.bmiHeader.biWidth;
-    vih->bmiHeader.biHeight = abs(mp1->hdr.bmiHeader.biHeight);
-    vih->bmiHeader.biCompression = index == 5 ? BI_BITFIELDS : index >= 3 ? BI_RGB : formats[index]->Data1;
-    SetRect(&vih->rcSource, 0, 0, vih->bmiHeader.biWidth, vih->bmiHeader.biHeight);
-    vih->bmiHeader.biXPelsPerMeter = 2000;
-    vih->bmiHeader.biYPelsPerMeter = 2000;
-    if (FAILED(MFCalculateImageSize(formats[index], vih->bmiHeader.biWidth, vih->bmiHeader.biHeight, (UINT *)&vih->bmiHeader.biSizeImage)))
-        MFCalculateImageSize(&MEDIASUBTYPE_RGB32, vih->bmiHeader.biWidth, vih->bmiHeader.biHeight, (UINT *)&vih->bmiHeader.biSizeImage);
-    vih->bmiHeader.biBitCount = vih->bmiHeader.biSizeImage * 8 / vih->bmiHeader.biWidth / vih->bmiHeader.biHeight;
-    vih->AvgTimePerFrame = mp1->hdr.AvgTimePerFrame;
-    vih->dwBitRate = MulDiv(vih->bmiHeader.biSizeImage * 8, 10000000, vih->AvgTimePerFrame);
+    video_format = (VIDEOINFO*)mt->pbFormat;
+    video_format->bmiHeader.biHeight = abs(video_format->bmiHeader.biHeight);
+    SetRect(&video_format->rcSource, 0, 0, video_format->bmiHeader.biWidth, video_format->bmiHeader.biHeight);
 
-    memset(mt, 0, sizeof(*mt));
-    mt->majortype = MEDIATYPE_Video;
-    mt->subtype = *formats[index];
-    mt->formattype = FORMAT_VideoInfo;
-    mt->pbFormat = (BYTE *)vih;
-    mt->cbFormat = sizeof(*vih);
-    mt->lSampleSize = vih->bmiHeader.biSizeImage;
+    video_format->bmiHeader.biXPelsPerMeter = 2000;
+    video_format->bmiHeader.biYPelsPerMeter = 2000;
+    video_format->dwBitRate = MulDiv(video_format->bmiHeader.biSizeImage * 8, 10000000, video_format->AvgTimePerFrame);
+    mt->lSampleSize = video_format->bmiHeader.biSizeImage;
     mt->bTemporalCompression = FALSE;
     mt->bFixedSizeSamples = TRUE;
 
@@ -1143,15 +874,25 @@ static const struct transform_ops mpeg_video_codec_transform_ops =
 
 HRESULT mpeg_video_codec_create(IUnknown *outer, IUnknown **out)
 {
+    const MFVIDEOFORMAT output_format =
+    {
+        .dwSize = sizeof(MFVIDEOFORMAT),
+        .videoInfo = {.dwWidth = 1920, .dwHeight = 1080},
+        .guidFormat = MEDIASUBTYPE_NV12,
+    };
+    const MFVIDEOFORMAT input_format =
+    {
+        .dwSize = sizeof(MFVIDEOFORMAT),
+        .videoInfo = {.dwWidth = 1920, .dwHeight = 1080},
+        .guidFormat = MEDIASUBTYPE_MPEG1Payload,
+    };
     struct transform *object;
-    NTSTATUS status;
     HRESULT hr;
 
-    if ((status = winedmo_transform_check(MEDIATYPE_Video, MEDIASUBTYPE_MPEG1Video, MEDIASUBTYPE_NV12)))
+    if (FAILED(hr = check_video_transform_support(&input_format, &output_format)))
     {
-        static const GUID CLSID_wg_mpeg_video_decoder = {0x5ed2e5f6,0xbf3e,0x4180,{0x83,0xa4,0x48,0x47,0xcc,0x5b,0x4e,0xa3}};
-        WARN("Unsupported winedmo transform, status %#lx.\n", status);
-        return CoCreateInstance(&CLSID_wg_mpeg_video_decoder, outer, CLSCTX_INPROC_SERVER, &IID_IUnknown, (void **)out);
+        ERR_(winediag)("GStreamer doesn't support MPEG-1 video decoding, please install appropriate plugins.\n");
+        return hr;
     }
 
     hr = transform_create(outer, &CLSID_CMpegVideoCodec, &mpeg_video_codec_transform_ops, &object);
@@ -1162,6 +903,124 @@ HRESULT mpeg_video_codec_create(IUnknown *outer, IUnknown **out)
     wcscpy(object->source.pin.name, L"Output");
 
     TRACE("Created MPEG video decoder %p.\n", object);
+    *out = &object->filter.IUnknown_inner;
+    return hr;
+}
+
+static HRESULT mpeg_layer3_decoder_sink_query_accept(struct transform *filter, const AM_MEDIA_TYPE *mt)
+{
+    const MPEGLAYER3WAVEFORMAT *format;
+
+    if (!IsEqualGUID(&mt->majortype, &MEDIATYPE_Audio)
+            || !IsEqualGUID(&mt->formattype, &FORMAT_WaveFormatEx)
+            || mt->cbFormat < sizeof(MPEGLAYER3WAVEFORMAT))
+        return S_FALSE;
+
+    format = (const MPEGLAYER3WAVEFORMAT *)mt->pbFormat;
+
+    if (format->wfx.wFormatTag != WAVE_FORMAT_MPEGLAYER3)
+        return S_FALSE;
+
+    return S_OK;
+}
+
+static HRESULT mpeg_layer3_decoder_source_query_accept(struct transform *filter, const AM_MEDIA_TYPE *mt)
+{
+    if (!filter->sink.pin.peer)
+        return S_FALSE;
+
+    if (!IsEqualGUID(&mt->majortype, &MEDIATYPE_Audio)
+            || !IsEqualGUID(&mt->subtype, &MEDIASUBTYPE_PCM))
+        return S_FALSE;
+
+    return S_OK;
+}
+
+static HRESULT mpeg_layer3_decoder_source_get_media_type(struct transform *filter, unsigned int index, AM_MEDIA_TYPE *mt)
+{
+    const MPEGLAYER3WAVEFORMAT *input_format;
+    WAVEFORMATEX *output_format;
+
+    if (!filter->sink.pin.peer)
+        return VFW_S_NO_MORE_ITEMS;
+
+    if (index > 0)
+        return VFW_S_NO_MORE_ITEMS;
+
+    input_format = (const MPEGLAYER3WAVEFORMAT *)filter->sink.pin.mt.pbFormat;
+
+    output_format = CoTaskMemAlloc(sizeof(*output_format));
+    if (!output_format)
+        return E_OUTOFMEMORY;
+
+    memset(output_format, 0, sizeof(*output_format));
+    output_format->wFormatTag = WAVE_FORMAT_PCM;
+    output_format->nSamplesPerSec = input_format->wfx.nSamplesPerSec;
+    output_format->nChannels = input_format->wfx.nChannels;
+    output_format->wBitsPerSample = 16;
+    output_format->nBlockAlign = output_format->nChannels * output_format->wBitsPerSample / 8;
+    output_format->nAvgBytesPerSec = output_format->nBlockAlign * output_format->nSamplesPerSec;
+
+    memset(mt, 0, sizeof(*mt));
+    mt->majortype = MEDIATYPE_Audio;
+    mt->subtype = MEDIASUBTYPE_PCM;
+    mt->bFixedSizeSamples = TRUE;
+    mt->lSampleSize = 1152 * output_format->nBlockAlign;
+    mt->formattype = FORMAT_WaveFormatEx;
+    mt->cbFormat = sizeof(*output_format);
+    mt->pbFormat = (BYTE *)output_format;
+
+    return S_OK;
+}
+
+static HRESULT mpeg_layer3_decoder_source_decide_buffer_size(struct transform *filter, IMemAllocator *allocator, ALLOCATOR_PROPERTIES *props)
+{
+    ALLOCATOR_PROPERTIES ret_props;
+
+    props->cBuffers = max(props->cBuffers, 8);
+    props->cbBuffer = max(props->cbBuffer, filter->source.pin.mt.lSampleSize * 4);
+    props->cbAlign = max(props->cbAlign, 1);
+
+    return IMemAllocator_SetProperties(allocator, props, &ret_props);
+}
+
+static const struct transform_ops mpeg_layer3_decoder_transform_ops =
+{
+    mpeg_layer3_decoder_sink_query_accept,
+    mpeg_layer3_decoder_source_query_accept,
+    mpeg_layer3_decoder_source_get_media_type,
+    mpeg_layer3_decoder_source_decide_buffer_size,
+    passthrough_source_qc_notify,
+};
+
+HRESULT mpeg_layer3_decoder_create(IUnknown *outer, IUnknown **out)
+{
+    static const WAVEFORMATEX output_format =
+    {
+        .wFormatTag = WAVE_FORMAT_PCM, .wBitsPerSample = 16, .nSamplesPerSec = 44100, .nChannels = 1,
+    };
+    static const MPEGLAYER3WAVEFORMAT input_format =
+    {
+        .wfx = {.wFormatTag = WAVE_FORMAT_MPEGLAYER3, .nSamplesPerSec = 44100, .nChannels = 1,
+                .cbSize = sizeof(input_format) - sizeof(WAVEFORMATEX)},
+    };
+    struct transform *object;
+    HRESULT hr;
+
+    if (FAILED(hr = check_audio_transform_support(&input_format.wfx, &output_format)))
+    {
+        ERR_(winediag)("GStreamer doesn't support MP3 audio decoding, please install appropriate plugins.\n");
+        return hr;
+    }
+
+    hr = transform_create(outer, &CLSID_mpeg_layer3_decoder, &mpeg_layer3_decoder_transform_ops, &object);
+    if (FAILED(hr))
+        return hr;
+
+    wcscpy(object->sink.pin.name, L"XForm In");
+    wcscpy(object->source.pin.name, L"XForm Out");
+
+    TRACE("Created MPEG layer-3 decoder %p.\n", object);
     *out = &object->filter.IUnknown_inner;
     return hr;
 }
