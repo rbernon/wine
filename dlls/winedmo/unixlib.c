@@ -47,13 +47,14 @@ int64_t unix_seek_callback( void *opaque, int64_t offset, int whence )
     if (whence == SEEK_CUR) offset += context->position;
     if ((UINT64)offset > context->length) offset = context->length;
 
-    if (offset / context->capacity != context->position / context->capacity)
+    while (offset / context->capacity != context->position / context->capacity)
     {
         /* seek stream to multiples of buffer capacity */
         params.offset = (offset / context->capacity) * context->capacity;
         status = KeUserDispatchCallback( &params.dispatch, sizeof(params), &ret_ptr, &ret_len );
         if (status || ret_len != sizeof(UINT64)) return AVERROR( EINVAL );
-        offset = *(UINT64 *)ret_ptr;
+        if (*(UINT64 *)ret_ptr != params.offset) offset = *(UINT64 *)ret_ptr; /* seeked somewhere else, retry */
+        else context->position = offset;
         context->size = 0;
     }
 
