@@ -1,4 +1,5 @@
-/*
+/* Gstreamer Media Sink
+ *
  * Copyright 2023 Ziqing Hui for CodeWeavers
  *
  * This library is free software; you can redistribute it and/or
@@ -16,65 +17,43 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#include "ntstatus.h"
-#define WIN32_NO_STATUS
-#include "mfsrcsnk_private.h"
+#include "gst_private.h"
+#include "mferror.h"
+#include "mfapi.h"
 
-#include "wine/list.h"
 #include "wine/debug.h"
-#include "wine/winedmo.h"
+#include "wine/list.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(mfplat);
 
-#define DEFINE_MF_ASYNC_CALLBACK_(pfx, impl_type, impl_from, iface_mem, expr)                       \
-    static inline impl_type *impl_from(IMFAsyncCallback *iface)                                     \
-    {                                                                                               \
-        return CONTAINING_RECORD(iface, impl_type, iface_mem);                                      \
-    }                                                                                               \
-    static HRESULT WINAPI pfx##_QueryInterface(IMFAsyncCallback *iface, REFIID iid, void **out)     \
-    {                                                                                               \
-        if (IsEqualIID(iid, &IID_IUnknown) || IsEqualIID(iid, &IID_IMFAsyncCallback))               \
-        {                                                                                           \
-            IMFAsyncCallback_AddRef((*out = iface));                                                \
-            return S_OK;                                                                            \
-        }                                                                                           \
-        *out = NULL;                                                                                \
-        return E_NOINTERFACE;                                                                       \
-    }                                                                                               \
-    static ULONG WINAPI pfx##_AddRef(IMFAsyncCallback *iface)                                       \
-    {                                                                                               \
-        impl_type *impl = impl_from(iface);                                                         \
-        return IUnknown_AddRef((IUnknown *)(expr));                                                 \
-    }                                                                                               \
-    static ULONG WINAPI pfx##_Release(IMFAsyncCallback *iface)                                      \
-    {                                                                                               \
-        impl_type *impl = impl_from(iface);                                                         \
-        return IUnknown_Release((IUnknown *)(expr));                                                \
-    }                                                                                               \
-    static HRESULT WINAPI pfx##_GetParameters(IMFAsyncCallback *iface, DWORD *flags, DWORD *queue)  \
-    {                                                                                               \
-        return E_NOTIMPL;                                                                           \
-    }                                                                                               \
-    static HRESULT WINAPI pfx##_Invoke(IMFAsyncCallback *iface, IMFAsyncResult *result);            \
-    static const IMFAsyncCallbackVtbl pfx##_vtbl =                                                  \
-    {                                                                                               \
-        pfx##_QueryInterface,                                                                       \
-        pfx##_AddRef,                                                                               \
-        pfx##_Release,                                                                              \
-        pfx##_GetParameters,                                                                        \
-        pfx##_Invoke,                                                                               \
-    };                                                                                              \
+enum async_op
+{
+    ASYNC_START,
+    ASYNC_STOP,
+    ASYNC_PAUSE,
+    ASYNC_PROCESS,
+    ASYNC_FINALIZE,
+};
 
-#define DEFINE_MF_ASYNC_CALLBACK(name, impl_type, base_iface) \
-    DEFINE_MF_ASYNC_CALLBACK_(name, impl_type, impl_from_##name, name##_iface, &impl->base_iface)
-
-struct async_process_params
+struct async_command
 {
     IUnknown IUnknown_iface;
     LONG refcount;
 
-    IMFSample *sample;
-    UINT32 stream_id;
+    enum async_op op;
+
+    union
+    {
+        struct
+        {
+            IMFSample *sample;
+            UINT32 stream_id;
+        } process;
+        struct
+        {
+            IMFAsyncResult *result;
+        } finalize;
+    } u;
 };
 
 struct stream_sink
@@ -96,11 +75,7 @@ struct media_sink
     IMFFinalizableMediaSink IMFFinalizableMediaSink_iface;
     IMFMediaEventGenerator IMFMediaEventGenerator_iface;
     IMFClockStateSink IMFClockStateSink_iface;
-    IMFAsyncCallback async_start_iface;
-    IMFAsyncCallback async_stop_iface;
-    IMFAsyncCallback async_pause_iface;
-    IMFAsyncCallback async_process_iface;
-    IMFAsyncCallback async_finalize_iface;
+    IMFAsyncCallback async_callback;
     LONG refcount;
     CRITICAL_SECTION cs;
 
@@ -114,13 +89,12 @@ struct media_sink
         STATE_SHUTDOWN,
     } state;
 
-    IMFByteStream *stream;
+    IMFByteStream *bytestream;
     IMFMediaEventQueue *event_queue;
 
     struct list stream_sinks;
 
-    struct winedmo_stream winedmo_stream;
-    struct winedmo_muxer winedmo_muxer;
+    wg_muxer_t muxer;
 };
 
 static struct stream_sink *impl_from_IMFStreamSink(IMFStreamSink *iface)
@@ -148,75 +122,73 @@ static struct media_sink *impl_from_IMFClockStateSink(IMFClockStateSink *iface)
     return CONTAINING_RECORD(iface, struct media_sink, IMFClockStateSink_iface);
 }
 
-static struct async_process_params *async_process_params_from_IUnknown(IUnknown *iface)
+static struct media_sink *impl_from_async_callback(IMFAsyncCallback *iface)
 {
-    return CONTAINING_RECORD(iface, struct async_process_params, IUnknown_iface);
+    return CONTAINING_RECORD(iface, struct media_sink, async_callback);
 }
 
-static HRESULT WINAPI async_process_params_QueryInterface(IUnknown *iface, REFIID riid, void **obj)
+static struct async_command *impl_from_async_command_IUnknown(IUnknown *iface)
 {
-    struct async_process_params *params = async_process_params_from_IUnknown(iface);
+    return CONTAINING_RECORD(iface, struct async_command, IUnknown_iface);
+}
 
-    TRACE("iface %p, riid %s, obj %p.\n", iface, debugstr_guid(riid), obj);
-
+static HRESULT WINAPI async_command_QueryInterface(IUnknown *iface, REFIID riid, void **obj)
+{
     if (IsEqualIID(riid, &IID_IUnknown))
-        *obj = &params->IUnknown_iface;
-    else
     {
-        WARN("Unsupported interface %s.\n", debugstr_guid(riid));
-        *obj = NULL;
-        return E_NOINTERFACE;
+        *obj = iface;
+        IUnknown_AddRef(iface);
+        return S_OK;
     }
 
-    IUnknown_AddRef((IUnknown *)*obj);
-    return S_OK;
+    WARN("Unsupported interface %s.\n", debugstr_guid(riid));
+    *obj = NULL;
+    return E_NOINTERFACE;
 }
 
-static ULONG WINAPI async_process_params_AddRef(IUnknown *iface)
+static ULONG WINAPI async_command_AddRef(IUnknown *iface)
 {
-    struct async_process_params *params = async_process_params_from_IUnknown(iface);
-    ULONG refcount = InterlockedIncrement(&params->refcount);
-    TRACE("iface %p, refcount %lu.\n", iface, refcount);
-    return refcount;
+    struct async_command *command = impl_from_async_command_IUnknown(iface);
+    return InterlockedIncrement(&command->refcount);
 }
 
-static ULONG WINAPI async_process_params_Release(IUnknown *iface)
+static ULONG WINAPI async_command_Release(IUnknown *iface)
 {
-    struct async_process_params *params = async_process_params_from_IUnknown(iface);
-    ULONG refcount = InterlockedDecrement(&params->refcount);
-
-    TRACE("iface %p, refcount %lu.\n", iface, refcount);
+    struct async_command *command = impl_from_async_command_IUnknown(iface);
+    ULONG refcount = InterlockedDecrement(&command->refcount);
 
     if (!refcount)
     {
-        IMFSample_Release(params->sample);
-        free(params);
+        if (command->op == ASYNC_PROCESS && command->u.process.sample)
+            IMFSample_Release(command->u.process.sample);
+        else if (command->op == ASYNC_FINALIZE && command->u.finalize.result)
+            IMFAsyncResult_Release(command->u.finalize.result);
+        free(command);
     }
 
     return refcount;
 }
 
-static const IUnknownVtbl async_process_params_vtbl =
+static const IUnknownVtbl async_command_vtbl =
 {
-    async_process_params_QueryInterface,
-    async_process_params_AddRef,
-    async_process_params_Release,
+    async_command_QueryInterface,
+    async_command_AddRef,
+    async_command_Release,
 };
 
-static HRESULT async_process_params_create(UINT32 stream_id, IMFSample *sample, IUnknown **out)
+static HRESULT async_command_create(enum async_op op, struct async_command **out)
 {
-    struct async_process_params *params;
+    struct async_command *command;
 
-    if (!(params = calloc(1, sizeof(*params))))
+    if (!(command = calloc(1, sizeof(*command))))
         return E_OUTOFMEMORY;
 
-    params->IUnknown_iface.lpVtbl = &async_process_params_vtbl;
-    params->refcount = 1;
-    params->stream_id = stream_id;
-    IMFSample_AddRef((params->sample = sample));
+    command->IUnknown_iface.lpVtbl = &async_command_vtbl;
+    command->refcount = 1;
+    command->op = op;
 
-    TRACE("Created async params %p.\n", params);
-    *out = &params->IUnknown_iface;
+    TRACE("Created async command %p.\n", command);
+    *out = command;
 
     return S_OK;
 }
@@ -353,7 +325,7 @@ static HRESULT WINAPI stream_sink_ProcessSample(IMFStreamSink *iface, IMFSample 
 {
     struct stream_sink *stream_sink = impl_from_IMFStreamSink(iface);
     struct media_sink *media_sink = impl_from_IMFFinalizableMediaSink(stream_sink->media_sink);
-    IUnknown *params;
+    struct async_command *command;
     HRESULT hr;
 
     TRACE("iface %p, sample %p.\n", iface, sample);
@@ -372,12 +344,17 @@ static HRESULT WINAPI stream_sink_ProcessSample(IMFStreamSink *iface, IMFSample 
         return MF_E_INVALIDREQUEST;
     }
 
-    if (SUCCEEDED(hr = async_process_params_create(stream_sink->id, sample, &params)))
+    if (FAILED(hr = (async_command_create(ASYNC_PROCESS, &command))))
     {
-        hr = MFPutWorkItem(MFASYNC_CALLBACK_QUEUE_STANDARD,
-                &media_sink->async_process_iface, params);
-        IUnknown_Release(params);
+        LeaveCriticalSection(&media_sink->cs);
+        return hr;
     }
+    IMFSample_AddRef((command->u.process.sample = sample));
+    command->u.process.stream_id = stream_sink->id;
+
+    hr = MFPutWorkItem(MFASYNC_CALLBACK_QUEUE_STANDARD,
+            &media_sink->async_callback, &command->IUnknown_iface);
+    IUnknown_Release(&command->IUnknown_iface);
 
     LeaveCriticalSection(&media_sink->cs);
 
@@ -546,6 +523,24 @@ static struct stream_sink *media_sink_get_stream_sink_by_id(struct media_sink *m
     return NULL;
 }
 
+static HRESULT media_sink_queue_command(struct media_sink *media_sink, enum async_op op)
+{
+    struct async_command *command;
+    HRESULT hr;
+
+    if (media_sink->state == STATE_SHUTDOWN)
+        return MF_E_SHUTDOWN;
+
+    if (FAILED(hr = async_command_create(op, &command)))
+        return hr;
+
+    hr = MFPutWorkItem(MFASYNC_CALLBACK_QUEUE_STANDARD,
+            &media_sink->async_callback, &command->IUnknown_iface);
+    IUnknown_Release(&command->IUnknown_iface);
+
+    return hr;
+}
+
 static HRESULT media_sink_queue_stream_event(struct media_sink *media_sink, MediaEventType type)
 {
     struct stream_sink *stream_sink;
@@ -560,12 +555,34 @@ static HRESULT media_sink_queue_stream_event(struct media_sink *media_sink, Medi
     return S_OK;
 }
 
+static HRESULT media_sink_write_stream(struct media_sink *media_sink)
+{
+    BYTE buffer[1024];
+    UINT32 size = sizeof(buffer);
+    ULONG written;
+    QWORD offset;
+    HRESULT hr;
+
+    while (SUCCEEDED(hr = wg_muxer_read_data(media_sink->muxer, buffer, &size, &offset)))
+    {
+        if (offset != UINT64_MAX && FAILED(hr = IMFByteStream_SetCurrentPosition(media_sink->bytestream, offset)))
+            return hr;
+
+        if (FAILED(hr = IMFByteStream_Write(media_sink->bytestream, buffer, size, &written)))
+            return hr;
+
+        size = sizeof(buffer);
+    }
+
+    return S_OK;
+}
+
 static HRESULT media_sink_start(struct media_sink *media_sink)
 {
-    NTSTATUS status;
+    HRESULT hr;
 
-    if ((status = winedmo_muxer_start(media_sink->winedmo_muxer)))
-        return HRESULT_FROM_NT(status);
+    if (FAILED(hr = wg_muxer_start(media_sink->muxer)))
+        return hr;
 
     media_sink->state = STATE_STARTED;
 
@@ -576,6 +593,7 @@ static HRESULT media_sink_stop(struct media_sink *media_sink)
 {
     media_sink->state = STATE_STOPPED;
     return media_sink_queue_stream_event(media_sink, MEStreamSinkStopped);
+
 }
 
 static HRESULT media_sink_pause(struct media_sink *media_sink)
@@ -584,15 +602,81 @@ static HRESULT media_sink_pause(struct media_sink *media_sink)
     return media_sink_queue_stream_event(media_sink, MEStreamSinkPaused);
 }
 
+static HRESULT media_sink_process(struct media_sink *media_sink, IMFSample *sample, UINT32 stream_id)
+{
+    wg_muxer_t muxer = media_sink->muxer;
+    struct wg_sample *wg_sample;
+    LONGLONG time, duration;
+    UINT32 value;
+    HRESULT hr;
+
+    TRACE("media_sink %p, sample %p, stream_id %u.\n", media_sink, sample, stream_id);
+
+    if (FAILED(hr = media_sink_write_stream(media_sink)))
+        WARN("Failed to write output samples to stream, hr %#lx.\n", hr);
+
+    if (FAILED(hr = wg_sample_create_mf(sample, &wg_sample)))
+        return hr;
+
+    if (SUCCEEDED(IMFSample_GetSampleTime(sample, &time)))
+    {
+        wg_sample->flags |= WG_SAMPLE_FLAG_HAS_PTS;
+        wg_sample->pts = time;
+    }
+    if (SUCCEEDED(IMFSample_GetSampleDuration(sample, &duration)))
+    {
+        wg_sample->flags |= WG_SAMPLE_FLAG_HAS_DURATION;
+        wg_sample->duration = duration;
+    }
+    if (SUCCEEDED(IMFSample_GetUINT32(sample, &MFSampleExtension_CleanPoint, &value)) && value)
+        wg_sample->flags |= WG_SAMPLE_FLAG_SYNC_POINT;
+    if (SUCCEEDED(IMFSample_GetUINT32(sample, &MFSampleExtension_Discontinuity, &value)) && value)
+        wg_sample->flags |= WG_SAMPLE_FLAG_DISCONTINUITY;
+
+    hr = wg_muxer_push_sample(muxer, wg_sample, stream_id);
+    wg_sample_release(wg_sample);
+
+    return hr;
+}
+
+static HRESULT media_sink_begin_finalize(struct media_sink *media_sink, IMFAsyncCallback *callback, IUnknown *state)
+{
+    struct async_command *command;
+    IMFAsyncResult *result;
+    HRESULT hr;
+
+    if (media_sink->state == STATE_SHUTDOWN)
+        return MF_E_SHUTDOWN;
+    if (!callback)
+        return S_OK;
+
+    if (FAILED(hr = async_command_create(ASYNC_FINALIZE, &command)))
+        return hr;
+
+    if (FAILED(hr = MFCreateAsyncResult(NULL, callback, state, &result)))
+    {
+        IUnknown_Release(&command->IUnknown_iface);
+        return hr;
+    }
+    IMFAsyncResult_AddRef((command->u.finalize.result = result));
+
+    hr = MFPutWorkItem(MFASYNC_CALLBACK_QUEUE_STANDARD,
+            &media_sink->async_callback, &command->IUnknown_iface);
+    IUnknown_Release(&command->IUnknown_iface);
+
+    return hr;
+}
+
 static HRESULT media_sink_finalize(struct media_sink *media_sink, IMFAsyncResult *result)
 {
-    HRESULT hr = S_OK;
-    NTSTATUS status;
+    HRESULT hr;
 
     media_sink->state = STATE_FINALIZED;
 
-    if ((status = winedmo_muxer_destroy(&media_sink->winedmo_muxer)))
-        hr = HRESULT_FROM_NT(status);
+    hr = wg_muxer_finalize(media_sink->muxer);
+
+    if (SUCCEEDED(hr))
+        hr = media_sink_write_stream(media_sink);
 
     IMFAsyncResult_SetStatus(result, hr);
     MFInvokeCallback(result);
@@ -651,10 +735,10 @@ static ULONG WINAPI media_sink_Release(IMFFinalizableMediaSink *iface)
     {
         IMFFinalizableMediaSink_Shutdown(iface);
         IMFMediaEventQueue_Release(media_sink->event_queue);
-        IMFByteStream_Release(media_sink->stream);
+        IMFByteStream_Release(media_sink->bytestream);
         media_sink->cs.DebugInfo->Spare[0] = 0;
         DeleteCriticalSection(&media_sink->cs);
-        winedmo_muxer_destroy(&media_sink->winedmo_muxer);
+        wg_muxer_destroy(media_sink->muxer);
         free(media_sink);
     }
 
@@ -668,50 +752,12 @@ static HRESULT WINAPI media_sink_GetCharacteristics(IMFFinalizableMediaSink *ifa
     return E_NOTIMPL;
 }
 
-
-static HRESULT muxer_add_stream_with_media_type(struct winedmo_muxer muxer, DWORD id, IMFMediaType *media_type)
-{
-    union winedmo_format *format;
-    UINT format_size;
-    NTSTATUS status;
-    HRESULT hr;
-    GUID major;
-
-    if (FAILED(hr = IMFMediaType_GetMajorType(media_type, &major)))
-        return hr;
-
-    if (IsEqualGUID(&major, &MFMediaType_Video))
-    {
-        if (SUCCEEDED(hr = MFCreateMFVideoFormatFromMFMediaType(media_type, (MFVIDEOFORMAT **)&format, &format_size)))
-        {
-            if ((status = winedmo_muxer_add_stream(muxer, id, major, format)))
-                hr = HRESULT_FROM_NT(status);
-            CoTaskMemFree(format);
-        }
-    }
-    else if (IsEqualGUID(&major, &MFMediaType_Audio))
-    {
-        if (SUCCEEDED(hr = MFCreateWaveFormatExFromMFMediaType(media_type, (WAVEFORMATEX **)&format, &format_size, 0)))
-        {
-            if ((status = winedmo_muxer_add_stream(muxer, id, major, format)))
-                hr = HRESULT_FROM_NT(status);
-            CoTaskMemFree(format);
-        }
-    }
-    else
-    {
-        FIXME("Unsupported major type %s\n", debugstr_guid(&major));
-        hr = E_NOTIMPL;
-    }
-
-    return hr;
-}
-
 static HRESULT WINAPI media_sink_AddStreamSink(IMFFinalizableMediaSink *iface, DWORD stream_sink_id,
     IMFMediaType *media_type, IMFStreamSink **stream_sink)
 {
     struct media_sink *media_sink = impl_from_IMFFinalizableMediaSink(iface);
     struct stream_sink *object;
+    struct wg_format format;
     HRESULT hr;
 
     TRACE("iface %p, stream_sink_id %#lx, media_type %p, stream_sink %p.\n",
@@ -732,7 +778,8 @@ static HRESULT WINAPI media_sink_AddStreamSink(IMFFinalizableMediaSink *iface, D
         return hr;
     }
 
-    if (FAILED(hr = muxer_add_stream_with_media_type(media_sink->winedmo_muxer, stream_sink_id, media_type)))
+    mf_media_type_to_wg_format(media_type, &format);
+    if (FAILED(hr = wg_muxer_add_stream(media_sink->muxer, stream_sink_id, &format)))
     {
         LeaveCriticalSection(&media_sink->cs);
         IMFStreamSink_Release(&object->IMFStreamSink_iface);
@@ -865,7 +912,7 @@ static HRESULT WINAPI media_sink_Shutdown(IMFFinalizableMediaSink *iface)
     }
 
     IMFMediaEventQueue_Shutdown(media_sink->event_queue);
-    IMFByteStream_Close(media_sink->stream);
+    IMFByteStream_Close(media_sink->bytestream);
 
     media_sink->state = STATE_SHUTDOWN;
 
@@ -877,22 +924,12 @@ static HRESULT WINAPI media_sink_Shutdown(IMFFinalizableMediaSink *iface)
 static HRESULT WINAPI media_sink_BeginFinalize(IMFFinalizableMediaSink *iface, IMFAsyncCallback *callback, IUnknown *state)
 {
     struct media_sink *media_sink = impl_from_IMFFinalizableMediaSink(iface);
-    IMFAsyncResult *result;
     HRESULT hr;
 
     TRACE("iface %p, callback %p, state %p.\n", iface, callback, state);
 
     EnterCriticalSection(&media_sink->cs);
-    if (media_sink->state == STATE_SHUTDOWN)
-        hr = MF_E_SHUTDOWN;
-    else if (!callback)
-        hr = S_OK;
-    else if (SUCCEEDED(hr = MFCreateAsyncResult(NULL, callback, state, &result)))
-    {
-        hr = MFPutWorkItem(MFASYNC_CALLBACK_QUEUE_STANDARD, &media_sink->async_finalize_iface, (IUnknown *)result);
-        IMFAsyncResult_Release(result);
-    }
-
+    hr =  media_sink_begin_finalize(media_sink, callback, state);
     LeaveCriticalSection(&media_sink->cs);
 
     return hr;
@@ -1019,10 +1056,7 @@ static HRESULT WINAPI media_sink_clock_sink_OnClockStart(IMFClockStateSink *ifac
 
     EnterCriticalSection(&media_sink->cs);
 
-    if (media_sink->state == STATE_SHUTDOWN)
-        hr = MF_E_SHUTDOWN;
-    else
-        hr = MFPutWorkItem(MFASYNC_CALLBACK_QUEUE_STANDARD, &media_sink->async_start_iface, NULL);
+    hr = media_sink_queue_command(media_sink, ASYNC_START);
 
     LeaveCriticalSection(&media_sink->cs);
     return hr;
@@ -1037,10 +1071,7 @@ static HRESULT WINAPI media_sink_clock_sink_OnClockStop(IMFClockStateSink *iface
 
     EnterCriticalSection(&media_sink->cs);
 
-    if (media_sink->state == STATE_SHUTDOWN)
-        hr = MF_E_SHUTDOWN;
-    else
-        hr = MFPutWorkItem(MFASYNC_CALLBACK_QUEUE_STANDARD, &media_sink->async_stop_iface, NULL);
+    hr = media_sink_queue_command(media_sink, ASYNC_STOP);
 
     LeaveCriticalSection(&media_sink->cs);
     return hr;
@@ -1055,10 +1086,7 @@ static HRESULT WINAPI media_sink_clock_sink_OnClockPause(IMFClockStateSink *ifac
 
     EnterCriticalSection(&media_sink->cs);
 
-    if (media_sink->state == STATE_SHUTDOWN)
-        hr = MF_E_SHUTDOWN;
-    else
-        hr = MFPutWorkItem(MFASYNC_CALLBACK_QUEUE_STANDARD, &media_sink->async_pause_iface, NULL);
+    hr = media_sink_queue_command(media_sink, ASYNC_PAUSE);
 
     LeaveCriticalSection(&media_sink->cs);
     return hr;
@@ -1073,10 +1101,7 @@ static HRESULT WINAPI media_sink_clock_sink_OnClockRestart(IMFClockStateSink *if
 
     EnterCriticalSection(&media_sink->cs);
 
-    if (media_sink->state == STATE_SHUTDOWN)
-        hr = MF_E_SHUTDOWN;
-    else
-        hr = MFPutWorkItem(MFASYNC_CALLBACK_QUEUE_STANDARD, &media_sink->async_start_iface, NULL);
+    hr = media_sink_queue_command(media_sink, ASYNC_START);
 
     LeaveCriticalSection(&media_sink->cs);
     return hr;
@@ -1101,171 +1126,126 @@ static const IMFClockStateSinkVtbl media_sink_clock_sink_vtbl =
     media_sink_clock_sink_OnClockSetRate,
 };
 
-DEFINE_MF_ASYNC_CALLBACK(async_start, struct media_sink, IMFFinalizableMediaSink_iface)
-
-static HRESULT WINAPI async_start_Invoke(IMFAsyncCallback *iface, IMFAsyncResult *async_result)
+static HRESULT WINAPI media_sink_callback_QueryInterface(IMFAsyncCallback *iface, REFIID riid, void **obj)
 {
-    struct media_sink *media_sink = impl_from_async_start(iface);
-    HRESULT hr = E_FAIL;
+    TRACE("iface %p, riid %s, obj %p.\n", iface, debugstr_guid(riid), obj);
 
-    TRACE("iface %p, async_result %p.\n", iface, async_result);
-
-    EnterCriticalSection(&media_sink->cs);
-
-    if (FAILED(hr = media_sink_start(media_sink)))
-        WARN("Failed to start media sink.\n");
-
-    LeaveCriticalSection(&media_sink->cs);
-
-    return hr;
-}
-
-DEFINE_MF_ASYNC_CALLBACK(async_stop, struct media_sink, IMFFinalizableMediaSink_iface)
-
-static HRESULT WINAPI async_stop_Invoke(IMFAsyncCallback *iface, IMFAsyncResult *async_result)
-{
-    struct media_sink *media_sink = impl_from_async_stop(iface);
-    HRESULT hr;
-
-    TRACE("iface %p, async_result %p.\n", iface, async_result);
-
-    EnterCriticalSection(&media_sink->cs);
-    hr = media_sink_stop(media_sink);
-    LeaveCriticalSection(&media_sink->cs);
-
-    return hr;
-}
-
-DEFINE_MF_ASYNC_CALLBACK(async_pause, struct media_sink, IMFFinalizableMediaSink_iface)
-
-static HRESULT WINAPI async_pause_Invoke(IMFAsyncCallback *iface, IMFAsyncResult *async_result)
-{
-    struct media_sink *media_sink = impl_from_async_stop(iface);
-    HRESULT hr;
-
-    TRACE("iface %p, async_result %p.\n", iface, async_result);
-
-    EnterCriticalSection(&media_sink->cs);
-    hr = media_sink_pause(media_sink);
-    LeaveCriticalSection(&media_sink->cs);
-
-    return hr;
-}
-
-DEFINE_MF_ASYNC_CALLBACK(async_process, struct media_sink, IMFFinalizableMediaSink_iface)
-
-static HRESULT WINAPI async_process_Invoke(IMFAsyncCallback *iface, IMFAsyncResult *async_result)
-{
-    struct media_sink *media_sink = impl_from_async_process(iface);
-    IUnknown *state = IMFAsyncResult_GetStateNoAddRef(async_result);
-    struct async_process_params *params = async_process_params_from_IUnknown(state);
-    DMO_OUTPUT_DATA_BUFFER input = {0};
-    IMFMediaBuffer *buffer;
-    NTSTATUS status;
-    HRESULT hr;
-
-    TRACE("iface %p, async_result %p.\n", iface, async_result);
-
-    EnterCriticalSection(&media_sink->cs);
-
-    if (FAILED(hr = IMFSample_ConvertToContiguousBuffer(params->sample, &buffer)))
-        return hr;
-    if (SUCCEEDED(hr = MFCreateLegacyMediaBufferOnMFMediaBuffer(params->sample, buffer, 0, &input.pBuffer)))
+    if (IsEqualIID(riid, &IID_IMFAsyncCallback) ||
+            IsEqualIID(riid, &IID_IUnknown))
     {
-        if ((status = winedmo_muxer_write(media_sink->winedmo_muxer, params->stream_id, &input)))
-        {
-            WARN("Failed to process sample, status %#lx.\n", status);
-            hr = HRESULT_FROM_NT(status);
-        }
-        IMediaBuffer_Release(input.pBuffer);
+        *obj = iface;
+        IMFAsyncCallback_AddRef(iface);
+        return S_OK;
     }
-    IMFMediaBuffer_Release(buffer);
 
-    LeaveCriticalSection(&media_sink->cs);
-
-    return hr;
+    WARN("Unsupported interface %s.\n", debugstr_guid(riid));
+    *obj = NULL;
+    return E_NOINTERFACE;
 }
 
-DEFINE_MF_ASYNC_CALLBACK(async_finalize, struct media_sink, IMFFinalizableMediaSink_iface)
-
-static HRESULT WINAPI async_finalize_Invoke(IMFAsyncCallback *iface, IMFAsyncResult *async_result)
+static ULONG WINAPI media_sink_callback_AddRef(IMFAsyncCallback *iface)
 {
-    struct media_sink *media_sink = impl_from_async_finalize(iface);
-    IMFAsyncResult *result = (IMFAsyncResult *)IMFAsyncResult_GetStateNoAddRef(async_result);
+    struct media_sink *sink = impl_from_async_callback(iface);
+    return IMFFinalizableMediaSink_AddRef(&sink->IMFFinalizableMediaSink_iface);
+}
+
+static ULONG WINAPI media_sink_callback_Release(IMFAsyncCallback *iface)
+{
+    struct media_sink *sink = impl_from_async_callback(iface);
+    return IMFFinalizableMediaSink_Release(&sink->IMFFinalizableMediaSink_iface);
+}
+
+static HRESULT WINAPI media_sink_callback_GetParameters(IMFAsyncCallback *iface, DWORD *flags, DWORD *queue)
+{
+    TRACE("iface %p, flags %p, queue %p.\n", iface, flags, queue);
+
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI media_sink_callback_Invoke(IMFAsyncCallback *iface, IMFAsyncResult *async_result)
+{
+    struct media_sink *media_sink = impl_from_async_callback(iface);
+    struct async_command *command;
     HRESULT hr = E_FAIL;
+    IUnknown *state;
 
     TRACE("iface %p, async_result %p.\n", iface, async_result);
 
     EnterCriticalSection(&media_sink->cs);
 
-    if (FAILED(hr = media_sink_finalize(media_sink, result)))
-        WARN("Failed to finalize, hr %#lx.\n", hr);
+    if (!(state = IMFAsyncResult_GetStateNoAddRef(async_result)))
+    {
+        LeaveCriticalSection(&media_sink->cs);
+        return hr;
+    }
+
+    command = impl_from_async_command_IUnknown(state);
+    switch (command->op)
+    {
+        case ASYNC_START:
+            if (FAILED(hr = media_sink_start(media_sink)))
+                WARN("Failed to start media sink.\n");
+            break;
+        case ASYNC_STOP:
+            hr = media_sink_stop(media_sink);
+            break;
+        case ASYNC_PAUSE:
+            hr = media_sink_pause(media_sink);
+            break;
+        case ASYNC_PROCESS:
+            if (FAILED(hr = media_sink_process(media_sink, command->u.process.sample, command->u.process.stream_id)))
+                WARN("Failed to process sample, hr %#lx.\n", hr);
+            break;
+        case ASYNC_FINALIZE:
+            if (FAILED(hr = media_sink_finalize(media_sink, command->u.finalize.result)))
+                WARN("Failed to finalize, hr %#lx.\n", hr);
+            break;
+        default:
+            WARN("Unsupported op %u.\n", command->op);
+            break;
+    }
 
     LeaveCriticalSection(&media_sink->cs);
 
     return hr;
 }
 
-static NTSTATUS CDECL media_sink_seek_cb( struct winedmo_stream *stream, UINT64 *pos )
+static const IMFAsyncCallbackVtbl media_sink_callback_vtbl =
 {
-    struct media_sink *sink = CONTAINING_RECORD(stream, struct media_sink, winedmo_stream);
-    if (FAILED(IMFByteStream_Seek(sink->stream, msoBegin, *pos, 0, pos))) return STATUS_UNSUCCESSFUL;
-    return STATUS_SUCCESS;
-}
+    media_sink_callback_QueryInterface,
+    media_sink_callback_AddRef,
+    media_sink_callback_Release,
+    media_sink_callback_GetParameters,
+    media_sink_callback_Invoke,
+};
 
-static NTSTATUS CDECL media_sink_read_cb( struct winedmo_stream *stream, BYTE *buffer, ULONG *size )
-{
-    struct media_sink *sink = CONTAINING_RECORD(stream, struct media_sink, winedmo_stream);
-    if (FAILED(IMFByteStream_Read(sink->stream, buffer, *size, size))) return STATUS_UNSUCCESSFUL;
-    return STATUS_SUCCESS;
-}
-
-static NTSTATUS CDECL media_sink_write_cb( struct winedmo_stream *stream, const BYTE *buffer, ULONG *size )
-{
-    struct media_sink *sink = CONTAINING_RECORD(stream, struct media_sink, winedmo_stream);
-    if (FAILED(IMFByteStream_Write(sink->stream, buffer, *size, size))) return STATUS_UNSUCCESSFUL;
-    return STATUS_SUCCESS;
-}
-
-static HRESULT media_sink_create(IMFByteStream *stream, const WCHAR *format, struct media_sink **out)
+static HRESULT media_sink_create(IMFByteStream *bytestream, const char *format, struct media_sink **out)
 {
     struct media_sink *media_sink;
-    NTSTATUS status;
     HRESULT hr;
 
-    TRACE("stream %p, out %p.\n", stream, out);
+    TRACE("bytestream %p, out %p.\n", bytestream, out);
 
-    if (!stream)
+    if (!bytestream)
         return E_POINTER;
 
     if (!(media_sink = calloc(1, sizeof(*media_sink))))
         return E_OUTOFMEMORY;
-    media_sink->winedmo_stream.p_seek = media_sink_seek_cb;
-    media_sink->winedmo_stream.p_read = media_sink_read_cb;
-    media_sink->winedmo_stream.p_write = media_sink_write_cb;
 
-    IMFByteStream_SetCurrentPosition(stream, 0);
-    if ((status = winedmo_muxer_create(NULL, format, &media_sink->winedmo_stream, &media_sink->winedmo_muxer)))
-    {
-        hr = HRESULT_FROM_NT(status);
+    if (FAILED(hr = wg_muxer_create(format, &media_sink->muxer)))
         goto fail;
-    }
     if (FAILED(hr = MFCreateEventQueue(&media_sink->event_queue)))
         goto fail;
 
     media_sink->IMFFinalizableMediaSink_iface.lpVtbl = &media_sink_vtbl;
     media_sink->IMFMediaEventGenerator_iface.lpVtbl = &media_sink_event_vtbl;
     media_sink->IMFClockStateSink_iface.lpVtbl = &media_sink_clock_sink_vtbl;
-    media_sink->async_start_iface.lpVtbl = &async_start_vtbl;
-    media_sink->async_stop_iface.lpVtbl = &async_stop_vtbl;
-    media_sink->async_pause_iface.lpVtbl = &async_pause_vtbl;
-    media_sink->async_process_iface.lpVtbl = &async_process_vtbl;
-    media_sink->async_finalize_iface.lpVtbl = &async_finalize_vtbl;
+    media_sink->async_callback.lpVtbl = &media_sink_callback_vtbl;
     media_sink->refcount = 1;
     media_sink->state = STATE_OPENED;
     InitializeCriticalSectionEx(&media_sink->cs, 0, RTL_CRITICAL_SECTION_FLAG_FORCE_DEBUG_INFO);
     media_sink->cs.DebugInfo->Spare[0] = (DWORD_PTR)(__FILE__ ": cs");
-    IMFByteStream_AddRef((media_sink->stream = stream));
+    IMFByteStream_AddRef((media_sink->bytestream = bytestream));
     list_init(&media_sink->stream_sinks);
 
     *out = media_sink;
@@ -1274,13 +1254,38 @@ static HRESULT media_sink_create(IMFByteStream *stream, const WCHAR *format, str
     return S_OK;
 
 fail:
-    winedmo_muxer_destroy(&media_sink->winedmo_muxer);
+    if (media_sink->muxer)
+        wg_muxer_destroy(media_sink->muxer);
     free(media_sink);
     return hr;
 }
 
-static HRESULT WINAPI sink_factory_create_media_sink(IMFSinkClassFactory *iface, IMFByteStream *bytestream,
-        const WCHAR *format, IMFMediaType *video_type, IMFMediaType *audio_type, IMFMediaSink **out)
+static HRESULT WINAPI sink_class_factory_QueryInterface(IMFSinkClassFactory *iface, REFIID riid, void **out)
+{
+    if (IsEqualIID(riid, &IID_IMFSinkClassFactory)
+            || IsEqualIID(riid, &IID_IUnknown))
+    {
+        *out = iface;
+        IMFSinkClassFactory_AddRef(iface);
+        return S_OK;
+    }
+
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+
+static ULONG WINAPI sink_class_factory_AddRef(IMFSinkClassFactory *iface)
+{
+    return 2;
+}
+
+static ULONG WINAPI sink_class_factory_Release(IMFSinkClassFactory *iface)
+{
+    return 1;
+}
+
+static HRESULT WINAPI sink_class_factory_create_media_sink(IMFSinkClassFactory *iface, IMFByteStream *bytestream,
+        const char *format, IMFMediaType *video_type, IMFMediaType *audio_type, IMFMediaSink **out)
 {
     IMFFinalizableMediaSink *media_sink_iface;
     struct media_sink *media_sink;
@@ -1316,107 +1321,49 @@ static HRESULT WINAPI sink_factory_create_media_sink(IMFSinkClassFactory *iface,
     return S_OK;
 }
 
-static HRESULT WINAPI mp3_sink_factory_CreateMediaSink(IMFSinkClassFactory *iface, IMFByteStream *bytestream,
+static HRESULT WINAPI mp3_sink_class_factory_CreateMediaSink(IMFSinkClassFactory *iface, IMFByteStream *bytestream,
         IMFMediaType *video_type, IMFMediaType *audio_type, IMFMediaSink **out)
 {
-    const WCHAR *format = L"application/x-id3";
-    return sink_factory_create_media_sink(iface, bytestream, format, video_type, audio_type, out);
+    const char *format = "application/x-id3";
+
+    return sink_class_factory_create_media_sink(iface, bytestream, format, video_type, audio_type, out);
 }
 
-static const IMFSinkClassFactoryVtbl mp3_sink_factory_vtbl =
+static HRESULT WINAPI mpeg4_sink_class_factory_CreateMediaSink(IMFSinkClassFactory *iface, IMFByteStream *bytestream,
+        IMFMediaType *video_type, IMFMediaType *audio_type, IMFMediaSink **out)
+{
+    const char *format = "video/quicktime, variant=iso";
+
+    return sink_class_factory_create_media_sink(iface, bytestream, format, video_type, audio_type, out);
+}
+
+static const IMFSinkClassFactoryVtbl mp3_sink_class_factory_vtbl =
 {
     sink_class_factory_QueryInterface,
     sink_class_factory_AddRef,
     sink_class_factory_Release,
-    mp3_sink_factory_CreateMediaSink,
+    mp3_sink_class_factory_CreateMediaSink,
 };
 
-static HRESULT WINAPI mp3_sink_class_factory_CreateInstance(IClassFactory *iface, IUnknown *outer, REFIID riid, void **out)
-{
-    struct sink_class_factory *factory = sink_class_factory_from_IClassFactory(iface);
-    NTSTATUS status;
-
-    if ((status = winedmo_muxer_check("video/mp3")))
-    {
-        static const GUID CLSID_wg_mp3_sink_factory = {0x1f302877,0xaaab,0x40a3,{0xb9,0xe0,0x9f,0x48,0xda,0xf3,0x5b,0xc8}};
-        WARN("Unsupported muxer, status %#lx.\n", status);
-        return CoCreateInstance(&CLSID_wg_mp3_sink_factory, outer, CLSCTX_INPROC_SERVER, riid, out);
-    }
-
-    TRACE("iface %p, outer %p, riid %s, out %p stub!.\n", iface, outer, debugstr_guid(riid), out);
-
-    *out = NULL;
-    if (outer)
-        return CLASS_E_NOAGGREGATION;
-    return IMFSinkClassFactory_QueryInterface(&factory->IMFSinkClassFactory_iface, riid, out);
-}
-
-static const IClassFactoryVtbl mp3_sink_class_factory_vtbl =
-{
-    class_factory_QueryInterface,
-    class_factory_AddRef,
-    class_factory_Release,
-    mp3_sink_class_factory_CreateInstance,
-    class_factory_LockServer,
-};
-
-struct sink_class_factory mp3_sink_factory =
-{
-    {&mp3_sink_class_factory_vtbl},
-    {&mp3_sink_factory_vtbl},
-};
-
-IClassFactory *mp3_sink_class_factory = &mp3_sink_factory.IClassFactory_iface;
-
-static HRESULT WINAPI mpeg4_sink_factory_CreateMediaSink(IMFSinkClassFactory *iface, IMFByteStream *bytestream,
-        IMFMediaType *video_type, IMFMediaType *audio_type, IMFMediaSink **out)
-{
-    const WCHAR *format = L"video/mp4";
-
-    return sink_factory_create_media_sink(iface, bytestream, format, video_type, audio_type, out);
-}
-
-static const IMFSinkClassFactoryVtbl mpeg4_sink_factory_vtbl =
+static const IMFSinkClassFactoryVtbl mpeg4_sink_class_factory_vtbl =
 {
     sink_class_factory_QueryInterface,
     sink_class_factory_AddRef,
     sink_class_factory_Release,
-    mpeg4_sink_factory_CreateMediaSink,
+    mpeg4_sink_class_factory_CreateMediaSink,
 };
 
-static HRESULT WINAPI mpeg4_sink_class_factory_CreateInstance(IClassFactory *iface, IUnknown *outer, REFIID riid, void **out)
+static IMFSinkClassFactory mp3_sink_class_factory = { &mp3_sink_class_factory_vtbl };
+static IMFSinkClassFactory mpeg4_sink_class_factory = { &mpeg4_sink_class_factory_vtbl };
+
+HRESULT mp3_sink_class_factory_create(IUnknown *outer, IUnknown **out)
 {
-    struct sink_class_factory *factory = sink_class_factory_from_IClassFactory(iface);
-    NTSTATUS status;
-
-    if ((status = winedmo_muxer_check("video/mp4")))
-    {
-        static const GUID CLSID_wg_mpeg4_sink_factory = {0x5d5407d9,0xc6ca,0x4770,{0xa7,0xcc,0x27,0xc0,0xcb,0x8a,0x76,0x27}};
-        WARN("Unsupported muxer, status %#lx.\n", status);
-        return CoCreateInstance(&CLSID_wg_mpeg4_sink_factory, outer, CLSCTX_INPROC_SERVER, riid, out);
-    }
-
-    TRACE("iface %p, outer %p, riid %s, out %p stub!.\n", iface, outer, debugstr_guid(riid), out);
-
-    *out = NULL;
-    if (outer)
-        return CLASS_E_NOAGGREGATION;
-    return IMFSinkClassFactory_QueryInterface(&factory->IMFSinkClassFactory_iface, riid, out);
+    *out = (IUnknown *)&mp3_sink_class_factory;
+    return S_OK;
 }
 
-static const IClassFactoryVtbl mpeg4_sink_class_factory_vtbl =
+HRESULT mpeg4_sink_class_factory_create(IUnknown *outer, IUnknown **out)
 {
-    class_factory_QueryInterface,
-    class_factory_AddRef,
-    class_factory_Release,
-    mpeg4_sink_class_factory_CreateInstance,
-    class_factory_LockServer,
-};
-
-struct sink_class_factory mpeg4_sink_factory =
-{
-    {&mpeg4_sink_class_factory_vtbl},
-    {&mpeg4_sink_factory_vtbl},
-};
-
-IClassFactory *mpeg4_sink_class_factory = &mpeg4_sink_factory.IClassFactory_iface;
+    *out = (IUnknown *)&mpeg4_sink_class_factory;
+    return S_OK;
+}

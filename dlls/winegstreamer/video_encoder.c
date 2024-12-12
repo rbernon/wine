@@ -1,5 +1,6 @@
-/*
- * Copyright 2024 Rémi Bernon for CodeWeavers
+/* Generic Video Encoder Transform
+ *
+ * Copyright 2024 Ziqing Hui for CodeWeavers
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,29 +17,28 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#include <stddef.h>
-#include <stdarg.h>
-
-#define COBJMACROS
-#include "windef.h"
-#include "winbase.h"
+#include "gst_private.h"
 
 #include "mfapi.h"
 #include "mferror.h"
-#include "mfidl.h"
 #include "mfobjects.h"
 #include "mftransform.h"
-#include "rpcproxy.h"
+#include "mediaerr.h"
 #include "wmcodecdsp.h"
 
 #include "wine/debug.h"
-#include "wine/winedmo.h"
 
-WINE_DEFAULT_DEBUG_CHANNEL(dmo);
+#include "initguid.h"
+
+#include "icodecapi.h"
+
+WINE_DEFAULT_DEBUG_CHANNEL(mfplat);
+WINE_DECLARE_DEBUG_CHANNEL(winediag);
 
 struct video_encoder
 {
     IMFTransform IMFTransform_iface;
+    ICodecAPI ICodecAPI_iface;
     LONG refcount;
 
     const GUID *const *input_types;
@@ -53,12 +53,19 @@ struct video_encoder
 
     IMFAttributes *attributes;
 
-    struct winedmo_transform winedmo_transform;
+    wg_transform_t wg_transform;
+    struct wg_transform_attrs wg_transform_attrs;
+    struct wg_sample_queue *wg_sample_queue;
 };
 
 static inline struct video_encoder *impl_from_IMFTransform(IMFTransform *iface)
 {
     return CONTAINING_RECORD(iface, struct video_encoder, IMFTransform_iface);
+}
+
+static inline struct video_encoder *impl_from_ICodecAPI(ICodecAPI *iface)
+{
+    return CONTAINING_RECORD(iface, struct video_encoder, ICodecAPI_iface);
 }
 
 static HRESULT video_encoder_create_input_type(struct video_encoder *encoder,
@@ -101,31 +108,16 @@ done:
     return hr;
 }
 
-static HRESULT video_encoder_try_create_transform(struct video_encoder *encoder)
+static HRESULT video_encoder_try_create_wg_transform(struct video_encoder *encoder)
 {
-    union winedmo_format *input_format, *output_format;
-    UINT format_size;
-    NTSTATUS status;
-    HRESULT hr;
-
-    winedmo_transform_destroy(&encoder->winedmo_transform);
-
-    if (FAILED(hr = MFCreateMFVideoFormatFromMFMediaType(encoder->input_type, (MFVIDEOFORMAT **)&input_format, &format_size)))
-        return hr;
-    if (FAILED(hr = MFCreateMFVideoFormatFromMFMediaType(encoder->output_type, (MFVIDEOFORMAT **)&output_format, &format_size)))
+    if (encoder->wg_transform)
     {
-        CoTaskMemFree(input_format);
-        return hr;
+        wg_transform_destroy(encoder->wg_transform);
+        encoder->wg_transform = 0;
     }
 
-    if ((status = winedmo_transform_create(MFMediaType_Video, input_format, output_format, &encoder->winedmo_transform)))
-    {
-        ERR("FAILED %#lx\n", status);
-        hr = HRESULT_FROM_NT(status);
-    }
-    CoTaskMemFree(output_format);
-    CoTaskMemFree(input_format);
-    return hr;
+    return wg_transform_create_mf(encoder->input_type, encoder->output_type,
+            &encoder->wg_transform_attrs, &encoder->wg_transform);
 }
 
 static HRESULT WINAPI transform_QueryInterface(IMFTransform *iface, REFIID iid, void **out)
@@ -136,6 +128,8 @@ static HRESULT WINAPI transform_QueryInterface(IMFTransform *iface, REFIID iid, 
 
     if (IsEqualGUID(iid, &IID_IMFTransform) || IsEqualGUID(iid, &IID_IUnknown))
         *out = &encoder->IMFTransform_iface;
+    else if (IsEqualGUID(iid, &IID_ICodecAPI))
+        *out = &encoder->ICodecAPI_iface;
     else
     {
         *out = NULL;
@@ -171,7 +165,9 @@ static ULONG WINAPI transform_Release(IMFTransform *iface)
         if (encoder->output_type)
             IMFMediaType_Release(encoder->output_type);
         IMFAttributes_Release(encoder->attributes);
-        winedmo_transform_destroy(&encoder->winedmo_transform);
+        if (encoder->wg_transform)
+            wg_transform_destroy(encoder->wg_transform);
+        wg_sample_queue_destroy(encoder->wg_sample_queue);
         free(encoder);
     }
 
@@ -308,7 +304,11 @@ static HRESULT WINAPI transform_SetInputType(IMFTransform *iface, DWORD id, IMFM
             IMFMediaType_Release(encoder->input_type);
             encoder->input_type = NULL;
         }
-        winedmo_transform_destroy(&encoder->winedmo_transform);
+        if (encoder->wg_transform)
+        {
+            wg_transform_destroy(encoder->wg_transform);
+            encoder->wg_transform = 0;
+        }
         return S_OK;
     }
 
@@ -347,7 +347,7 @@ static HRESULT WINAPI transform_SetInputType(IMFTransform *iface, DWORD id, IMFM
         IMFMediaType_Release(encoder->input_type);
     IMFMediaType_AddRef((encoder->input_type = type));
 
-    if (FAILED(hr = video_encoder_try_create_transform(encoder)))
+    if (FAILED(hr = video_encoder_try_create_wg_transform(encoder)))
     {
         IMFMediaType_Release(encoder->input_type);
         encoder->input_type = NULL;
@@ -379,8 +379,11 @@ static HRESULT WINAPI transform_SetOutputType(IMFTransform *iface, DWORD id, IMF
             encoder->output_type = NULL;
             memset(&encoder->output_info, 0, sizeof(encoder->output_info));
         }
-        winedmo_transform_destroy(&encoder->winedmo_transform);
-
+        if (encoder->wg_transform)
+        {
+            wg_transform_destroy(encoder->wg_transform);
+            encoder->wg_transform = 0;
+        }
         return S_OK;
     }
 
@@ -425,7 +428,11 @@ static HRESULT WINAPI transform_SetOutputType(IMFTransform *iface, DWORD id, IMF
      * The right way is to calculate it based on frame width and height. */
     encoder->output_info.cbSize = 0x3bc400;
 
-    winedmo_transform_destroy(&encoder->winedmo_transform);
+    if (encoder->wg_transform)
+    {
+        wg_transform_destroy(encoder->wg_transform);
+        encoder->wg_transform = 0;
+    }
 
     return S_OK;
 }
@@ -496,12 +503,10 @@ static HRESULT WINAPI transform_ProcessMessage(IMFTransform *iface, MFT_MESSAGE_
     switch (message)
     {
         case MFT_MESSAGE_COMMAND_DRAIN:
-            if (winedmo_transform_drain(encoder->winedmo_transform, FALSE)) return E_FAIL;
-            return S_OK;
+            return wg_transform_drain(encoder->wg_transform);
 
         case MFT_MESSAGE_COMMAND_FLUSH:
-            if (winedmo_transform_drain(encoder->winedmo_transform, TRUE)) return E_FAIL;
-            return S_OK;
+            return wg_transform_flush(encoder->wg_transform);
 
         default:
             FIXME("Ignoring message %#x.\n", message);
@@ -512,37 +517,34 @@ static HRESULT WINAPI transform_ProcessMessage(IMFTransform *iface, MFT_MESSAGE_
 static HRESULT WINAPI transform_ProcessInput(IMFTransform *iface, DWORD id, IMFSample *sample, DWORD flags)
 {
     struct video_encoder *encoder = impl_from_IMFTransform(iface);
-    DMO_OUTPUT_DATA_BUFFER input = {0};
-    IMFMediaBuffer *buffer;
-    NTSTATUS status;
-    HRESULT hr;
 
     TRACE("iface %p, id %#lx, sample %p, flags %#lx.\n", iface, id, sample, flags);
 
-    if (!encoder->winedmo_transform.handle)
+    if (!encoder->wg_transform)
         return MF_E_TRANSFORM_TYPE_NOT_SET;
 
-    if (FAILED(hr = IMFSample_ConvertToContiguousBuffer(sample, &buffer)))
-        return hr;
-    if (SUCCEEDED(hr = MFCreateLegacyMediaBufferOnMFMediaBuffer(sample, buffer, 0, &input.pBuffer)))
-    {
-        if ((status = winedmo_transform_process_input(encoder->winedmo_transform, &input)))
-        {
-            if (status == STATUS_PENDING) hr = MF_E_NOTACCEPTING;
-            else hr = HRESULT_FROM_NT(status);
-        }
-        IMediaBuffer_Release(input.pBuffer);
-    }
-    IMFMediaBuffer_Release(buffer);
-
-    return hr;
+    return wg_transform_push_mf(encoder->wg_transform, sample, encoder->wg_sample_queue);
 }
 
 static HRESULT WINAPI transform_ProcessOutput(IMFTransform *iface, DWORD flags, DWORD count,
         MFT_OUTPUT_DATA_BUFFER *samples, DWORD *status)
 {
-    FIXME("iface %p, flags %#lx, count %lu, samples %p, status %p.\n", iface, flags, count, samples, status);
-    return E_NOTIMPL;
+    struct video_encoder *encoder = impl_from_IMFTransform(iface);
+    HRESULT hr;
+
+    TRACE("iface %p, flags %#lx, count %lu, samples %p, status %p.\n", iface, flags, count, samples, status);
+
+    if (count != 1)
+        return E_INVALIDARG;
+    if (!encoder->wg_transform)
+        return MF_E_TRANSFORM_TYPE_NOT_SET;
+    if (!samples->pSample)
+        return E_INVALIDARG;
+
+    if (SUCCEEDED(hr = wg_transform_read_mf(encoder->wg_transform, samples->pSample, 0, &samples->dwStatus)))
+        wg_sample_queue_flush(encoder->wg_sample_queue, false);
+
+    return hr;
 }
 
 static const IMFTransformVtbl transform_vtbl =
@@ -575,6 +577,139 @@ static const IMFTransformVtbl transform_vtbl =
     transform_ProcessOutput,
 };
 
+static HRESULT WINAPI codec_api_QueryInterface(ICodecAPI *iface, REFIID riid, void **out)
+{
+    struct video_encoder *encoder = impl_from_ICodecAPI(iface);
+    return IMFTransform_QueryInterface(&encoder->IMFTransform_iface, riid, out);
+}
+
+static ULONG WINAPI codec_api_AddRef(ICodecAPI *iface)
+{
+    struct video_encoder *encoder = impl_from_ICodecAPI(iface);
+    return IMFTransform_AddRef(&encoder->IMFTransform_iface);
+}
+
+static ULONG WINAPI codec_api_Release(ICodecAPI *iface)
+{
+    struct video_encoder *encoder = impl_from_ICodecAPI(iface);
+    return IMFTransform_Release(&encoder->IMFTransform_iface);
+}
+
+static HRESULT WINAPI codec_api_IsSupported(ICodecAPI *iface, const GUID *api)
+{
+    FIXME("iface %p, api %s.\n", iface, debugstr_guid(api));
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI codec_api_IsModifiable(ICodecAPI *iface, const GUID *api)
+{
+    FIXME("iface %p, api %s.\n", iface, debugstr_guid(api));
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI codec_api_GetParameterRange(ICodecAPI *iface,
+        const GUID *api, VARIANT *min, VARIANT *max, VARIANT *delta)
+{
+    FIXME("iface %p, api %s, min %p, max %p, delta %p.\n",
+            iface, debugstr_guid(api), min, max, delta);
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI codec_api_GetParameterValues(ICodecAPI *iface, const GUID *api, VARIANT **values, ULONG *count)
+{
+    FIXME("iface %p, api %s, values %p, count %p.\n", iface, debugstr_guid(api), values, count);
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI codec_api_GetDefaultValue(ICodecAPI *iface, const GUID *api, VARIANT *value)
+{
+    FIXME("iface %p, api %s, value %p.\n", iface, debugstr_guid(api), value);
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI codec_api_GetValue(ICodecAPI *iface, const GUID *api, VARIANT *value)
+{
+    FIXME("iface %p, api %s, value %p.\n", iface, debugstr_guid(api), value);
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI codec_api_SetValue(ICodecAPI *iface, const GUID *api, VARIANT *value)
+{
+    FIXME("iface %p, api %s, value %p.\n", iface, debugstr_guid(api), value);
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI codec_api_RegisterForEvent(ICodecAPI *iface, const GUID *api, LONG_PTR userData)
+{
+    FIXME("iface %p, api %s, value %p.\n", iface, debugstr_guid(api), LongToPtr(userData));
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI codec_api_UnregisterForEvent(ICodecAPI *iface, const GUID *api)
+{
+    FIXME("iface %p, api %s.\n", iface, debugstr_guid(api));
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI codec_api_SetAllDefaults(ICodecAPI *iface)
+{
+    FIXME("iface %p.\n", iface);
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI codec_api_SetValueWithNotify(ICodecAPI *iface,
+        const GUID *api, VARIANT *value, GUID **param, ULONG *count)
+{
+    FIXME("iface %p, api %s, param %p, count %p.\n", iface, debugstr_guid(api), param, count);
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI codec_api_SetAllDefaultsWithNotify(ICodecAPI *iface, GUID **param, ULONG *count)
+{
+    FIXME("iface %p, param %p, count %p.\n", iface, param, count);
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI codec_api_GetAllSettings(ICodecAPI *iface, IStream *stream)
+{
+    FIXME("iface %p, stream %p.\n", iface, stream);
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI codec_api_SetAllSettings(ICodecAPI *iface, IStream *stream)
+{
+    FIXME("iface %p, stream %p.\n", iface, stream);
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI codec_api_SetAllSettingsWithNotify(ICodecAPI *iface, IStream *stream, GUID **param, ULONG *count)
+{
+    FIXME("iface %p, stream %p, param %p, count %p.\n", iface, stream, param, count);
+    return E_NOTIMPL;
+}
+
+static const ICodecAPIVtbl codec_api_vtbl =
+{
+    codec_api_QueryInterface,
+    codec_api_AddRef,
+    codec_api_Release,
+    codec_api_IsSupported,
+    codec_api_IsModifiable,
+    codec_api_GetParameterRange,
+    codec_api_GetParameterValues,
+    codec_api_GetDefaultValue,
+    codec_api_GetValue,
+    codec_api_SetValue,
+    codec_api_RegisterForEvent,
+    codec_api_UnregisterForEvent,
+    codec_api_SetAllDefaults,
+    codec_api_SetValueWithNotify,
+    codec_api_SetAllDefaultsWithNotify,
+    codec_api_GetAllSettings,
+    codec_api_SetAllSettings,
+    codec_api_SetAllSettingsWithNotify,
+};
+
 static HRESULT video_encoder_create(const GUID *const *input_types, UINT input_type_count,
         const GUID *const *output_types, UINT output_type_count, struct video_encoder **out)
 {
@@ -585,6 +720,7 @@ static HRESULT video_encoder_create(const GUID *const *input_types, UINT input_t
         return E_OUTOFMEMORY;
 
     encoder->IMFTransform_iface.lpVtbl = &transform_vtbl;
+    encoder->ICodecAPI_iface.lpVtbl = &codec_api_vtbl;
     encoder->refcount = 1;
 
     encoder->input_types = input_types;
@@ -592,9 +728,14 @@ static HRESULT video_encoder_create(const GUID *const *input_types, UINT input_t
     encoder->output_types = output_types;
     encoder->output_type_count = output_type_count;
 
+    encoder->wg_transform_attrs.input_queue_length = 15;
+
     if (FAILED(hr = MFCreateAttributes(&encoder->attributes, 16)))
         goto failed;
     if (FAILED(hr = IMFAttributes_SetUINT32(encoder->attributes, &MFT_ENCODER_SUPPORTS_CONFIG_EVENT, TRUE)))
+        goto failed;
+
+    if (FAILED(hr = wg_sample_queue_create(&encoder->wg_sample_queue)))
         goto failed;
 
     *out = encoder;
@@ -621,122 +762,38 @@ static const GUID *const h264_encoder_output_types[] =
     &MFVideoFormat_H264,
 };
 
-static HRESULT WINAPI h264_encoder_factory_CreateInstance(IClassFactory *iface, IUnknown *outer,
-        REFIID riid, void **out)
+HRESULT h264_encoder_create(REFIID riid, void **out)
 {
+    const MFVIDEOFORMAT input_format =
+    {
+        .dwSize = sizeof(MFVIDEOFORMAT),
+        .videoInfo = {.dwWidth = 1920, .dwHeight = 1080},
+        .guidFormat = MFVideoFormat_NV12,
+    };
+    const MFVIDEOFORMAT output_format =
+    {
+        .dwSize = sizeof(MFVIDEOFORMAT),
+        .videoInfo = {.dwWidth = 1920, .dwHeight = 1080},
+        .guidFormat = MFVideoFormat_H264,
+    };
     struct video_encoder *encoder;
-    NTSTATUS status;
     HRESULT hr;
 
-    TRACE("%p, %s, %p.\n", outer, debugstr_guid(riid), out);
+    TRACE("riid %s, out %p.\n", debugstr_guid(riid), out);
 
-    if ((status = winedmo_transform_check(MFMediaType_Video, MFVideoFormat_NV12, MFVideoFormat_H264)))
+    if (FAILED(hr = check_video_transform_support(&input_format, &output_format)))
     {
-        static const GUID CLSID_wg_h264_encoder = {0x6c34de69,0x4670,0x46cd,{0x8c,0xb4,0x1f,0x2f,0xa1,0xdf,0xfb,0x65}};
-        WARN("Unsupported winedmo transform, status %#lx.\n", status);
-        return CoCreateInstance(&CLSID_wg_h264_encoder, outer, CLSCTX_INPROC_SERVER, riid, out);
+        ERR_(winediag)("GStreamer doesn't support H.264 encoding, please install appropriate plugins\n");
+        return hr;
     }
 
-    *out = NULL;
-    if (outer)
-        return CLASS_E_NOAGGREGATION;
     if (FAILED(hr = video_encoder_create(h264_encoder_input_types, ARRAY_SIZE(h264_encoder_input_types),
             h264_encoder_output_types, ARRAY_SIZE(h264_encoder_output_types), &encoder)))
         return hr;
-    *out = (IUnknown *)&encoder->IMFTransform_iface;
+
     TRACE("Created h264 encoder transform %p.\n", &encoder->IMFTransform_iface);
 
-    hr = IUnknown_QueryInterface(&encoder->IMFTransform_iface, riid, out);
-    IUnknown_Release(&encoder->IMFTransform_iface);
+    hr = IMFTransform_QueryInterface(&encoder->IMFTransform_iface, riid, out);
+    IMFTransform_Release(&encoder->IMFTransform_iface);
     return hr;
-}
-
-static HRESULT WINAPI class_factory_QueryInterface(IClassFactory *iface, REFIID riid, void **out)
-{
-    *out = IsEqualGUID(riid, &IID_IClassFactory) || IsEqualGUID(riid, &IID_IUnknown) ? iface : NULL;
-    return *out ? S_OK : E_NOINTERFACE;
-}
-static ULONG WINAPI class_factory_AddRef(IClassFactory *iface)
-{
-    return 2;
-}
-static ULONG WINAPI class_factory_Release(IClassFactory *iface)
-{
-    return 1;
-}
-static HRESULT WINAPI class_factory_LockServer(IClassFactory *iface, BOOL dolock)
-{
-    return S_OK;
-}
-
-static const IClassFactoryVtbl h264_encoder_factory_vtbl =
-{
-    class_factory_QueryInterface,
-    class_factory_AddRef,
-    class_factory_Release,
-    h264_encoder_factory_CreateInstance,
-    class_factory_LockServer,
-};
-
-static IClassFactory h264_encoder_factory = {&h264_encoder_factory_vtbl};
-
-/***********************************************************************
- *              DllGetClassObject (mfh264enc.@)
- */
-HRESULT WINAPI DllGetClassObject(REFCLSID clsid, REFIID riid, void **out)
-{
-    if (IsEqualGUID(clsid, &CLSID_MSH264EncoderMFT))
-        return IClassFactory_QueryInterface(&h264_encoder_factory, riid, out);
-
-    *out = NULL;
-    FIXME("Unknown clsid %s.\n", debugstr_guid(clsid));
-    return CLASS_E_CLASSNOTAVAILABLE;
-}
-
-/***********************************************************************
- *              DllRegisterServer (mfh264enc.@)
- */
-HRESULT WINAPI DllRegisterServer(void)
-{
-    MFT_REGISTER_TYPE_INFO h264_encoder_mft_inputs[] =
-    {
-        {MFMediaType_Video, MFVideoFormat_IYUV},
-        {MFMediaType_Video, MFVideoFormat_YV12},
-        {MFMediaType_Video, MFVideoFormat_NV12},
-        {MFMediaType_Video, MFVideoFormat_YUY2},
-    };
-    MFT_REGISTER_TYPE_INFO h264_encoder_mft_outputs[] =
-    {
-        {MFMediaType_Video, MFVideoFormat_H264},
-    };
-    HRESULT hr;
-
-    TRACE("\n");
-
-    if (FAILED(hr = __wine_register_resources()))
-        return hr;
-    if (FAILED(hr = MFTRegister(CLSID_MSH264EncoderMFT, MFT_CATEGORY_VIDEO_ENCODER,
-            (WCHAR *)L"H264 Encoder MFT", MFT_ENUM_FLAG_SYNCMFT,
-            ARRAY_SIZE(h264_encoder_mft_inputs), h264_encoder_mft_inputs,
-            ARRAY_SIZE(h264_encoder_mft_outputs), h264_encoder_mft_outputs, NULL)))
-        return hr;
-
-    return S_OK;
-}
-
-/***********************************************************************
- *              DllUnregisterServer (mfh264enc.@)
- */
-HRESULT WINAPI DllUnregisterServer(void)
-{
-    HRESULT hr;
-
-    TRACE("\n");
-
-    if (FAILED(hr = __wine_unregister_resources()))
-        return hr;
-    if (FAILED(hr = MFTUnregister(CLSID_MSH264EncoderMFT)))
-        return hr;
-
-    return S_OK;
 }

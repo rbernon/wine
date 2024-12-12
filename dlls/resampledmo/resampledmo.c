@@ -1016,8 +1016,9 @@ static HRESULT WINAPI resampler_factory_CreateInstance(IClassFactory *iface, IUn
 
     if ((status = winedmo_transform_check(MFMediaType_Audio, MFAudioFormat_PCM, MFAudioFormat_Float)))
     {
+        static const GUID CLSID_wg_resampler = {0x92f35e78,0x15a5,0x486b,{0x88,0x8e,0x57,0x5f,0x99,0x65,0x1c,0xe2}};
         WARN("Unsupported winedmo transform, status %#lx.\n", status);
-        return E_NOTIMPL;
+        return CoCreateInstance(&CLSID_wg_resampler, outer, CLSCTX_INPROC_SERVER, riid, out);
     }
 
     *out = NULL;
