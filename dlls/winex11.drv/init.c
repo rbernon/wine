@@ -198,7 +198,7 @@ static BOOL needs_client_window_clipping( HWND hwnd )
 {
     struct x11drv_win_data *data;
     RECT rect, client;
-    UINT ret = 0;
+    UINT ret = 0, clip_flags = 0, style;
     HRGN region;
     HDC hdc;
 
@@ -207,7 +207,11 @@ static BOOL needs_client_window_clipping( HWND hwnd )
     release_win_data( data );
     OffsetRect( &client, -client.left, -client.top );
 
-    if (!(hdc = NtUserGetDCEx( hwnd, 0, DCX_CACHE | DCX_CLIPCHILDREN ))) return FALSE;
+    style = NtUserGetWindowLongW( hwnd, GWL_STYLE );
+    if (style & WS_CLIPCHILDREN) clip_flags |= DCX_CLIPCHILDREN;
+    if (style & WS_CLIPSIBLINGS) clip_flags |= DCX_CLIPSIBLINGS;
+
+    if (!(hdc = NtUserGetDCEx( hwnd, 0, DCX_CACHE | clip_flags ))) return FALSE;
     if ((region = NtGdiCreateRectRgn( 0, 0, 0, 0 )))
     {
         ret = NtGdiGetRandomRgn( hdc, region, SYSRGN | NTGDI_RGN_MONITOR_DPI );
