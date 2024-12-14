@@ -162,7 +162,7 @@ extern void free_brush_pattern( struct brush_pattern *pattern );
 /* clipping.c */
 extern BOOL clip_device_rect( DC *dc, RECT *dst, const RECT *src );
 extern BOOL clip_visrect( DC *dc, RECT *dst, const RECT *src );
-extern void set_visible_region( HDC hdc, HRGN hrgn, const RECT *logical_rect, const RECT *physical_rect,
+extern void set_visible_region( HDC hdc, HRGN hrgn, const RECT *vis_rect,
                                 const RECT *device_rect, struct window_surface *surface );
 extern void update_dc_clipping( DC * dc );
 

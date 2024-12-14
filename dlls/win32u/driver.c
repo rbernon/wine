@@ -60,9 +60,8 @@ static BOOL nulldrv_Chord( PHYSDEV dev, INT left, INT top, INT right, INT bottom
 
 static BOOL nulldrv_CreateCompatibleDC( PHYSDEV orig, PHYSDEV *pdev )
 {
-    const struct gdi_dc_funcs *dc_funcs = user_driver->pwine_get_gdi_driver( WINE_GDI_DRIVER_VERSION );
-    if (!dc_funcs->pCreateCompatibleDC) return TRUE;
-    return dc_funcs->pCreateCompatibleDC( NULL, pdev );
+    if (!user_driver->dc_funcs.pCreateCompatibleDC) return TRUE;
+    return user_driver->dc_funcs.pCreateCompatibleDC( NULL, pdev );
 }
 
 static BOOL nulldrv_CreateDC( PHYSDEV *dev, LPCWSTR device, LPCWSTR output,
@@ -615,8 +614,7 @@ const struct gdi_dc_funcs null_driver =
     nulldrv_StrokePath,                 /* pStrokePath */
     nulldrv_UnrealizePalette,           /* pUnrealizePalette */
 
-    GDI_PRIORITY_NULL_DRV,              /* priority */
-    "nulldrv",
+    GDI_PRIORITY_NULL_DRV               /* priority */
 };
 
 
@@ -909,11 +907,6 @@ static BOOL nulldrv_SystemParametersInfo( UINT action, UINT int_param, void *ptr
     return FALSE;
 }
 
-static const struct gdi_dc_funcs *nulldrv_wine_get_gdi_driver( UINT version )
-{
-    return &null_driver;
-}
-
 static UINT nulldrv_VulkanInit( UINT version, void *vulkan_handle, const struct vulkan_driver_funcs **driver_funcs )
 {
     return STATUS_NOT_IMPLEMENTED;
@@ -1047,7 +1040,8 @@ void init_display_driver(void)
  */
 const struct gdi_dc_funcs *get_display_driver(void)
 {
-    return user_driver->pwine_get_gdi_driver( WINE_GDI_DRIVER_VERSION );
+    if (user_driver == &lazy_load_driver) load_driver();
+    return &user_driver->dc_funcs;
 }
 
 static BOOL loaderdrv_ActivateKeyboardLayout( HKL layout, UINT flags )
@@ -1233,11 +1227,6 @@ static void loaderdrv_UpdateLayeredWindow( HWND hwnd, UINT flags )
     load_driver()->pUpdateLayeredWindow( hwnd, flags );
 }
 
-static const struct gdi_dc_funcs * loaderdrv_wine_get_gdi_driver( UINT version )
-{
-    return load_driver()->pwine_get_gdi_driver( version );
-}
-
 static UINT loaderdrv_VulkanInit( UINT version, void *vulkan_handle, const struct vulkan_driver_funcs **driver_funcs )
 {
     return load_driver()->pVulkanInit( version, vulkan_handle, driver_funcs );
@@ -1245,6 +1234,7 @@ static UINT loaderdrv_VulkanInit( UINT version, void *vulkan_handle, const struc
 
 static const struct user_driver_funcs lazy_load_driver =
 {
+    { NULL },
     /* keyboard functions */
     loaderdrv_ActivateKeyboardLayout,
     loaderdrv_Beep,
@@ -1310,8 +1300,6 @@ static const struct user_driver_funcs lazy_load_driver =
     nulldrv_WindowPosChanged,
     /* system parameters */
     nulldrv_SystemParametersInfo,
-    /* gdi support */
-    loaderdrv_wine_get_gdi_driver,
     /* vulkan support */
     loaderdrv_VulkanInit,
     /* opengl support */
@@ -1408,7 +1396,6 @@ void __wine_set_user_driver( const struct user_driver_funcs *funcs, UINT version
     SET_USER_FUNC(MoveWindowBits);
     SET_USER_FUNC(WindowPosChanged);
     SET_USER_FUNC(SystemParametersInfo);
-    SET_USER_FUNC(wine_get_gdi_driver);
     SET_USER_FUNC(VulkanInit);
     SET_USER_FUNC(wine_get_wgl_driver);
     SET_USER_FUNC(ThreadDetach);
