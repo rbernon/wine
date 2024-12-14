@@ -2421,7 +2421,8 @@ void default_fd_ioctl( struct fd *fd, ioctl_code_t code, struct async *async )
 }
 
 /* same as get_handle_obj but retrieve the struct fd associated to the object */
-struct fd *get_handle_fd_obj( struct process *process, obj_handle_t handle, unsigned int access )
+static struct fd *get_handle_fd_obj( struct process *process, obj_handle_t handle,
+                                     unsigned int access )
 {
     struct fd *fd = NULL;
     struct object *obj;

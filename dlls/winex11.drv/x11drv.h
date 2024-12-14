@@ -67,7 +67,6 @@ typedef int Status;
 #include "unixlib.h"
 #include "wine/list.h"
 #include "wine/debug.h"
-#include "mwm.h"
 
 #define MAX_DASHLEN 16
 
@@ -163,7 +162,6 @@ extern BOOL X11DRV_Ellipse( PHYSDEV dev, INT left, INT top, INT right, INT botto
 extern BOOL X11DRV_ExtFloodFill( PHYSDEV dev, INT x, INT y, COLORREF color, UINT fillType );
 extern BOOL X11DRV_FillPath( PHYSDEV dev );
 extern BOOL X11DRV_GetDeviceGammaRamp( PHYSDEV dev, LPVOID ramp );
-extern BOOL fs_hack_get_gamma_ramp( PHYSDEV dev, LPVOID ramp );
 extern BOOL X11DRV_GetICMProfile( PHYSDEV dev, BOOL allow_default, LPDWORD size, LPWSTR filename );
 extern DWORD X11DRV_GetImage( PHYSDEV dev, BITMAPINFO *info,
                               struct gdi_image_bits *bits, struct bitblt_coords *src );
@@ -192,7 +190,6 @@ extern COLORREF X11DRV_SetDCBrushColor( PHYSDEV dev, COLORREF crColor );
 extern COLORREF X11DRV_SetDCPenColor( PHYSDEV dev, COLORREF crColor );
 extern void X11DRV_SetDeviceClipping( PHYSDEV dev, HRGN rgn );
 extern BOOL X11DRV_SetDeviceGammaRamp( PHYSDEV dev, LPVOID ramp );
-extern BOOL fs_hack_set_gamma_ramp( PHYSDEV dev, LPVOID ramp );
 extern COLORREF X11DRV_SetPixel( PHYSDEV dev, INT x, INT y, COLORREF color );
 extern BOOL X11DRV_StretchBlt( PHYSDEV dst_dev, struct bitblt_coords *dst,
                                PHYSDEV src_dev, struct bitblt_coords *src, DWORD rop );
@@ -611,10 +608,8 @@ enum x11drv_net_wm_state
 
 struct window_state
 {
-    UINT swp_flags;
     UINT wm_state;
     UINT net_wm_state;
-    MwmHints mwm_hints;
     RECT rect;
 };
 
@@ -640,7 +635,6 @@ struct x11drv_win_data
     UINT        net_wm_fullscreen_monitors_set : 1; /* is _NET_WM_FULLSCREEN_MONITORS set */
     UINT        is_fullscreen : 1; /* is the window visible rect fullscreen */
     UINT        parent_invalid : 1; /* is the parent host window possibly invalid */
-    UINT        has_focus : 1;  /* does window have X input focus */
     Window      embedder;       /* window id of embedder */
     Pixmap         icon_pixmap;
     Pixmap         icon_mask;
@@ -652,7 +646,6 @@ struct x11drv_win_data
     struct window_state current_state; /* window state tracking the current X11 state */
     unsigned long wm_state_serial;     /* serial of last pending WM_STATE request */
     unsigned long net_wm_state_serial; /* serial of last pending _NET_WM_STATE request */
-    unsigned long mwm_hints_serial;    /* serial of last pending _MOTIF_WM_HINTS request */
     unsigned long configure_serial;    /* serial of last pending configure request */
 };
 
@@ -667,21 +660,19 @@ extern void set_gl_drawable_parent( HWND hwnd, HWND parent );
 extern void destroy_gl_drawable( HWND hwnd );
 extern void destroy_vk_surface( HWND hwnd );
 
-extern BOOL window_should_take_focus( HWND hwnd, Time time );
 extern BOOL window_has_pending_wm_state( HWND hwnd, UINT state );
-extern void window_wm_state_notify( struct x11drv_win_data *data, unsigned long serial, UINT value, Time time );
+extern void window_wm_state_notify( struct x11drv_win_data *data, unsigned long serial, UINT value );
 extern void window_net_wm_state_notify( struct x11drv_win_data *data, unsigned long serial, UINT value );
-extern void window_mwm_hints_notify( struct x11drv_win_data *data, unsigned long serial, const MwmHints *hints );
 extern void window_configure_notify( struct x11drv_win_data *data, unsigned long serial, const RECT *rect );
 extern BOOL get_window_state_updates( HWND hwnd, UINT *state_cmd, UINT *config_cmd, RECT *rect );
 
 extern void net_supported_init( struct x11drv_thread_data *data );
 
 extern Window init_clip_window(void);
-extern void update_user_time( Display *display, Window window, Time time, BOOL force );
+extern void update_user_time( Time time );
 extern UINT get_window_net_wm_state( Display *display, Window window );
 extern void make_window_embedded( struct x11drv_win_data *data );
-extern Window create_client_window( HWND hwnd, RECT client_rect, const XVisualInfo *visual, Colormap colormap );
+extern Window create_client_window( HWND hwnd, const XVisualInfo *visual, Colormap colormap );
 extern void detach_client_window( struct x11drv_win_data *data, Window client_window );
 extern void attach_client_window( struct x11drv_win_data *data, Window client_window );
 extern void destroy_client_window( HWND hwnd, Window client_window );

@@ -194,30 +194,11 @@ static HFONT X11DRV_SelectFont( PHYSDEV dev, HFONT hfont, UINT *aa_flags )
     return dev->funcs->pSelectFont( dev, hfont, aa_flags );
 }
 
-static const char *debugstr_region( HRGN hrgn )
-{
-    char buffer[1024], *buf = buffer;
-    DWORD i, size;
-    RGNDATA *data = NULL;
-    RECT *rect;
-
-    if (!hrgn) return wine_dbg_sprintf( "(null)" );
-    if (!(size = NtGdiGetRegionData( hrgn, 0, NULL ))) return wine_dbg_sprintf( "(error)" );
-    if (!(data = malloc( size ))) return wine_dbg_sprintf( "(error)" );
-    NtGdiGetRegionData( hrgn, size, data );
-    buf += sprintf( buf, "%d:", (int)data->rdh.nCount );
-    for (i = 0, rect = (RECT *)data->Buffer; i < data->rdh.nCount; i++, rect++)
-        buf += sprintf( buf,  " %s", wine_dbgstr_rect( rect ));
-    free( data );
-
-    return wine_dbg_sprintf( "%s", buffer );
-}
-
 static BOOL needs_client_window_clipping( HWND hwnd )
 {
     struct x11drv_win_data *data;
     RECT rect, client;
-    UINT ret = 0, clip_flags = 0, style;
+    UINT ret = 0;
     HRGN region;
     HDC hdc;
 
@@ -226,21 +207,16 @@ static BOOL needs_client_window_clipping( HWND hwnd )
     release_win_data( data );
     OffsetRect( &client, -client.left, -client.top );
 
-    style = NtUserGetWindowLongW( hwnd, GWL_STYLE );
-    if (style & WS_CLIPCHILDREN) clip_flags |= DCX_CLIPCHILDREN;
-    if (style & WS_CLIPSIBLINGS) clip_flags |= DCX_CLIPSIBLINGS;
-
-    if (!(hdc = NtUserGetDCEx( hwnd, 0, DCX_CACHE | clip_flags ))) return FALSE;
+    if (!(hdc = NtUserGetDCEx( hwnd, 0, DCX_CACHE | DCX_CLIPCHILDREN ))) return FALSE;
     if ((region = NtGdiCreateRectRgn( 0, 0, 0, 0 )))
     {
         ret = NtGdiGetRandomRgn( hdc, region, SYSRGN | NTGDI_RGN_MONITOR_DPI );
-        if (ret > 0 && (ret = NtGdiGetRgnBox( region, &rect )) < NULLREGION) ret = 0;
+        if (ret > 0 && (ret = NtGdiGetRgnBox( region, &rect )) <= NULLREGION) ret = 0;
         if (ret == SIMPLEREGION && EqualRect( &rect, &client )) ret = 0;
+        NtGdiDeleteObjectApp( region );
     }
     NtGdiDeleteObjectApp( hdc );
 
-ERR("hwnd %p client %s region %s ret %u\n", hwnd, wine_dbgstr_rect(&client), debugstr_region(region), ret);
-    if (region) NtGdiDeleteObjectApp( region );
     return ret > 0;
 }
 
@@ -420,7 +396,7 @@ static const struct user_driver_funcs x11drv_funcs =
     .dc_funcs.pExtFloodFill = X11DRV_ExtFloodFill,
     .dc_funcs.pFillPath = X11DRV_FillPath,
     .dc_funcs.pGetDeviceCaps = X11DRV_GetDeviceCaps,
-    .dc_funcs.pGetDeviceGammaRamp = fs_hack_get_gamma_ramp,
+    .dc_funcs.pGetDeviceGammaRamp = X11DRV_GetDeviceGammaRamp,
     .dc_funcs.pGetICMProfile = X11DRV_GetICMProfile,
     .dc_funcs.pGetImage = X11DRV_GetImage,
     .dc_funcs.pGetNearestColor = X11DRV_GetNearestColor,
@@ -444,7 +420,7 @@ static const struct user_driver_funcs x11drv_funcs =
     .dc_funcs.pSetDCBrushColor = X11DRV_SetDCBrushColor,
     .dc_funcs.pSetDCPenColor = X11DRV_SetDCPenColor,
     .dc_funcs.pSetDeviceClipping = X11DRV_SetDeviceClipping,
-    .dc_funcs.pSetDeviceGammaRamp = fs_hack_set_gamma_ramp,
+    .dc_funcs.pSetDeviceGammaRamp = X11DRV_SetDeviceGammaRamp,
     .dc_funcs.pSetPixel = X11DRV_SetPixel,
     .dc_funcs.pStretchBlt = X11DRV_StretchBlt,
     .dc_funcs.pStrokeAndFillPath = X11DRV_StrokeAndFillPath,
