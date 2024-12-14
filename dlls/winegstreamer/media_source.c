@@ -36,7 +36,6 @@ struct object_context
     IMFByteStream *stream;
     UINT64 file_size;
     WCHAR *url;
-    enum wg_parser_type type;
 };
 
 static struct object_context *impl_from_IUnknown(IUnknown *iface)
@@ -96,7 +95,7 @@ static const IUnknownVtbl object_context_vtbl =
 };
 
 static HRESULT object_context_create(DWORD flags, IMFByteStream *stream, const WCHAR *url,
-        QWORD file_size, IMFAsyncResult *result, enum wg_parser_type type, IUnknown **out)
+        QWORD file_size, IMFAsyncResult *result, IUnknown **out)
 {
     WCHAR *tmp_url = url ? wcsdup(url) : NULL;
     struct object_context *context;
@@ -114,7 +113,6 @@ static HRESULT object_context_create(DWORD flags, IMFByteStream *stream, const W
     context->file_size = file_size;
     context->url = tmp_url;
     context->result = result;
-    context->type = type;
     IMFAsyncResult_AddRef(context->result);
 
     *out = &context->IUnknown_iface;
@@ -1742,7 +1740,7 @@ static HRESULT media_source_create(struct object_context *context, IMFMediaSourc
     if (FAILED(hr = MFAllocateWorkQueue(&object->async_commands_queue)))
         goto fail;
 
-    if (!(parser = wg_parser_create(context->type, FALSE, FALSE)))
+    if (!(parser = wg_parser_create(FALSE)))
     {
         hr = E_OUTOFMEMORY;
         goto fail;
@@ -1786,28 +1784,6 @@ static HRESULT media_source_create(struct object_context *context, IMFMediaSourc
         object->descriptors[i] = descriptor;
         object->streams[i] = stream;
         object->stream_count++;
-    }
-
-    /* Hack for bug 19766 - Biomutant (597820) [T5] Title Hangs After Intro Cut Scene Unless Skipped.
-     *
-     * Unreal Engine 4 games expect presentation clock correlated time to run past media source
-     * duration[1], which assumes that all streams in a media source have the same duration.
-     * Biomutant_Trailer.mp4 from Biomutant(597820) has a 1:27.734s video stream and a 1:27.776s
-     * audio stream so the media source duration is reported to be 1:27.776s. However, the game
-     * builds a topology that only uses the video stream. So the last presentation clock correlated
-     * time could be something before the media source duration 1:27.776s before it's stopped. In
-     * Unreal Engine 4.18 source, on every frame FWmfMediaSession::GetEvents()[2] checks
-     * "Time > CurrentDuration" to decide whether to stop its media session. With the time check
-     * fails, the game will hang forever waiting for the session to stop. This hack shortens the
-     * media source duration to satisfy the condition check. The reason why it works on Windows is
-     * probably due to a delay caused a busy CPU and different scheduling.
-     *
-     * [1][2]: UnrealEngine-4.18/Engine/Plugins/Media/WmfMedia/Source/WmfMedia/Private/Wmf/WmfMediaSession.cpp#FWmfMediaSession::GetEvents()
-     */
-    {
-        const char *id = getenv("SteamGameId");
-        if (id && !strcmp(id, "597820") && object->duration == 877760000) /* Biomutant_Trailer.mp4 */
-            object->duration = 877340000;
     }
 
     media_source_init_descriptors(object);
@@ -2000,7 +1976,7 @@ static HRESULT WINAPI stream_handler_BeginCreateObject(IMFByteStreamHandler *ifa
 
     if (FAILED(hr = MFCreateAsyncResult(NULL, callback, state, &result)))
         return hr;
-    if (FAILED(hr = object_context_create(flags, stream, url, file_size, result, WG_PARSER_DECODEBIN, &context)))
+    if (FAILED(hr = object_context_create(flags, stream, url, file_size, result, &context)))
     {
         IMFAsyncResult_Release(result);
         return hr;
