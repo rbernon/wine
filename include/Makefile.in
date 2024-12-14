@@ -325,7 +325,6 @@ SOURCES = \
 	fci.h \
 	fdi.h \
 	featurestagingapi.h \
-	fibersapi.h \
 	fileapi.h \
 	filter.idl \
 	fltdefs.h \
@@ -532,7 +531,6 @@ SOURCES = \
 	msvcrt/mbctype.h \
 	msvcrt/mbstring.h \
 	msvcrt/memory.h \
-	msvcrt/new.h \
 	msvcrt/process.h \
 	msvcrt/search.h \
 	msvcrt/setjmp.h \
@@ -555,8 +553,6 @@ SOURCES = \
 	msvcrt/uchar.h \
 	msvcrt/unistd.h \
 	msvcrt/vadefs.h \
-	msvcrt/vcruntime_exception.h \
-	msvcrt/vcruntime_typeinfo.h \
 	msvcrt/wchar.h \
 	msvcrt/wctype.h \
 	mswsock.h \
@@ -603,7 +599,6 @@ SOURCES = \
 	ntsecpkg.h \
 	ntstatus.h \
 	ntuser.h \
-	ntverp.h \
 	oaidl.idl \
 	objbase.h \
 	objectarray.idl \
