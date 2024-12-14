@@ -57,12 +57,9 @@ struct hid_expect
     DWORD code;
     DWORD ret_length;
     DWORD ret_status;
-    DWORD repeat_count;
-    BYTE repeat_length;
     BYTE todo;   /* missing on wine */
     BYTE broken_id; /* different or missing (-1) report on some win versions */
     BYTE wine_only;
-    BYTE timestamp;
     BYTE report_id;
     BYTE report_len;
     BYTE report_buf[128];
@@ -138,7 +135,6 @@ static inline const char *debugstr_pnp( ULONG code )
     case IRP_MN_DEVICE_USAGE_NOTIFICATION: return "IRP_MN_DEVICE_USAGE_NOTIFICATION";
     case IRP_MN_SURPRISE_REMOVAL: return "IRP_MN_SURPRISE_REMOVAL";
     case IRP_MN_QUERY_LEGACY_BUS_INFORMATION: return "IRP_MN_QUERY_LEGACY_BUS_INFORMATION";
-    case IRP_MN_DEVICE_ENUMERATED: return "IRP_MN_DEVICE_ENUMERATED";
     default: return "unknown";
     }
 }
@@ -305,8 +301,7 @@ static inline NTSTATUS winetest_init(void)
     ZwUnmapViewOfSection( NtCurrentProcess(), addr );
     ZwClose( section );
 
-    if (running_under_wine) RtlInitUnicodeString( &string, L"\\??\\C:\\windows\\winetest_dinput_okfile" );
-    else RtlInitUnicodeString( &string, L"\\??\\Z:\\build-wine\\winetest_dinput_okfile" );
+    RtlInitUnicodeString( &string, L"\\??\\C:\\windows\\winetest_dinput_okfile" );
     return ZwOpenFile( &okfile, FILE_APPEND_DATA | SYNCHRONIZE, &attr, &io,
                        FILE_SHARE_READ | FILE_SHARE_WRITE, FILE_SYNCHRONOUS_IO_NONALERT );
 }

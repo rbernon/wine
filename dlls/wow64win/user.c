@@ -3108,16 +3108,6 @@ NTSTATUS WINAPI wow64_NtUserGetTitleBarInfo( UINT *args )
     return NtUserGetTitleBarInfo( hwnd, info );
 }
 
-NTSTATUS WINAPI wow64_NtUserGetTouchInputInfo( UINT *args )
-{
-    HTOUCHINPUT handle = get_handle( &args );
-    UINT count = get_ulong( &args );
-    TOUCHINPUT *ptr = get_ptr( &args );
-    int size = get_ulong( &args );
-
-    return NtUserGetTouchInputInfo( handle, count, ptr, size );
-}
-
 NTSTATUS WINAPI wow64_NtUserGetUpdateRect( UINT *args )
 {
     HWND hwnd = get_handle( &args );
@@ -3241,14 +3231,6 @@ NTSTATUS WINAPI wow64_NtUserIsClipboardFormatAvailable( UINT *args )
 NTSTATUS WINAPI wow64_NtUserIsMouseInPointerEnabled( UINT *args )
 {
     return NtUserIsMouseInPointerEnabled();
-}
-
-NTSTATUS WINAPI wow64_NtUserIsTouchWindow( UINT *args )
-{
-    HWND hwnd = get_handle( &args );
-    ULONG *flags = get_ptr( &args );
-
-    return NtUserIsTouchWindow( hwnd, flags );
 }
 
 NTSTATUS WINAPI wow64_NtUserKillTimer( UINT *args )
