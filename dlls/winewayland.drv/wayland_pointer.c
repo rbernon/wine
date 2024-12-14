@@ -598,7 +598,7 @@ static void wayland_pointer_update_cursor_surface(double scale)
      * support wp_viewport for cursor surfaces, so also set the buffer
      * scale. Note that setting the viewport destination overrides
      * the buffer scale, so it's fine to set both. */
-    wl_surface_set_buffer_scale(cursor->wl_surface, max(1, round(scale)));
+    wl_surface_set_buffer_scale(cursor->wl_surface, round(scale));
     wp_viewport_set_destination(cursor->wp_viewport,
                                 round(cursor->shm_buffer->width / scale),
                                 round(cursor->shm_buffer->height / scale));
