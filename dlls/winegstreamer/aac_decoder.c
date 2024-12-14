@@ -75,10 +75,7 @@ static struct aac_decoder *impl_from_IMFTransform(IMFTransform *iface)
 
 static HRESULT try_create_wg_transform(struct aac_decoder *decoder)
 {
-    struct wg_transform_attrs attrs =
-    {
-        .input_queue_length = 7,
-    };
+    struct wg_transform_attrs attrs = {0};
 
     if (decoder->wg_transform)
     {
@@ -523,18 +520,7 @@ static HRESULT WINAPI transform_ProcessEvent(IMFTransform *iface, DWORD id, IMFM
 
 static HRESULT WINAPI transform_ProcessMessage(IMFTransform *iface, MFT_MESSAGE_TYPE message, ULONG_PTR param)
 {
-    struct audio_decoder *decoder = impl_from_IMFTransform(iface);
-
-    TRACE("iface %p, message %#x, param %p.\n", iface, message, (void *)param);
-
-    if (!decoder->wg_transform)
-        return MF_E_TRANSFORM_TYPE_NOT_SET;
-
-    if (message == MFT_MESSAGE_COMMAND_DRAIN)
-        return wg_transform_drain(decoder->wg_transform);
-
-    FIXME("Ignoring message %#x.\n", message);
-
+    FIXME("iface %p, message %#x, param %p stub!\n", iface, message, (void *)param);
     return S_OK;
 }
 
