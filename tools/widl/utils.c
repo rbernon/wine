@@ -19,6 +19,8 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
+#include "config.h"
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -39,7 +41,7 @@ void error_at( const struct location *where, const char *s, ... )
     vsnprintf( buffer, sizeof(buffer), s, ap );
     va_end( ap );
 
-    parser_error_( where, NULL, buffer, 0 );
+    parser_error_( where, buffer, 0 );
     exit( 1 );
 }
 
@@ -71,7 +73,19 @@ void warning_at( const struct location *where, const char *s, ... )
     vsnprintf( buffer, sizeof(buffer), s, ap );
     va_end( ap );
 
-    parser_warning( where, NULL, buffer );
+    parser_warning( where, buffer );
+}
+
+void chat(const char *s, ...)
+{
+	if(debuglevel & DEBUGLEVEL_CHAT)
+	{
+		va_list ap;
+		va_start(ap, s);
+		fprintf(stderr, "chat: ");
+		vfprintf(stderr, s, ap);
+		va_end(ap);
+	}
 }
 
 size_t widl_getline(char **linep, size_t *lenp, FILE *fp)
@@ -103,20 +117,20 @@ size_t widl_getline(char **linep, size_t *lenp, FILE *fp)
     return n;
 }
 
-void strappend( struct strbuf *str, const char *fmt, ... )
+size_t strappend(char **buf, size_t *len, size_t pos, const char* fmt, ...)
 {
     size_t size;
     va_list ap;
     char *ptr;
     int n;
 
-    assert( (str->len == 0 && str->buf == NULL) ||
-            (str->len != 0 && str->buf != NULL) );
+    assert( buf && len );
+    assert( (*len == 0 && *buf == NULL) || (*len != 0 && *buf != NULL) );
 
-    if (str->buf)
+    if (*buf)
     {
-        size = str->len;
-        ptr = str->buf;
+        size = *len;
+        ptr = *buf;
     }
     else
     {
@@ -127,17 +141,17 @@ void strappend( struct strbuf *str, const char *fmt, ... )
     for (;;)
     {
         va_start( ap, fmt );
-        n = vsnprintf( ptr + str->pos, size - str->pos, fmt, ap );
+        n = vsnprintf( ptr + pos, size - pos, fmt, ap );
         va_end( ap );
         if (n == -1) size *= 2;
-        else if (str->pos + (size_t)n >= size) size = str->pos + n + 1;
+        else if (pos + (size_t)n >= size) size = pos + n + 1;
         else break;
         ptr = xrealloc( ptr, size );
     }
 
-    str->len = size;
-    str->buf = ptr;
-    str->pos += n;
+    *len = size;
+    *buf = ptr;
+    return n;
 }
 
 /*******************************************************************
@@ -244,46 +258,21 @@ void put_pword( unsigned int val )
     else put_dword( val );
 }
 
-static int make_indent( const char *format )
+void put_str( int indent, const char *format, ... )
 {
-    static int level;
-    char *out = (char *)output_buffer + output_buffer_pos;
     int n;
-
-    if (output_buffer_pos <= 1 || out[-1] != '\n') return 0;
-    if (output_buffer_pos >= 13 && !strcmp( out - 13, "extern \"C\" {\n" )) return 0;
-    if (!strcmp( out - 2, "{\n" ) || !strcmp( out - 2, "(\n" ) || !strcmp( out - 2, "[\n" )) level++;
-
-    if (!strcmp( format, "} /* extern \"C\" */\n" )) return 0;
-    if (!(n = strlen( format )) || !strcmp( format, "\n" )) return 0;
-    if (format[0] == '}' || format[0] == ')' || format[0] == ']') level--;
-
-    if (level < 0) level = 0;
-    return level;
-}
-
-void put_str( const char *format, ... )
-{
-    const char *tmp = format;
-    int n, indent;
     va_list args;
 
-    while (*tmp == ' ') tmp++;
-    indent = make_indent( tmp );
-
-    if (*format != ' ')
-    {
-        check_output_buffer_space( 4 * indent );
-        memset( output_buffer + output_buffer_pos, ' ', 4 * indent );
-        output_buffer_pos += 4 * indent;
-    }
+    check_output_buffer_space( 4 * indent );
+    memset( output_buffer + output_buffer_pos, ' ', 4 * indent );
+    output_buffer_pos += 4 * indent;
 
     for (;;)
     {
         size_t size = output_buffer_size - output_buffer_pos;
         va_start( args, format );
-        n = vsnprintf( (char *)output_buffer + output_buffer_pos, size, format, args );
-        va_end( args );
+	n = vsnprintf( (char *)output_buffer + output_buffer_pos, size, format, args );
+	va_end( args );
         if (n == -1) size *= 2;
         else if ((size_t)n >= size) size = n + 1;
         else
