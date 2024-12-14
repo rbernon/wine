@@ -362,7 +362,7 @@ static inline HWND get_active_window(void)
  *
  * Check if a given window should be managed
  */
-static BOOL is_window_managed(HWND hwnd, UINT swp_flags, const RECT *window_rect, UINT dpi)
+static BOOL is_window_managed(HWND hwnd, UINT swp_flags, const RECT *window_rect)
 {
     DWORD style, ex_style;
 
@@ -378,10 +378,18 @@ static BOOL is_window_managed(HWND hwnd, UINT swp_flags, const RECT *window_rect
     if (style & WS_THICKFRAME) return TRUE;
     if (style & WS_POPUP)
     {
+        HMONITOR hmon;
+        MONITORINFO mi;
+
         /* popup with sysmenu == caption are managed */
         if (style & WS_SYSMENU) return TRUE;
         /* full-screen popup windows are managed */
-        if (NtUserIsWindowRectFullScreen(window_rect, dpi)) return TRUE;
+        hmon = NtUserMonitorFromWindow(hwnd, MONITOR_DEFAULTTOPRIMARY);
+        mi.cbSize = sizeof(mi);
+        NtUserGetMonitorInfo(hmon, &mi);
+        if (window_rect->left <= mi.rcWork.left && window_rect->right >= mi.rcWork.right &&
+            window_rect->top <= mi.rcWork.top && window_rect->bottom >= mi.rcWork.bottom)
+            return TRUE;
     }
     /* application windows are managed */
     ex_style = NtUserGetWindowLongW(hwnd, GWL_EXSTYLE);
@@ -748,7 +756,7 @@ struct wayland_client_surface *get_client_surface(HWND hwnd)
     return client;
 }
 
-BOOL set_window_surface_contents(HWND hwnd, struct wayland_shm_buffer *shm_buffer, const RECT *dirty)
+BOOL set_window_surface_contents(HWND hwnd, struct wayland_shm_buffer *shm_buffer, HRGN damage_region)
 {
     struct wayland_surface *wayland_surface;
     struct wayland_win_data *data;
@@ -758,23 +766,9 @@ BOOL set_window_surface_contents(HWND hwnd, struct wayland_shm_buffer *shm_buffe
 
     if ((wayland_surface = data->wayland_surface))
     {
-        if (wayland_surface_reconfigure(wayland_surface, data->client_surface))
+        if (wayland_surface_reconfigure(wayland_surface))
         {
-            shm_buffer->busy = TRUE;
-            wayland_shm_buffer_ref(shm_buffer);
-
-            wl_surface_attach(wayland_surface->wl_surface, shm_buffer->wl_buffer, 0, 0);
-
-            /* Add surface damage, i.e., which parts of the surface have changed since
-             * the last surface commit. Note that this is different from the buffer
-             * damage region. */
-            wl_surface_damage_buffer(wayland_surface->wl_surface,
-                                     dirty->left, dirty->top,
-                                     dirty->right - dirty->left,
-                                     dirty->bottom - dirty->top);
-            wayland_surface->buffer_width = shm_buffer->width;
-            wayland_surface->buffer_height = shm_buffer->height;
-
+            wayland_surface_attach_shm(wayland_surface, shm_buffer, damage_region);
             wl_surface_commit(wayland_surface->wl_surface);
             committed = TRUE;
         }

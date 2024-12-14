@@ -29,7 +29,6 @@
 #define WIN32_NO_STATUS
 #include "ntgdi_private.h"
 #include "ntuser_private.h"
-#include "dibdrv/dibdrv.h"
 #include "wine/server.h"
 #include "wine/debug.h"
 
@@ -77,9 +76,9 @@ static void dummy_surface_destroy( struct window_surface *window_surface )
 
 static const struct window_surface_funcs dummy_surface_funcs =
 {
-    .set_clip = dummy_surface_set_clip,
-    .flush = dummy_surface_flush,
-    .destroy = dummy_surface_destroy
+    dummy_surface_set_clip,
+    dummy_surface_flush,
+    dummy_surface_destroy
 };
 
 struct window_surface dummy_surface =
@@ -111,9 +110,9 @@ static void offscreen_window_surface_destroy( struct window_surface *surface )
 
 static const struct window_surface_funcs offscreen_window_surface_funcs =
 {
-    .set_clip = offscreen_window_surface_set_clip,
-    .flush = offscreen_window_surface_flush,
-    .destroy = offscreen_window_surface_destroy
+    offscreen_window_surface_set_clip,
+    offscreen_window_surface_flush,
+    offscreen_window_surface_destroy
 };
 
 static void create_offscreen_window_surface( HWND hwnd, const RECT *surface_rect, struct window_surface **window_surface )
@@ -219,9 +218,9 @@ static void scaled_surface_destroy( struct window_surface *window_surface )
 
 static const struct window_surface_funcs scaled_surface_funcs =
 {
-    .set_clip = scaled_surface_set_clip,
-    .flush = scaled_surface_flush,
-    .destroy = scaled_surface_destroy
+    scaled_surface_set_clip,
+    scaled_surface_flush,
+    scaled_surface_destroy
 };
 
 static void scaled_surface_set_target( struct scaled_surface *surface, struct window_surface *target, UINT dpi_to )
@@ -554,7 +553,7 @@ W32KAPI struct window_surface *window_surface_create( UINT size, const struct wi
     return surface;
 }
 
-void window_surface_add_ref( struct window_surface *surface )
+W32KAPI void window_surface_add_ref( struct window_surface *surface )
 {
     InterlockedIncrement( &surface->ref );
 }
@@ -573,54 +572,34 @@ W32KAPI void window_surface_release( struct window_surface *surface )
     }
 }
 
-HBITMAP window_surface_lock_write( struct window_surface *surface, struct dib *dib )
-{
-    BITMAPOBJ *bmp;
-
-    window_surface_lock( surface );
-
-    if ((bmp = GDI_GetObjPtr( surface->color_bitmap, NTGDI_OBJ_BITMAP )))
-    {
-        init_dib_from_bitmapobj( dib, bmp );
-        GDI_ReleaseObj( surface->color_bitmap );
-    }
-    else
-    {
-        static BITMAPINFO info = {.bmiHeader = {.biSize = sizeof(info.bmiHeader), .biWidth = 1, .biHeight = 1,
-                                                .biPlanes = 1, .biBitCount = 32, .biCompression = BI_RGB}};
-        static DWORD dummy_data;
-
-        init_dib_from_bitmapinfo( dib, &info, &dummy_data );
-    }
-
-    return surface->color_bitmap;
-}
-
-void window_surface_unlock_write( struct window_surface *surface, struct dib *dib )
-{
-    dib->bits.ptr = NULL;
-    window_surface_unlock( surface );
-}
-
-void window_surface_lock( struct window_surface *surface )
+W32KAPI void window_surface_lock( struct window_surface *surface )
 {
     if (surface == &dummy_surface) return;
     pthread_mutex_lock( &surface->mutex );
 }
 
-void window_surface_unlock( struct window_surface *surface )
+W32KAPI void window_surface_unlock( struct window_surface *surface )
 {
     if (surface == &dummy_surface) return;
     pthread_mutex_unlock( &surface->mutex );
 }
 
-static void *window_surface_get_color( struct window_surface *surface, BITMAPINFO *info )
+void *window_surface_get_color( struct window_surface *surface, BITMAPINFO *info )
 {
     struct bitblt_coords coords = {0};
     struct gdi_image_bits gdi_bits;
     BITMAPOBJ *bmp;
 
-    if (surface == &dummy_surface) return NULL;
+    if (surface == &dummy_surface)
+    {
+        static BITMAPINFOHEADER header = {.biSize = sizeof(header), .biWidth = 1, .biHeight = 1,
+                                          .biPlanes = 1, .biBitCount = 32, .biCompression = BI_RGB};
+        static DWORD dummy_data;
+
+        info->bmiHeader = header;
+        return &dummy_data;
+    }
+
     if (!(bmp = GDI_GetObjPtr( surface->color_bitmap, NTGDI_OBJ_BITMAP ))) return NULL;
     get_image_from_bitmap( bmp, info, &gdi_bits, &coords );
     GDI_ReleaseObj( surface->color_bitmap );
@@ -628,7 +607,7 @@ static void *window_surface_get_color( struct window_surface *surface, BITMAPINF
     return gdi_bits.ptr;
 }
 
-void window_surface_flush( struct window_surface *surface )
+W32KAPI void window_surface_flush( struct window_surface *surface )
 {
     char color_buf[FIELD_OFFSET( BITMAPINFO, bmiColors[256] )];
     char shape_buf[FIELD_OFFSET( BITMAPINFO, bmiColors[256] )];
@@ -663,7 +642,7 @@ void window_surface_flush( struct window_surface *surface )
     window_surface_unlock( surface );
 }
 
-void window_surface_set_layered( struct window_surface *surface, COLORREF color_key, UINT alpha_bits, UINT alpha_mask )
+W32KAPI void window_surface_set_layered( struct window_surface *surface, COLORREF color_key, UINT alpha_bits, UINT alpha_mask )
 {
     char color_buf[FIELD_OFFSET( BITMAPINFO, bmiColors[256] )];
     BITMAPINFO *color_info = (BITMAPINFO *)color_buf;
@@ -692,7 +671,7 @@ void window_surface_set_layered( struct window_surface *surface, COLORREF color_
     window_surface_unlock( surface );
 }
 
-void window_surface_set_clip( struct window_surface *surface, HRGN clip_region )
+W32KAPI void window_surface_set_clip( struct window_surface *surface, HRGN clip_region )
 {
     window_surface_lock( surface );
 
@@ -1692,13 +1671,12 @@ void move_window_bits_surface( HWND hwnd, const RECT *window_rect, struct window
     OffsetRect( &dst, -window_rect->left, -window_rect->top );
 
     window_surface_lock( old_surface );
-    if ((bits = window_surface_get_color( old_surface, info )))
-        NtGdiSetDIBitsToDeviceInternal( hdc, dst.left, dst.top, dst.right - dst.left, dst.bottom - dst.top,
-                                        src.left - old_surface->rect.left, old_surface->rect.bottom - src.bottom,
-                                        0, old_surface->rect.bottom - old_surface->rect.top,
-                                        bits, info, DIB_RGB_COLORS, 0, 0, FALSE, NULL );
+    bits = window_surface_get_color( old_surface, info );
+    NtGdiSetDIBitsToDeviceInternal( hdc, dst.left, dst.top, dst.right - dst.left, dst.bottom - dst.top,
+                                    src.left - old_surface->rect.left, old_surface->rect.bottom - src.bottom,
+                                    0, old_surface->rect.bottom - old_surface->rect.top,
+                                    bits, info, DIB_RGB_COLORS, 0, 0, FALSE, NULL );
     window_surface_unlock( old_surface );
-
     NtUserReleaseDC( hwnd, hdc );
 }
 
