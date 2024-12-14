@@ -75,10 +75,6 @@ static void flush_events(void)
     int min_timeout = 50;
     DWORD time = GetTickCount() + diff;
 
-    while (PeekMessageA(&msg, 0, 0, 0, PM_REMOVE))
-        DispatchMessageA(&msg);
-    return;
-
     while (diff > 0)
     {
         if (MsgWaitForMultipleObjects( 0, NULL, FALSE, min_timeout, QS_ALLINPUT ) == WAIT_TIMEOUT) break;
