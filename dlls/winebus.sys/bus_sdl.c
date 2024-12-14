@@ -677,7 +677,7 @@ static NTSTATUS sdl_device_physical_effect_update(struct unix_device *iface, BYT
     case PID_USAGE_ET_SAWTOOTH_UP:
     case PID_USAGE_ET_SAWTOOTH_DOWN:
         effect.periodic.length = (params->duration == 0xffff ? SDL_HAPTIC_INFINITY : params->duration);
-        effect.periodic.delay = params->start_delay > 100 ? 0 : params->start_delay;
+        effect.periodic.delay = params->start_delay;
         effect.periodic.button = params->trigger_button;
         effect.periodic.interval = params->trigger_repeat_interval;
         effect.periodic.direction.type = SDL_HAPTIC_SPHERICAL;
@@ -698,7 +698,7 @@ static NTSTATUS sdl_device_physical_effect_update(struct unix_device *iface, BYT
     case PID_USAGE_ET_INERTIA:
     case PID_USAGE_ET_FRICTION:
         effect.condition.length = (params->duration == 0xffff ? SDL_HAPTIC_INFINITY : params->duration);
-        effect.condition.delay = params->start_delay > 100 ? 0 : params->start_delay;
+        effect.condition.delay = params->start_delay;
         effect.condition.button = params->trigger_button;
         effect.condition.interval = params->trigger_repeat_interval;
         effect.condition.direction.type = SDL_HAPTIC_SPHERICAL;
@@ -726,7 +726,7 @@ static NTSTATUS sdl_device_physical_effect_update(struct unix_device *iface, BYT
 
     case PID_USAGE_ET_CONSTANT_FORCE:
         effect.constant.length = (params->duration == 0xffff ? SDL_HAPTIC_INFINITY : params->duration);
-        effect.constant.delay = params->start_delay > 100 ? 0 : params->start_delay;
+        effect.constant.delay = params->start_delay;
         effect.constant.button = params->trigger_button;
         effect.constant.interval = params->trigger_repeat_interval;
         effect.constant.direction.type = SDL_HAPTIC_SPHERICAL;
@@ -743,7 +743,7 @@ static NTSTATUS sdl_device_physical_effect_update(struct unix_device *iface, BYT
      * support SDL_HAPTIC_INFINITY. */
     case PID_USAGE_ET_RAMP:
         effect.ramp.length = params->duration;
-        effect.ramp.delay = params->start_delay > 100 ? 0 : params->start_delay;
+        effect.ramp.delay = params->start_delay;
         effect.ramp.button = params->trigger_button;
         effect.ramp.interval = params->trigger_repeat_interval;
         effect.ramp.direction.type = SDL_HAPTIC_SPHERICAL;
