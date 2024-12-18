@@ -865,8 +865,12 @@ static void update_visible_region( struct dce *dce )
         win = get_win_ptr( top_win );
         if (win && win != WND_DESKTOP && win != WND_OTHER_PROCESS)
         {
-            surface = win->surface;
-            if (surface) window_surface_add_ref( surface );
+            /* don't use a surface to paint the client area of Vulkan windows */
+            if (list_empty( &win->vulkan_surfaces ) || (flags & DCX_WINDOW))
+            {
+                surface = win->surface;
+                if (surface) window_surface_add_ref( surface );
+            }
             release_win_ptr( win );
         }
     }
