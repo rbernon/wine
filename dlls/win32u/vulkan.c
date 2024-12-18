@@ -652,6 +652,22 @@ static void vulkan_init_once(void)
     vulkan_funcs.p_vkGetDeviceProcAddr = p_vkGetDeviceProcAddr;
 }
 
+void vulkan_update_surfaces( HWND hwnd )
+{
+    struct surface *surface;
+    struct rb_entry *ptr;
+
+    pthread_mutex_lock( &window_surfaces_lock );
+
+    if ((ptr = rb_get( &window_surfaces, hwnd )))
+    {
+        surface = RB_ENTRY_VALUE( ptr, struct surface, window_entry );
+        driver_funcs->p_vulkan_surface_update( surface->hwnd, surface->driver_private );
+    }
+
+    pthread_mutex_unlock( &window_surfaces_lock );
+}
+
 void vulkan_detach_surfaces( struct list *surfaces )
 {
     struct surface *surface, *next;

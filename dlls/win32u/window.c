@@ -4600,6 +4600,7 @@ void update_window_state( HWND hwnd )
     if (surface) window_surface_release( surface );
 
     set_thread_dpi_awareness_context( context );
+    vulkan_update_surfaces( hwnd );
 }
 
 /***********************************************************************
