@@ -45,10 +45,6 @@
 
 #include "wglgears_private.h"
 
-#include "wine/debug.h"
-
-WINE_DEFAULT_DEBUG_CHANNEL(test);
-
 BOOL verbose = FALSE;
 static HWND vulkan_parent;
 static HWND vulkan_child;
@@ -159,7 +155,7 @@ int main( int argc, char *argv[] )
     INT i, samples = 0;
     HWND parent = 0;
 
-    for (i = 1; 0 && i < argc; i++)
+    for (i = 1; i < argc; i++)
     {
         if (strcmp( argv[i], "-info" ) == 0)
         {
@@ -210,28 +206,24 @@ if (0)
     parent = vulkan_parent;
 }
 
-if (argc == 1)
+if (1)
 {
     opengl_parent = opengl_create_window( L"OpenGL (parent)", &geometry, fullscreen, samples, use_srgb );
-    SetWindowLongW( opengl_parent, GWL_STYLE, GetWindowLongW( opengl_parent, GWL_STYLE ) | WS_CLIPCHILDREN );
     ShowWindow( opengl_parent, SW_SHOW );
     parent = opengl_parent;
 }
 
-if (0)
+if (1)
 {
     gdi_parent = gdi_create_window( L"GDI (parent)", &geometry, fullscreen, FALSE );
     ShowWindow( gdi_parent, SW_SHOW );
     parent = gdi_parent;
 }
 
-if (argc == 2) parent = (HWND)(UINT_PTR)strtoll( argv[1], NULL, 16 );
-else ERR("parent %p\n", parent);
-
     InflateRect( &geometry, -200, -100 );
     OffsetRect( &geometry, -geometry.left, -geometry.top );
 
-if (argc == 2)
+if (1)
 {
     opengl_child = opengl_create_window( L"OpenGL (child)", &geometry, fullscreen, samples, use_srgb );
     SetWindowLongW( opengl_child, GWL_STYLE, GetWindowLongW( opengl_child, GWL_STYLE ) | WS_CHILD );
@@ -240,7 +232,7 @@ if (argc == 2)
     OffsetRect( &geometry, geometry.right, 0 );
 }
 
-if (0)
+if (1)
 {
     gdi_child = gdi_create_window( L"GDI (child)", &geometry, fullscreen, FALSE );
     SetWindowLongW( gdi_child, GWL_STYLE, GetWindowLongW( gdi_child, GWL_STYLE ) | WS_CHILD );
@@ -257,7 +249,7 @@ if (0)
     ShowWindow( vulkan_child, SW_SHOW );
 }
 
-if (0)
+if (1)
 {
     HRGN hrgn, tmp;
     gdi_region = gdi_create_window( L"GDI (region)", &geometry, fullscreen, FALSE );
@@ -271,7 +263,7 @@ if (0)
     DeleteObject( hrgn );
 }
 
-if (0)
+if (1)
 {
     gdi_keyed = gdi_create_window( L"GDI (keyed)", &geometry, fullscreen, FALSE );
     ShowWindow( gdi_keyed, SW_SHOW );
@@ -279,7 +271,7 @@ if (0)
     SetLayeredWindowAttributes( gdi_keyed, 0, 0, LWA_COLORKEY );
 }
 
-if (0)
+if (1)
 {
     gdi_alpha = gdi_create_window( L"GDI (alpha)", &geometry, fullscreen, FALSE );
     ShowWindow( gdi_alpha, SW_SHOW );
@@ -287,7 +279,7 @@ if (0)
     SetLayeredWindowAttributes( gdi_alpha, 0, 255 * 70 / 100, LWA_ALPHA );
 }
 
-if (0)
+if (1)
 {
     HRGN hrgn, tmp;
     gdi_layered = gdi_create_window( L"GDI (layered)", &geometry, fullscreen, TRUE );
