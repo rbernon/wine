@@ -45,11 +45,17 @@
 
 #include "wglgears_private.h"
 
+#include "wine/debug.h"
+
+WINE_DEFAULT_DEBUG_CHANNEL(test);
+
 BOOL verbose = FALSE;
 static HWND vulkan_parent;
 static HWND vulkan_child;
+static HWND opengl_offscreen;
 static HWND opengl_parent;
 static HWND opengl_child;
+static HWND gdi_offscreen;
 static HWND gdi_child;
 static HWND gdi_parent;
 static HWND gdi_layered;
@@ -73,6 +79,53 @@ double current_time(void)
     return timeGetTime() / 1000.0;
 }
 
+static inline void dump_hdc( const char *path, HDC hdc, RECT rect )
+{
+    UINT width = rect.right - rect.left, height = rect.bottom - rect.top;
+    BITMAPFILEHEADER header = {.bfType = 0x4d42};
+    BITMAPINFO info = {0};
+    char *bits = NULL;
+    HBITMAP bitmap;
+    FILE *file;
+    HDC memdc;
+
+    info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    info.bmiHeader.biWidth = width;
+    info.bmiHeader.biHeight = -height;
+    info.bmiHeader.biPlanes = 1;
+    info.bmiHeader.biBitCount = 32;
+    info.bmiHeader.biCompression = BI_RGB;
+    info.bmiHeader.biSizeImage = width * height * 4;
+
+    header.bfSize = sizeof(header) + sizeof(info) + info.bmiHeader.biSizeImage;
+    header.bfOffBits = sizeof(header);
+
+    memdc = CreateCompatibleDC( hdc );
+    bitmap = CreateDIBSection( hdc, &info, DIB_RGB_COLORS, (void **)&bits, NULL, 0 );
+    SelectObject( memdc, bitmap );
+    BitBlt( memdc, 0, 0, width, height, hdc, rect.left, rect.top, SRCCOPY );
+    DeleteObject( memdc );
+
+    file = fopen( path, "w" );
+    fwrite( &header, sizeof(header), 1, file );
+    fwrite( &info.bmiHeader, sizeof(info.bmiHeader), 1, file );
+    fwrite( bits, 1, info.bmiHeader.biSizeImage, file );
+    fclose( file );
+
+    DeleteObject( bitmap );
+}
+
+static inline void dump_hwnd( const char *path, HWND hwnd )
+{
+    RECT rect;
+    HDC hdc;
+
+    hdc = GetDCEx( hwnd, 0, DCX_CACHE | DCX_USESTYLE );
+    GetClientRect( hwnd, &rect );
+    dump_hdc( path, hdc, rect );
+    ReleaseDC( hwnd, hdc );
+}
+
 static void event_loop(void)
 {
     TIMECAPS tc;
@@ -90,11 +143,19 @@ static void event_loop(void)
             DispatchMessageW( &msg );
         }
 
+        if (opengl_offscreen) opengl_draw_frame( opengl_offscreen );
         if (opengl_parent) opengl_draw_frame( opengl_parent );
         if (opengl_child) opengl_draw_frame( opengl_child );
         if (vulkan_parent) vulkan_draw_frame( vulkan_parent );
         if (vulkan_child) vulkan_draw_frame( vulkan_child );
         if (gdi_layered) gdi_draw_layered( gdi_layered );
+
+Sleep(1000);
+        dump_hwnd( "/tmp/gdi-parent.bmp", gdi_parent );
+        dump_hwnd( "/tmp/gl-parent.bmp", opengl_parent );
+        dump_hwnd( "/tmp/gdi-offscreen.bmp", gdi_offscreen );
+        dump_hwnd( "/tmp/gl-offscreen.bmp", opengl_offscreen );
+ERR("dumped\n");
     }
 
 done:
@@ -210,6 +271,7 @@ if (1)
 {
     opengl_parent = opengl_create_window( L"OpenGL (parent)", &geometry, fullscreen, samples, use_srgb );
     ShowWindow( opengl_parent, SW_SHOW );
+ERR("opengl_parent %p\n", opengl_parent);
     parent = opengl_parent;
 }
 
@@ -217,13 +279,34 @@ if (1)
 {
     gdi_parent = gdi_create_window( L"GDI (parent)", &geometry, fullscreen, FALSE );
     ShowWindow( gdi_parent, SW_SHOW );
+ERR("gdi_parent %p\n", gdi_parent);
     parent = gdi_parent;
 }
+
+
+
+if (1)
+{
+    OffsetRect( &geometry, -1920 - geometry.left, -1080 - geometry.top );
+    opengl_offscreen = opengl_create_window( L"OpenGL (offscreen)", &geometry, fullscreen, samples, use_srgb );
+    SetWindowPos( opengl_offscreen, 0, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE );
+ERR("opengl_offscreen %p\n", opengl_offscreen);
+}
+
+if (1)
+{
+    OffsetRect( &geometry, -1920 - geometry.left, -1080 - geometry.top );
+    gdi_offscreen = gdi_create_window( L"GDI (offscreen)", &geometry, fullscreen, FALSE );
+    SetWindowPos( gdi_offscreen, 0, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE );
+ERR("gdi_offscreen %p\n", gdi_offscreen);
+}
+
+
 
     InflateRect( &geometry, -200, -100 );
     OffsetRect( &geometry, -geometry.left, -geometry.top );
 
-if (1)
+if (0)
 {
     opengl_child = opengl_create_window( L"OpenGL (child)", &geometry, fullscreen, samples, use_srgb );
     SetWindowLongW( opengl_child, GWL_STYLE, GetWindowLongW( opengl_child, GWL_STYLE ) | WS_CHILD );
@@ -232,7 +315,7 @@ if (1)
     OffsetRect( &geometry, geometry.right, 0 );
 }
 
-if (1)
+if (0)
 {
     gdi_child = gdi_create_window( L"GDI (child)", &geometry, fullscreen, FALSE );
     SetWindowLongW( gdi_child, GWL_STYLE, GetWindowLongW( gdi_child, GWL_STYLE ) | WS_CHILD );
@@ -249,7 +332,7 @@ if (0)
     ShowWindow( vulkan_child, SW_SHOW );
 }
 
-if (1)
+if (0)
 {
     HRGN hrgn, tmp;
     gdi_region = gdi_create_window( L"GDI (region)", &geometry, fullscreen, FALSE );
@@ -263,7 +346,7 @@ if (1)
     DeleteObject( hrgn );
 }
 
-if (1)
+if (0)
 {
     gdi_keyed = gdi_create_window( L"GDI (keyed)", &geometry, fullscreen, FALSE );
     ShowWindow( gdi_keyed, SW_SHOW );
@@ -271,7 +354,7 @@ if (1)
     SetLayeredWindowAttributes( gdi_keyed, 0, 0, LWA_COLORKEY );
 }
 
-if (1)
+if (0)
 {
     gdi_alpha = gdi_create_window( L"GDI (alpha)", &geometry, fullscreen, FALSE );
     ShowWindow( gdi_alpha, SW_SHOW );
@@ -279,7 +362,7 @@ if (1)
     SetLayeredWindowAttributes( gdi_alpha, 0, 255 * 70 / 100, LWA_ALPHA );
 }
 
-if (1)
+if (0)
 {
     HRGN hrgn, tmp;
     gdi_layered = gdi_create_window( L"GDI (layered)", &geometry, fullscreen, TRUE );
