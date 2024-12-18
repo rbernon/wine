@@ -626,7 +626,8 @@ struct x11drv_win_data
     Colormap    whole_colormap; /* colormap if non-default visual */
     HWND        hwnd;           /* hwnd that this private data belongs to */
     Window      whole_window;   /* X window for the complete window */
-    Window      client_window;  /* X window for the client area */
+    Window      client_window;  /* X window for the onscreen client area */
+    Window      offscreen_client; /* X window for the offscreen client area */
     struct window_rects rects;  /* window rects in monitor DPI, relative to parent client area */
     struct host_window *parent; /* the host window parent, frame or embedder, NULL if root_window */
     XIC         xic;            /* X input context */
