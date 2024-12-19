@@ -222,7 +222,6 @@ static void X11DRV_vulkan_surface_presented( HWND hwnd, void *private, VkResult 
 {
     struct x11drv_vulkan_surface *surface = private;
     HWND toplevel = NtUserGetAncestor( hwnd, GA_ROOT );
-    struct x11drv_win_data *data;
     RECT rect_dst, rect;
     Drawable window;
     HRGN region;
@@ -233,18 +232,8 @@ static void X11DRV_vulkan_surface_presented( HWND hwnd, void *private, VkResult 
 
     if (!surface->offscreen) return;
     if (!(hdc = NtUserGetDCEx( hwnd, 0, DCX_CACHE | DCX_USESTYLE ))) return;
-    window = X11DRV_get_whole_window( toplevel );
+    window = get_onscreen_drawable( hwnd, toplevel, &rect_dst );
     region = get_dc_monitor_region( hwnd, hdc );
-
-    NtUserGetClientRect( hwnd, &rect_dst, NtUserGetWinMonitorDpi( hwnd, MDT_RAW_DPI ) );
-    NtUserMapWindowPoints( hwnd, toplevel, (POINT *)&rect_dst, 2, NtUserGetWinMonitorDpi( hwnd, MDT_RAW_DPI ) );
-
-    if ((data = get_win_data( toplevel )))
-    {
-        OffsetRect( &rect_dst, data->rects.client.left - data->rects.visible.left,
-                    data->rects.client.top - data->rects.visible.top );
-        release_win_data( data );
-    }
 
     if (get_dc_drawable( surface->hdc_dst, &rect ) != window || !EqualRect( &rect, &rect_dst ))
         set_dc_drawable( surface->hdc_dst, window, &rect_dst, IncludeInferiors );

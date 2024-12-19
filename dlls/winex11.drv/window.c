@@ -2721,6 +2721,27 @@ Window X11DRV_get_whole_window( HWND hwnd )
     return ret;
 }
 
+/* return the onscreen X drawable to be used when reading / writing pixels */
+Window get_onscreen_drawable( HWND hwnd, HWND toplevel, RECT *rect )
+{
+    struct x11drv_win_data *data;
+    Window window;
+
+    NtUserGetClientRect( hwnd, rect, NtUserGetWinMonitorDpi( hwnd, MDT_RAW_DPI ) );
+    NtUserMapWindowPoints( hwnd, toplevel, (POINT *)rect, 2, NtUserGetWinMonitorDpi( hwnd, MDT_RAW_DPI ) );
+
+    if ((data = get_win_data( toplevel )))
+    {
+        OffsetRect( rect, data->rects.client.left - data->rects.visible.left,
+                    data->rects.client.top - data->rects.visible.top );
+        window = data->whole_window;
+        release_win_data( data );
+        return window;
+    }
+
+    /* FIXME: apply visible / window rects offset */
+    return X11DRV_get_whole_window( toplevel );
+}
 
 /***********************************************************************
  *		X11DRV_GetDC   (X11DRV.@)
