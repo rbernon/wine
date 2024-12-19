@@ -1883,7 +1883,6 @@ static BOOL glxdrv_wglShareLists(struct wgl_context *org, struct wgl_context *de
 static void present_gl_drawable( HWND hwnd, HDC hdc, struct gl_drawable *gl, BOOL flush, BOOL gl_finish )
 {
     HWND toplevel = NtUserGetAncestor( hwnd, GA_ROOT );
-    struct x11drv_win_data *data;
     Drawable window, drawable;
     RECT rect_dst, rect;
     HRGN region;
@@ -1896,21 +1895,11 @@ static void present_gl_drawable( HWND hwnd, HDC hdc, struct gl_drawable *gl, BOO
     default: drawable = 0; break;
     }
     if (!drawable) return;
-    window = get_dc_drawable( hdc, &rect );
+    window = get_onscreen_drawable( hwnd, toplevel, &rect_dst );
     region = get_dc_monitor_region( hwnd, hdc );
 
     if (gl_finish) pglFinish();
     if (flush) XFlush( gdi_display );
-
-    NtUserGetClientRect( hwnd, &rect_dst, NtUserGetWinMonitorDpi( hwnd, MDT_RAW_DPI ) );
-    NtUserMapWindowPoints( hwnd, toplevel, (POINT *)&rect_dst, 2, NtUserGetWinMonitorDpi( hwnd, MDT_RAW_DPI ) );
-
-    if ((data = get_win_data( toplevel )))
-    {
-        OffsetRect( &rect_dst, data->rects.client.left - data->rects.visible.left,
-                    data->rects.client.top - data->rects.visible.top );
-        release_win_data( data );
-    }
 
     if (get_dc_drawable( gl->hdc_dst, &rect ) != window || !EqualRect( &rect, &rect_dst ))
         set_dc_drawable( gl->hdc_dst, window, &rect_dst, IncludeInferiors );
