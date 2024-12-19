@@ -154,6 +154,9 @@ static void free_dc_attr( DC_ATTR *dc_attr )
  */
 static void set_initial_dc_state( DC *dc )
 {
+    if (dc->dce && (dc->attr->wnd_ext.cx != 1 || dc->attr->wnd_ext.cy != 1)) dc->dirty = 1;
+    if (dc->dce && (dc->attr->vport_ext.cx != 1 || dc->attr->vport_ext.cy != 1)) dc->dirty = 1;
+
     dc->attr->wnd_org.x     = 0;
     dc->attr->wnd_org.y     = 0;
     dc->attr->wnd_ext.cx    = 1;
