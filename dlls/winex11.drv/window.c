@@ -1342,6 +1342,9 @@ static void window_set_config( struct x11drv_win_data *data, const RECT *new_rec
            wine_dbgstr_rect(new_rect), above, data->configure_serial );
     XReconfigureWMWindow( data->display, data->whole_window, data->vis.screen, mask, &changes );
 
+    /* don't wait for ConfigureNotify if only stack mode is requested */
+    if (mask == CWStackMode) data->configure_serial = 0;
+
     if (net_wm_state != -1) window_set_net_wm_state( data, net_wm_state );
 }
 
