@@ -210,7 +210,7 @@ void set_visible_region( HDC hdc, HRGN hrgn, const RECT *window_rect, const RECT
 
     if (!(dc = get_dc_ptr( hdc ))) return;
 
-    TRACE( "%p %p %s %s %p\n", hdc, hrgn,
+    ERR( "%p %p %s %s %p\n", hdc, hrgn,
            wine_dbgstr_rect(visible_rect), wine_dbgstr_rect(device_rect), surface );
 
     /* map region to DC coordinates */
