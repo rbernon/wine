@@ -1129,7 +1129,7 @@ static struct gl_drawable *create_gl_drawable( HWND hwnd, const struct glx_pixel
         gl->window = create_client_window( hwnd, visual, gl->colormap );
         if (gl->window)
             gl->drawable = pglXCreateWindow( gdi_display, gl->format->fbconfig, gl->window, NULL );
-        TRACE( "%p created client %lx drawable %lx\n", hwnd, gl->window, gl->drawable );
+        ERR( "%p created client %lx drawable %lx\n", hwnd, gl->window, gl->drawable );
     }
 #ifdef SONAME_LIBXCOMPOSITE
     else if(usexcomposite)
@@ -1157,7 +1157,7 @@ static struct gl_drawable *create_gl_drawable( HWND hwnd, const struct glx_pixel
             set_dc_drawable( gl->hdc_src, gl->window, &gl->rect, IncludeInferiors );
         }
 
-        TRACE( "%p created child %lx drawable %lx\n", hwnd, gl->window, gl->drawable );
+        ERR( "%p created child %lx drawable %lx\n", hwnd, gl->window, gl->drawable );
     }
 #endif
     else
@@ -1327,7 +1327,7 @@ void sync_gl_drawable( HWND hwnd, BOOL known_child )
         if (!(new = create_gl_drawable( hwnd, old->format, known_child, old->mutable_pf ))) break;
         mark_drawable_dirty( old, new );
         XFlush( gdi_display );
-        TRACE( "Recreated GL drawable %lx to replace %lx\n", new->drawable, old->drawable );
+        ERR( "Recreated GL drawable %lx to replace %lx\n", new->drawable, old->drawable );
         release_gl_drawable( new );
         break;
     default:
