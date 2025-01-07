@@ -178,7 +178,7 @@ struct vulkan_driver_funcs
     VkResult (*p_vulkan_surface_create)(HWND, VkInstance, VkSurfaceKHR *, void **);
     void (*p_vulkan_surface_destroy)(HWND, void *);
     void (*p_vulkan_surface_detach)(HWND, void *);
-    void (*p_vulkan_surface_update)(HWND, void *);
+    void (*p_vulkan_surface_update)(HWND, void *, BOOL);
     void (*p_vulkan_surface_presented)(HWND, void *, VkResult);
 
     VkBool32 (*p_vkGetPhysicalDeviceWin32PresentationSupportKHR)(VkPhysicalDevice, uint32_t);

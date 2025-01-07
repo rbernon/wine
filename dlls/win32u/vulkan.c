@@ -312,7 +312,7 @@ static VkResult win32u_vkCreateSwapchainKHR( VkDevice client_device, const VkSwa
     if (old_swapchain) create_info_host.oldSwapchain = old_swapchain->obj.host.swapchain;
 
     /* update the host surface to commit any pending size change */
-    driver_funcs->p_vulkan_surface_update( surface->hwnd, surface->driver_private );
+    driver_funcs->p_vulkan_surface_update( surface->hwnd, surface->driver_private, TRUE );
 
     /* Windows allows client rect to be empty, but host Vulkan often doesn't, adjust extents back to the host capabilities */
     res = instance->p_vkGetPhysicalDeviceSurfaceCapabilitiesKHR( physical_device->host.physical_device, surface->obj.host.surface, &capabilities );
@@ -523,7 +523,7 @@ static void nulldrv_vulkan_surface_detach( HWND hwnd, void *private )
 {
 }
 
-static void nulldrv_vulkan_surface_update( HWND hwnd, void *private )
+static void nulldrv_vulkan_surface_update( HWND hwnd, void *private, BOOL size_only )
 {
 }
 
@@ -591,10 +591,10 @@ static void lazydrv_vulkan_surface_detach( HWND hwnd, void *private )
     return driver_funcs->p_vulkan_surface_detach( hwnd, private );
 }
 
-static void lazydrv_vulkan_surface_update( HWND hwnd, void *private )
+static void lazydrv_vulkan_surface_update( HWND hwnd, void *private, BOOL size_only )
 {
     vulkan_driver_load();
-    return driver_funcs->p_vulkan_surface_update( hwnd, private );
+    return driver_funcs->p_vulkan_surface_update( hwnd, private, size_only );
 }
 
 static void lazydrv_vulkan_surface_presented( HWND hwnd, void *private, VkResult result )
