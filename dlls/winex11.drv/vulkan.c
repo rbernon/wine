@@ -216,6 +216,7 @@ static void X11DRV_vulkan_surface_update( HWND hwnd, void *private )
 
     vulkan_surface_update_size( hwnd, surface );
     vulkan_surface_update_offscreen( hwnd, surface );
+    XFlush( gdi_display );
 }
 
 static void X11DRV_vulkan_surface_presented( HWND hwnd, void *private, VkResult result )
