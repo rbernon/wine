@@ -1376,13 +1376,6 @@ static BOOL xrandr14_get_monitors( ULONG_PTR adapter_id, struct gdi_monitor **ne
             monitors[0] = monitors[primary_index];
             monitors[primary_index] = tmp;
         }
-
-        /* Make sure the primary monitor origin is at (0, 0) */
-        for (i = 0; i < monitor_count; i++)
-        {
-            OffsetRect( &monitors[i].rc_monitor, -primary_rect.left, -primary_rect.top );
-            OffsetRect( &monitors[i].rc_work, -primary_rect.left, -primary_rect.top );
-        }
     }
 
     *new_monitors = monitors;
@@ -1756,9 +1749,8 @@ static BOOL xrandr14_get_current_mode( x11drv_settings_id id, DEVMODEW *mode )
     mode->dmPelsHeight = crtc_info->height;
     mode->dmDisplayFlags = 0;
     mode->dmDisplayFrequency = get_frequency( mode_info );
-    /* Convert RandR coordinates to virtual screen coordinates */
-    mode->dmPosition.x = crtc_info->x - context->primary_rect.left;
-    mode->dmPosition.y = crtc_info->y - context->primary_rect.top;
+    mode->dmPosition.x = crtc_info->x;
+    mode->dmPosition.y = crtc_info->y;
     ret = TRUE;
 
 done:
