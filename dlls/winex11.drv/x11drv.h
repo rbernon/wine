@@ -792,6 +792,7 @@ void X11DRV_Settings_Init(void);
 
 void X11DRV_XF86VM_Init(void);
 void X11DRV_XRandR_Init(void);
+void xrandr_dump_device(void);
 void init_user_driver(void);
 
 /* X11 display device handler. Used to initialize display device registry data */

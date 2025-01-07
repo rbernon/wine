@@ -479,5 +479,9 @@ UINT X11DRV_UpdateDisplayDevices( const struct gdi_device_manager *device_manage
     }
 
     host_handler.free_gpus( gpus, gpu_count );
+
+    TRACE( "After enumeration:\n" );
+    xrandr_dump_device();
+
     return STATUS_SUCCESS;
 }
