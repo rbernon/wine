@@ -1168,7 +1168,7 @@ static void update_net_wm_fullscreen_monitors( struct x11drv_win_data *data )
     /* If the current display device handler cannot detect dynamic device changes, do not use
      * _NET_WM_FULLSCREEN_MONITORS because xinerama_get_fullscreen_monitors() may report wrong
      * indices because of stale xinerama monitor information */
-    if (!X11DRV_DisplayDevices_SupportEventHandlers())
+    if (!strcmp( host_handler.name, "Xinerama" ))
         return;
 
     if (!xinerama_get_fullscreen_monitors( &data->rects.visible, monitors ))
@@ -2493,7 +2493,6 @@ BOOL X11DRV_CreateWindow( HWND hwnd )
                                            CWOverrideRedirect | CWEventMask, &attr );
         XFlush( data->display );
         NtUserSetProp( hwnd, clip_window_prop, (HANDLE)data->clip_window );
-        X11DRV_DisplayDevices_RegisterEventHandlers();
     }
     return TRUE;
 }

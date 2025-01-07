@@ -67,6 +67,7 @@ static VkInstance vk_instance; /* Vulkan instance for XRandR functions */
 static VkResult (*p_vkGetRandROutputDisplayEXT)( VkPhysicalDevice, Display *, RROutput, VkDisplayKHR * );
 static PFN_vkGetPhysicalDeviceProperties2KHR p_vkGetPhysicalDeviceProperties2KHR;
 static PFN_vkEnumeratePhysicalDevices p_vkEnumeratePhysicalDevices;
+static int event_base, error_base;
 
 #define MAKE_FUNCPTR(f) static typeof(f) * p##f;
 MAKE_FUNCPTR(XRRConfigCurrentConfiguration)
@@ -1395,6 +1396,12 @@ static BOOL xrandr14_device_change_handler( HWND hwnd, XEvent *event )
     struct xrandr_context *context;
     RECT rect = {0};
 
+    /* only handle display device changes in the desktop window thread */
+    if (hwnd != NtUserGetDesktopWindow()) return FALSE;
+    if (NtUserGetWindowThread( hwnd, NULL ) != GetCurrentThreadId()) return FALSE;
+
+    TRACE( "hwnd %p, event %d\n", hwnd, event->xany.type - event_base );
+
     if ((context = xrandr_context_acquire()))
     {
         rect = context->primary_rect;
@@ -1402,9 +1409,8 @@ static BOOL xrandr14_device_change_handler( HWND hwnd, XEvent *event )
     }
     xrandr14_invalidate_current_mode_cache();
 
-    if (hwnd == NtUserGetDesktopWindow() && NtUserGetWindowThread( hwnd, NULL ) == GetCurrentThreadId())
-        NtUserCallNoParam( NtUserCallNoParam_DisplayModeChanged );
-
+    xrandr14_invalidate_current_mode_cache();
+    NtUserCallNoParam( NtUserCallNoParam_DisplayModeChanged );
     /* Update xinerama monitors for xinerama_get_fullscreen_monitors() */
     xinerama_init( rect.right - rect.left, rect.bottom - rect.top );
     return FALSE;
@@ -1413,7 +1419,6 @@ static BOOL xrandr14_device_change_handler( HWND hwnd, XEvent *event )
 static void xrandr14_register_event_handlers(void)
 {
     Display *display = thread_init_display();
-    int event_base, error_base;
 
     if (!pXRRQueryExtension( display, &event_base, &error_base ))
         return;
@@ -1918,6 +1923,8 @@ void X11DRV_XRandR_Init(void)
             return;
         }
 
+        xrandr14_register_event_handlers();
+
         display_handler.name = "XRandR 1.4";
         display_handler.priority = 200;
         display_handler.get_gpus = xrandr14_get_gpus;
@@ -1926,7 +1933,6 @@ void X11DRV_XRandR_Init(void)
         display_handler.free_gpus = xrandr14_free_gpus;
         display_handler.free_adapters = xrandr14_free_adapters;
         display_handler.free_monitors = xrandr14_free_monitors;
-        display_handler.register_event_handlers = xrandr14_register_event_handlers;
         X11DRV_DisplayDevices_SetHandler( &display_handler );
 
         if (is_broken_driver())

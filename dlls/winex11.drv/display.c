@@ -31,7 +31,7 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(x11drv);
 
-static struct x11drv_display_device_handler host_handler;
+struct x11drv_display_device_handler host_handler;
 static struct x11drv_settings_handler settings_handler;
 
 #define NEXT_DEVMODEW(mode) ((DEVMODEW *)((char *)((mode) + 1) + (mode)->dmDriverExtra))
@@ -389,17 +389,6 @@ void X11DRV_DisplayDevices_SetHandler(const struct x11drv_display_device_handler
         host_handler = *new_handler;
         TRACE("Display device functions are now handled by: %s\n", host_handler.name);
     }
-}
-
-void X11DRV_DisplayDevices_RegisterEventHandlers(void)
-{
-    if (host_handler.register_event_handlers) host_handler.register_event_handlers();
-}
-
-/* Report whether a display device handler supports detecting dynamic device changes */
-BOOL X11DRV_DisplayDevices_SupportEventHandlers(void)
-{
-    return !!host_handler.register_event_handlers;
 }
 
 UINT X11DRV_UpdateDisplayDevices( const struct gdi_device_manager *device_manager, void *param )

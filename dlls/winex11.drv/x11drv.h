@@ -845,17 +845,13 @@ struct x11drv_display_device_handler
 
     /* free_monitors will be called to free a monitor list from get_monitors */
     void (*free_monitors)(struct gdi_monitor *monitors, int count);
-
-    /* register_event_handlers will be called to register event handlers.
-     * This function pointer is optional and can be NULL when driver doesn't support it */
-    void (*register_event_handlers)(void);
 };
 
 extern void X11DRV_DisplayDevices_SetHandler(const struct x11drv_display_device_handler *handler);
-extern void X11DRV_DisplayDevices_RegisterEventHandlers(void);
 extern BOOL X11DRV_DisplayDevices_SupportEventHandlers(void);
 /* Display device handler used in virtual desktop mode */
 extern struct x11drv_display_device_handler desktop_handler;
+extern struct x11drv_display_device_handler host_handler;
 
 /* XIM support */
 extern BOOL xim_init( const WCHAR *input_style );
