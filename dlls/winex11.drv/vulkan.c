@@ -208,14 +208,14 @@ static void vulkan_surface_update_offscreen( HWND hwnd, struct x11drv_vulkan_sur
     }
 }
 
-static void X11DRV_vulkan_surface_update( HWND hwnd, void *private )
+static void X11DRV_vulkan_surface_update( HWND hwnd, void *private, BOOL size_only )
 {
     struct x11drv_vulkan_surface *surface = private;
 
-    TRACE( "%p %p\n", hwnd, private );
+    TRACE( "%p %p %u\n", hwnd, private, size_only );
 
     vulkan_surface_update_size( hwnd, surface );
-    vulkan_surface_update_offscreen( hwnd, surface );
+    if (!size_only) vulkan_surface_update_offscreen( hwnd, surface );
     XFlush( gdi_display );
 }
 
