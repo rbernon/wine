@@ -1431,6 +1431,8 @@ static void xrandr14_register_event_handlers(void)
                                    "XRandR OutputChange" );
     X11DRV_register_event_handler( event_base + RRNotify_ProviderChange, xrandr14_device_change_handler,
                                    "XRandR ProviderChange" );
+    X11DRV_register_event_handler( event_base + RRNotify_ResourceChange, xrandr14_device_change_handler,
+                                   "XRandR ResourceChange" );
 }
 
 /* XRandR 1.4 display settings handler */
