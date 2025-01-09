@@ -656,6 +656,7 @@ static struct current_mode
 static int current_mode_count;
 
 static pthread_mutex_t xrandr_mutex = PTHREAD_MUTEX_INITIALIZER;
+static RECT xrandr_primary;
 
 static void xrandr14_invalidate_current_mode_cache(void)
 {
@@ -929,14 +930,14 @@ fallback:
     return primary_rect;
 }
 
-static BOOL is_crtc_primary( RECT primary, const XRRCrtcInfo *crtc )
+static BOOL is_crtc_primary( const XRRCrtcInfo *crtc )
 {
     return crtc &&
            crtc->mode &&
-           crtc->x == primary.left &&
-           crtc->y == primary.top &&
-           crtc->x + crtc->width == primary.right &&
-           crtc->y + crtc->height == primary.bottom;
+           crtc->x == xrandr_primary.left &&
+           crtc->y == xrandr_primary.top &&
+           crtc->x + crtc->width == xrandr_primary.right &&
+           crtc->y + crtc->height == xrandr_primary.bottom;
 }
 
 struct vk_physdev_info
@@ -1054,7 +1055,6 @@ static BOOL xrandr14_get_gpus( struct x11drv_gpu **new_gpus, int *count, BOOL ge
     XRRProviderInfo *provider_info = NULL;
     XRRCrtcInfo *crtc_info = NULL;
     INT primary_provider = -1;
-    RECT primary_rect;
     BOOL ret = FALSE;
     INT i, j;
 
@@ -1082,7 +1082,6 @@ static BOOL xrandr14_get_gpus( struct x11drv_gpu **new_gpus, int *count, BOOL ge
         goto done;
     }
 
-    primary_rect = get_primary_rect( screen_resources );
     for (i = 0; i < provider_resources->nproviders; ++i)
     {
         provider_info = pXRRGetProviderInfo( gdi_display, screen_resources, provider_resources->providers[i] );
@@ -1096,7 +1095,7 @@ static BOOL xrandr14_get_gpus( struct x11drv_gpu **new_gpus, int *count, BOOL ge
             if (!crtc_info)
                 continue;
 
-            if (is_crtc_primary( primary_rect, crtc_info ))
+            if (is_crtc_primary( crtc_info ))
             {
                 primary_provider = i;
                 pXRRFreeCrtcInfo( crtc_info );
@@ -1158,7 +1157,6 @@ static BOOL xrandr14_get_adapters( ULONG_PTR gpu_id, struct x11drv_adapter **new
     INT primary_adapter = 0;
     INT adapter_count = 0;
     BOOL mirrored, detached;
-    RECT primary_rect;
     BOOL ret = FALSE;
     INT i, j;
 
@@ -1189,7 +1187,6 @@ static BOOL xrandr14_get_adapters( ULONG_PTR gpu_id, struct x11drv_adapter **new
     if (!adapters)
         goto done;
 
-    primary_rect = get_primary_rect( screen_resources );
     for (i = 0; i < output_count; ++i)
     {
         output_info = pXRRGetOutputInfo( gdi_display, screen_resources, outputs[i] );
@@ -1261,7 +1258,7 @@ static BOOL xrandr14_get_adapters( ULONG_PTR gpu_id, struct x11drv_adapter **new
             adapters[adapter_count].id = outputs[i];
             if (!detached)
                 adapters[adapter_count].state_flags |= DISPLAY_DEVICE_ATTACHED_TO_DESKTOP;
-            if (is_crtc_primary( primary_rect, crtc_info ))
+            if (is_crtc_primary( crtc_info ))
             {
                 adapters[adapter_count].state_flags |= DISPLAY_DEVICE_PRIMARY_DEVICE;
                 primary_adapter = adapter_count;
@@ -1394,7 +1391,7 @@ static BOOL xrandr14_get_monitors( ULONG_PTR adapter_id, struct gdi_monitor **ne
                              crtc_info->x + crtc_info->width, crtc_info->y + crtc_info->height );
                     monitors[monitor_count].rc_work = get_work_area( &monitors[monitor_count].rc_monitor );
 
-                    if (is_crtc_primary( primary_rect, crtc_info ))
+                    if (is_crtc_primary( crtc_info ))
                         primary_index = monitor_count;
 
                     monitors[monitor_count].edid_len = get_edid( screen_resources->outputs[i],
@@ -1464,13 +1461,20 @@ static void xrandr14_free_monitors( struct gdi_monitor *monitors, int count )
 
 static BOOL xrandr14_device_change_handler( HWND hwnd, XEvent *event )
 {
-    RECT rect;
+    XRRScreenResources *screen_resources;
+    RECT rect = xrandr_primary;
 
+    if ((screen_resources = xrandr_get_screen_resources()))
+    {
+        rect = xrandr_primary = get_primary_rect( screen_resources );
+        pXRRFreeScreenResources( screen_resources );
+    }
     xrandr14_invalidate_current_mode_cache();
+
     if (hwnd == NtUserGetDesktopWindow() && NtUserGetWindowThread( hwnd, NULL ) == GetCurrentThreadId())
         NtUserCallNoParam( NtUserCallNoParam_DisplayModeChanged );
+
     /* Update xinerama monitors for xinerama_get_fullscreen_monitors() */
-    rect = get_host_primary_monitor_rect();
     xinerama_init( rect.right - rect.left, rect.bottom - rect.top );
     return FALSE;
 }
@@ -1726,7 +1730,6 @@ static BOOL xrandr14_get_current_mode( x11drv_settings_id id, DEVMODEW *mode )
     XRRModeInfo *mode_info = NULL;
     XRRCrtcInfo *crtc_info = NULL;
     BOOL ret = FALSE;
-    RECT primary;
     INT mode_idx;
 
     pthread_mutex_lock( &xrandr_mutex );
@@ -1802,9 +1805,8 @@ static BOOL xrandr14_get_current_mode( x11drv_settings_id id, DEVMODEW *mode )
     mode->dmDisplayFlags = 0;
     mode->dmDisplayFrequency = get_frequency( mode_info );
     /* Convert RandR coordinates to virtual screen coordinates */
-    primary = get_primary_rect( screen_resources );
-    mode->dmPosition.x = crtc_info->x - primary.left;
-    mode->dmPosition.y = crtc_info->y - primary.top;
+    mode->dmPosition.x = crtc_info->x - xrandr_primary.left;
+    mode->dmPosition.y = crtc_info->y - xrandr_primary.top;
     ret = TRUE;
 
 done:
@@ -2001,6 +2003,8 @@ void X11DRV_XRandR_Init(void)
 
             pXRRFreeOutputInfo( output_info );
         }
+
+        xrandr_primary = get_primary_rect( screen_resources );
         pXRRFreeScreenResources( screen_resources );
 
         if (!found_output)
