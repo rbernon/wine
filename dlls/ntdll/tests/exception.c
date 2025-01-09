@@ -2288,6 +2288,20 @@ static void test_instrumentation_callback(void)
     ok( !instrumentation_call_count, "got %u.\n", instrumentation_call_count );
 }
 
+static void test_priviledged_instructions(void)
+{
+    static const BYTE code[] =
+    {
+        /* 0xfb, sti */
+        0xfa, /* cli */
+        0xc3, /* ret */
+    };
+    void (*func)(void) = code_mem;
+
+    memcpy(code_mem, code, sizeof(code));
+    func();
+}
+
 #elif defined(__x86_64__)
 
 static LONG consolidate_dummy_called;
@@ -5798,6 +5812,20 @@ static void test_direct_syscalls(void)
     todo_wine
     ok(WaitForSingleObject(event, 0) == WAIT_OBJECT_0, "Event not signaled.\n");
     CloseHandle(event);
+}
+
+static void test_priviledged_instructions(void)
+{
+    static const BYTE code[] =
+    {
+        0xfb, /* sti */
+        0xfa, /* cli */
+        0xc3, /* ret */
+    };
+    void (*func)(void) = code_mem;
+
+    memcpy(code_mem, code, sizeof(code));
+    func();
 }
 
 #elif defined(__arm__)
@@ -11812,6 +11840,7 @@ START_TEST(exception)
         trace("VirtualAlloc failed\n");
         return;
     }
+    test_priviledged_instructions();
 
 #define X(f) p##f = (void*)GetProcAddress(hntdll, #f)
     X(NtGetContextThread);
@@ -12003,6 +12032,7 @@ START_TEST(exception)
     test_set_live_context();
     test_hwbpt_in_syscall();
     test_instrumentation_callback();
+    test_priviledged_instructions();
 
 #elif defined(__x86_64__)
 
@@ -12035,6 +12065,7 @@ START_TEST(exception)
     test_hwbpt_in_syscall();
     test_instrumentation_callback();
     test_direct_syscalls();
+    test_priviledged_instructions();
 
 #elif defined(__aarch64__)
 
