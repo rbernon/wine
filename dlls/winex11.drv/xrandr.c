@@ -688,10 +688,27 @@ static struct current_mode
 static int current_mode_count;
 
 static pthread_mutex_t xrandr_mutex = PTHREAD_MUTEX_INITIALIZER;
+struct xrandr_context *xrandr_context;
+
+static struct xrandr_context *xrandr_context_acquire(void)
+{
+    pthread_mutex_lock( &xrandr_mutex );
+    if (!xrandr_context) xrandr_context = xrandr_context_create( FALSE );
+    if (xrandr_context) return xrandr_context;
+    pthread_mutex_unlock( &xrandr_mutex );
+    return NULL;
+}
+
+static void xrandr_context_release( struct xrandr_context *context )
+{
+    pthread_mutex_unlock( &xrandr_mutex );
+}
 
 static void xrandr14_invalidate_current_mode_cache(void)
 {
     pthread_mutex_lock( &xrandr_mutex );
+    xrandr_context_destroy( xrandr_context );
+    xrandr_context = xrandr_context_create( FALSE );
     free( current_modes);
     current_modes = NULL;
     current_mode_count = 0;
@@ -715,7 +732,7 @@ static BOOL is_broken_driver(void)
     INT output_idx, i, j;
     BOOL only_one_mode;
 
-    if (!(context = xrandr_context_create( FALSE ))) return FALSE;
+    if (!(context = xrandr_context_acquire())) return FALSE;
     screen_resources = context->screen_resources;
 
     /* Check if any output only has one native mode */
@@ -761,12 +778,12 @@ static BOOL is_broken_driver(void)
         {
             ERR_(winediag)("Broken NVIDIA RandR detected, falling back to RandR 1.0. "
                            "Please consider using the Nouveau driver instead.\n");
-            xrandr_context_destroy( context );
+            xrandr_context_release( context );
             return TRUE;
         }
     }
 
-    xrandr_context_destroy( context );
+    xrandr_context_release( context );
     return FALSE;
 }
 
@@ -1056,7 +1073,7 @@ static BOOL xrandr14_get_gpus( struct x11drv_gpu **new_gpus, int *count, BOOL ge
     BOOL ret = FALSE;
     INT i, j;
 
-    if (!(context = xrandr_context_create( FALSE ))) return FALSE;
+    if (!(context = xrandr_context_acquire())) return FALSE;
     if (!(screen_resources = context->screen_resources)) goto done;
     if (!(provider_resources = context->provider_resources)) goto done;
 
@@ -1115,7 +1132,7 @@ static BOOL xrandr14_get_gpus( struct x11drv_gpu **new_gpus, int *count, BOOL ge
     *count = provider_resources->nproviders;
     ret = TRUE;
 done:
-    xrandr_context_destroy( context );
+    xrandr_context_release( context );
 
     if (!ret)
     {
@@ -1147,7 +1164,7 @@ static BOOL xrandr14_get_adapters( ULONG_PTR gpu_id, struct x11drv_adapter **new
     BOOL ret = FALSE;
     INT i, j;
 
-    if (!(context = xrandr_context_create( FALSE ))) return FALSE;
+    if (!(context = xrandr_context_acquire())) return FALSE;
     if (!(screen_resources = context->screen_resources)) goto done;
 
     if (gpu_id)
@@ -1250,7 +1267,7 @@ static BOOL xrandr14_get_adapters( ULONG_PTR gpu_id, struct x11drv_adapter **new
     *count = adapter_count;
     ret = TRUE;
 done:
-    xrandr_context_destroy( context );
+    xrandr_context_release( context );
 
     if (!ret)
     {
@@ -1277,7 +1294,7 @@ static BOOL xrandr14_get_monitors( ULONG_PTR adapter_id, struct gdi_monitor **ne
     BOOL ret = FALSE;
     INT i;
 
-    if (!(context = xrandr_context_create( FALSE ))) return FALSE;
+    if (!(context = xrandr_context_acquire())) return FALSE;
     if (!(screen_resources = context->screen_resources)) goto done;
 
     /* First start with a 2 monitors, should be enough for most cases */
@@ -1372,7 +1389,7 @@ static BOOL xrandr14_get_monitors( ULONG_PTR adapter_id, struct gdi_monitor **ne
     *count = monitor_count;
     ret = TRUE;
 done:
-    xrandr_context_destroy( context );
+    xrandr_context_release( context );
 
     if (!ret)
     {
@@ -1404,10 +1421,10 @@ static BOOL xrandr14_device_change_handler( HWND hwnd, XEvent *event )
     struct xrandr_context *context;
     RECT rect = {0};
 
-    if ((context = xrandr_context_create( FALSE )))
+    if ((context = xrandr_context_acquire()))
     {
         rect = context->primary_rect;
-        xrandr_context_destroy( context );
+        xrandr_context_release( context );
     }
     xrandr14_invalidate_current_mode_cache();
 
@@ -1548,7 +1565,7 @@ static BOOL xrandr14_get_modes( x11drv_settings_id id, DWORD flags, DEVMODEW **n
     RRCrtc crtc;
     INT i, j;
 
-    if (!(context = xrandr_context_create( FALSE ))) return FALSE;
+    if (!(context = xrandr_context_acquire())) return FALSE;
     if (!(screen_resources = context->screen_resources)) goto done;
 
     if (!(output_info = xrandr_context_get_output( context, output )))
@@ -1634,7 +1651,7 @@ static BOOL xrandr14_get_modes( x11drv_settings_id id, DWORD flags, DEVMODEW **n
     *new_modes = modes;
     *mode_count = mode_idx;
 done:
-    xrandr_context_destroy( context );
+    xrandr_context_release( context );
     return ret;
 }
 
@@ -1667,7 +1684,7 @@ static BOOL xrandr14_get_current_mode( x11drv_settings_id id, DEVMODEW *mode )
     BOOL ret = FALSE;
     INT mode_idx;
 
-    if (!(context = xrandr_context_create( FALSE ))) return FALSE;
+    if (!(context = xrandr_context_acquire())) return FALSE;
 
     pthread_mutex_lock( &xrandr_mutex );
     for (mode_idx = 0; mode_idx < current_mode_count; ++mode_idx)
@@ -1754,7 +1771,7 @@ done:
     }
     pthread_mutex_unlock( &xrandr_mutex );
 
-    xrandr_context_destroy( context );
+    xrandr_context_release( context );
     TRACE("returning %s\n", debugstr_devmodew(mode));
     return ret;
 }
@@ -1778,7 +1795,7 @@ static LONG xrandr14_set_current_mode( x11drv_settings_id id, const DEVMODEW *mo
         WARN("Cannot change screen color depth from %ubits to %ubits!\n",
              screen_bpp, (int)mode->dmBitsPerPel);
 
-    if (!(context = xrandr_context_create( FALSE ))) return FALSE;
+    if (!(context = xrandr_context_acquire())) return FALSE;
     if (!(screen_resources = context->screen_resources)) return ret;
 
     XGrabServer( gdi_display );
@@ -1862,7 +1879,7 @@ static LONG xrandr14_set_current_mode( x11drv_settings_id id, const DEVMODEW *mo
 done:
     XUngrabServer( gdi_display );
     XFlush( gdi_display );
-    xrandr_context_destroy( context );
+    xrandr_context_release( context );
 
     xrandr14_invalidate_current_mode_cache();
     return ret;
@@ -1906,7 +1923,9 @@ void X11DRV_XRandR_Init(void)
         BOOL found_output = FALSE;
         INT i;
 
-        if ((context = xrandr_context_create( FALSE )))
+        init_recursive_mutex( &xrandr_mutex );
+
+        if ((context = xrandr_context_acquire()))
         {
             for (i = 0; i < context->screen_resources->noutput; ++i)
             {
@@ -1917,7 +1936,7 @@ void X11DRV_XRandR_Init(void)
                 }
             }
 
-            xrandr_context_destroy( context );
+            xrandr_context_release( context );
         }
 
         if (!found_output)
@@ -1954,7 +1973,7 @@ void X11DRV_XRandR_Init(void)
 
 void xrandr_dump_device(void)
 {
-    xrandr_context_destroy( xrandr_context_create( FALSE ) );
+    xrandr_context_release( xrandr_context_acquire() );
 }
 
 #else /* SONAME_LIBXRANDR */
