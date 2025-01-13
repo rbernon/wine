@@ -1852,6 +1852,7 @@ static void update_surface_region( HWND hwnd )
     if (!win->surface) goto done;
 
     if (get_window_region( hwnd, FALSE, &shape, &visible )) goto done;
+ERR("hwnd %p visible %s\n", hwnd, wine_dbgstr_rect(&visible));
     if (shape)
     {
         region = NtGdiCreateRectRgn( 0, 0, visible.right - visible.left, visible.bottom - visible.top );
@@ -2074,6 +2075,8 @@ static BOOL apply_window_pos( HWND hwnd, HWND insert_after, UINT swp_flags, stru
         swp_flags |= SWP_NOCOPYBITS;
         valid_rects = NULL;
     }
+
+TRACE( "hwnd %p rects %s\n", hwnd, debugstr_window_rects( new_rects ) );
 
     if (is_child) monitor_rects = map_dpi_window_rects( *new_rects, get_thread_dpi(), raw_dpi );
     else monitor_rects = map_window_rects_virt_to_raw( *new_rects, get_thread_dpi() );
