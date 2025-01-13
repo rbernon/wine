@@ -282,22 +282,6 @@ static XRRProviderInfo *xrandr_context_get_provider( struct xrandr_context *cont
     return NULL;
 }
 
-static inline void xrandr_context_update_provider( struct xrandr_context *context, RRProvider id )
-{
-    int i;
-
-    for (i = 0; i < context->provider_resources->nproviders; i++)
-        if (context->provider_resources->providers[i] == id)
-            break;
-
-    if (i == context->provider_resources->nproviders) WARN( "RRProvider %lx not found\n", id );
-    else
-    {
-        pXRRFreeProviderInfo( context->providers[i] );
-        context->providers[i] = pXRRGetProviderInfo( gdi_display, context->screen_resources, id );
-    }
-}
-
 static const char *debugstr_xids( int count, const XID *xids )
 {
     char buffer[1024], *buf = buffer;
@@ -1290,7 +1274,6 @@ static BOOL xrandr14_get_monitors( ULONG_PTR adapter_id, struct gdi_monitor **ne
     XRROutputInfo *output_info;
     XRRCrtcInfo *crtc_info, *enum_crtc_info;
     INT primary_index = 0, monitor_count = 0, capacity;
-    RECT primary_rect;
     BOOL ret = FALSE;
     INT i;
 
@@ -1318,8 +1301,6 @@ static BOOL xrandr14_get_monitors( ULONG_PTR adapter_id, struct gdi_monitor **ne
     /* Active monitors, need to find other monitors with the same coordinates as mirrored */
     else
     {
-        primary_rect = context->primary_rect;
-
         for (i = 0; i < screen_resources->noutput; ++i)
         {
             XRROutputInfo *enum_output_info = context->outputs[i];
