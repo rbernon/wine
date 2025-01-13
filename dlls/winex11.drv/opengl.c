@@ -1281,6 +1281,7 @@ static void update_gl_drawable_size( struct gl_drawable *gl )
     NtUserGetClientRect( gl->hwnd, &rect, NtUserGetDpiForWindow( gl->hwnd ) );
     if (EqualRect( &rect, &gl->rect )) return;
 
+    TRACE( "rect %s\n", wine_dbgstr_rect(&rect) );
     changes.width  = min( max( 1, rect.right ), 65535 );
     changes.height = min( max( 1, rect.bottom ), 65535 );
 
@@ -1915,6 +1916,7 @@ static void present_gl_drawable( HWND hwnd, HDC hdc, struct gl_drawable *gl, BOO
         set_dc_drawable( gl->hdc_dst, window, &rect_dst, IncludeInferiors );
     if (region) NtGdiExtSelectClipRgn( gl->hdc_dst, region, RGN_COPY );
 
+TRACE( "present %lx %s -> %lx %s\n", drawable, wine_dbgstr_rect(&gl->rect), window, wine_dbgstr_rect(&rect_dst) );
     NtGdiStretchBlt( gl->hdc_dst, 0, 0, rect_dst.right - rect_dst.left, rect_dst.bottom - rect_dst.top,
                      gl->hdc_src, 0, 0, gl->rect.right, gl->rect.bottom, SRCCOPY, 0 );
 
@@ -1926,6 +1928,8 @@ static void wglFinish(void)
     struct gl_drawable *gl;
     struct wgl_context *ctx = NtCurrentTeb()->glContext;
     HWND hwnd = NtUserWindowFromDC( ctx->hdc );
+
+    TRACE( "\n" );
 
     if (!(gl = get_gl_drawable( hwnd, 0 ))) pglFinish();
     else
@@ -1942,6 +1946,8 @@ static void wglFlush(void)
     struct gl_drawable *gl;
     struct wgl_context *ctx = NtCurrentTeb()->glContext;
     HWND hwnd = NtUserWindowFromDC( ctx->hdc );
+
+    TRACE( "\n" );
 
     if (!(gl = get_gl_drawable( hwnd, 0 ))) pglFlush();
     else
