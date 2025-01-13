@@ -1818,6 +1818,10 @@ static NTSTATUS get_window_region( HWND hwnd, BOOL surface, HRGN *region, RECT *
             {
                 size_t reply_size = wine_server_reply_size( reply );
                 *visible = wine_server_get_rect( reply->visible_rect );
+
+                /* if the clipping region is requested, return an empty region if it already matches the visible rect */
+                if (surface && reply_size == sizeof(*visible) && EqualRect( visible, (RECT *)data->Buffer )) reply_size = 0;
+
                 if (reply_size)
                 {
                     data->rdh.dwSize   = sizeof(data->rdh);
