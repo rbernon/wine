@@ -1817,6 +1817,7 @@ static NTSTATUS get_window_region( HWND hwnd, BOOL surface, HRGN *region, RECT *
             if (!(status = wine_server_call( req )))
             {
                 size_t reply_size = wine_server_reply_size( reply );
+                *visible = wine_server_get_rect( reply->visible_rect );
                 if (reply_size)
                 {
                     data->rdh.dwSize   = sizeof(data->rdh);
@@ -1824,7 +1825,6 @@ static NTSTATUS get_window_region( HWND hwnd, BOOL surface, HRGN *region, RECT *
                     data->rdh.nCount   = reply_size / sizeof(RECT);
                     data->rdh.nRgnSize = reply_size;
                     *region = NtGdiExtCreateRegion( NULL, data->rdh.dwSize + data->rdh.nRgnSize, data );
-                    *visible = wine_server_get_rect( reply->visible_rect );
                 }
             }
             else size = reply->total_size;
