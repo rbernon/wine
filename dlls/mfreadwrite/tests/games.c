@@ -187,6 +187,40 @@ static struct async_callback *create_async_callback(void)
     return callback;
 }
 
+static inline const char *debugstr_propvar(const PROPVARIANT *v)
+{
+    if (!v)
+        return "(null)";
+
+    switch (v->vt)
+    {
+        case VT_EMPTY:
+            return wine_dbg_sprintf("%p {VT_EMPTY}", v);
+        case VT_NULL:
+            return wine_dbg_sprintf("%p {VT_NULL}", v);
+        case VT_UI4:
+            return wine_dbg_sprintf("%p {VT_UI4: %ld}", v, v->ulVal);
+        case VT_UI8:
+            return wine_dbg_sprintf("%p {VT_UI8: %s}", v, wine_dbgstr_longlong(v->uhVal.QuadPart));
+        case VT_I8:
+            return wine_dbg_sprintf("%p {VT_I8: %s}", v, wine_dbgstr_longlong(v->hVal.QuadPart));
+        case VT_R4:
+            return wine_dbg_sprintf("%p {VT_R4: %.8e}", v, v->fltVal);
+        case VT_R8:
+            return wine_dbg_sprintf("%p {VT_R8: %lf}", v, v->dblVal);
+        case VT_CLSID:
+            return wine_dbg_sprintf("%p {VT_CLSID: %s}", v, wine_dbgstr_guid(v->puuid));
+        case VT_LPWSTR:
+            return wine_dbg_sprintf("%p {VT_LPWSTR: %s}", v, wine_dbgstr_w(v->pwszVal));
+        case VT_VECTOR | VT_UI1:
+            return wine_dbg_sprintf("%p {VT_VECTOR|VT_UI1: %p}", v, v->caub.pElems);
+        case VT_UNKNOWN:
+            return wine_dbg_sprintf("%p {VT_UNKNOWN: %p}", v, v->punkVal);
+        default:
+            return wine_dbg_sprintf("%p {vt %#x}", v, v->vt);
+    }
+}
+
 START_TEST(games)
 {
     IMFMediaType *native_type, *media_type;
@@ -203,8 +237,8 @@ START_TEST(games)
     HRESULT hr;
     struct async_callback *callback = create_async_callback();
 
-const WCHAR *path = L"file://Z:/tmp/stream-0000000001754B70.mp4";
-if (!winetest_platform_is_wine) path = L"file://Y:/Games/Little Witch Nobeta/LittleWitchNobeta_Data/StreamingAssets/Video/Comic_Funny_01.mp4";
+const WCHAR *path = L"file://Z:/media/rbernon/LaCie/Games/Halo Infinite/subgames/CampaignS1/videos/InfinityDown.mp4";
+if (!winetest_platform_is_wine) path = L"file://Y:/Games/Halo Infinite/subgames/CampaignS1/videos/InfinityDown.mp4";
 
     hr = MFStartup(MF_VERSION, MFSTARTUP_FULL);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
@@ -234,11 +268,40 @@ ok(hr == E_NOINTERFACE, "got hr %#lx\n", hr);
 IMFMediaSource_Release(source);
 IMFSourceResolver_Release(resolver);
 
-if (0)
-{
 hr = IMFSourceReader_GetPresentationAttribute(reader, MF_SOURCE_READER_MEDIASOURCE, &MF_PD_MIME_TYPE, &propvar);
 ok(hr == S_OK, "got hr %#lx\n", hr);
+ok(0, "%s\n", debugstr_propvar(&propvar));
 PropVariantClear(&propvar);
+
+for (int i = 0; i <= 12; i++)
+{
+    winetest_push_context( "%u", i );
+    hr = IMFSourceReader_GetNativeMediaType(reader, i, 0, &media_type);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    dump_media_type(media_type);
+    IMFMediaType_Release(media_type);
+    winetest_pop_context();
+}
+
+for (int i = 0; i <= 12; i++)
+{
+    winetest_push_context( "%u", i );
+    hr = IMFSourceReader_GetPresentationAttribute(reader, i, &MF_SD_STREAM_NAME, &propvar);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    ok(0, "%s\n", debugstr_propvar(&propvar));
+    PropVariantClear(&propvar);
+    hr = IMFSourceReader_GetPresentationAttribute(reader, i, &MF_SD_LANGUAGE, &propvar);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    ok(0, "%s\n", debugstr_propvar(&propvar));
+    PropVariantClear(&propvar);
+    winetest_pop_context();
+}
+
+return;
+
+
+if (0)
+{
 
 
 hr = IMFSourceReader_GetNativeMediaType(reader, 0, 0, &native_type);
