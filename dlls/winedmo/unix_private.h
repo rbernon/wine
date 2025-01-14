@@ -25,6 +25,7 @@
 #ifdef HAVE_FFMPEG
 #include <libavutil/avutil.h>
 #include <libavutil/imgutils.h>
+#include <libavutil/opt.h>
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
 #ifdef HAVE_LIBAVCODEC_BSF_H

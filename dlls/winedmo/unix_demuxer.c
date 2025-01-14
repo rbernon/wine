@@ -142,6 +142,7 @@ NTSTATUS demuxer_create( void *arg )
 {
     struct demuxer_create_params *params = arg;
     const char *ext = params->url ? strrchr( params->url, '.' ) : "";
+    AVDictionary *options = NULL;
     const AVInputFormat *format;
     struct demuxer *demuxer;
     int i, ret;
@@ -154,7 +155,8 @@ NTSTATUS demuxer_create( void *arg )
     if (!(demuxer->ctx = avformat_alloc_context())) goto failed;
     if (!(demuxer->ctx->pb = avio_alloc_context( NULL, 0, 0, params->context, unix_read_callback, NULL, unix_seek_callback ))) goto failed;
 
-    if ((ret = avformat_open_input( &demuxer->ctx, NULL, NULL, NULL )) < 0)
+    av_dict_set( &options, "export_all", "true", 0 );
+    if ((ret = avformat_open_input( &demuxer->ctx, NULL, NULL, &options )) < 0)
     {
         ERR( "Failed to open input, error %s.\n", debugstr_averr(ret) );
         goto failed;
@@ -192,9 +194,12 @@ NTSTATUS demuxer_create( void *arg )
         strcpy( params->mime_type, "video/x-application" );
     }
 
+
+    av_dict_free( &options );
     return STATUS_SUCCESS;
 
 failed:
+    av_dict_free( &options );
     if (demuxer->ctx)
     {
         avio_context_free( &demuxer->ctx->pb );
@@ -372,7 +377,8 @@ NTSTATUS demuxer_stream_name( void *arg )
 
     TRACE( "demuxer %p, stream %u\n", demuxer, params->stream );
 
-    if (!(tag = av_dict_get( stream->metadata, "title", NULL, AV_DICT_IGNORE_SUFFIX )))
+    if (!(tag = av_dict_get( stream->metadata, "title", NULL, AV_DICT_IGNORE_SUFFIX )) &&
+        !(tag = av_dict_get( stream->metadata, "name", NULL, AV_DICT_IGNORE_SUFFIX )))
         return STATUS_NOT_FOUND;
 
     lstrcpynA( params->buffer, tag->value, ARRAY_SIZE( params->buffer ) );
