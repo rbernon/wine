@@ -92,8 +92,7 @@ struct video_decoder
     UINT output_type_count;
     const GUID *const *output_types;
 
-    UINT64 start_time;
-    UINT64 sample_count;
+    UINT64 sample_time;
     IMFMediaType *input_type;
     MFT_INPUT_STREAM_INFO input_info;
     IMFMediaType *output_type;
@@ -798,8 +797,7 @@ static HRESULT WINAPI transform_ProcessMessage(IMFTransform *iface, MFT_MESSAGE_
         return decoder->wg_transform ? wg_transform_flush(decoder->wg_transform) : MF_E_TRANSFORM_TYPE_NOT_SET;
 
     case MFT_MESSAGE_NOTIFY_START_OF_STREAM:
-        decoder->start_time = -1;
-        decoder->sample_count = 0;
+        decoder->sample_time = -1;
         return S_OK;
 
     default:
@@ -817,8 +815,8 @@ static HRESULT WINAPI transform_ProcessInput(IMFTransform *iface, DWORD id, IMFS
     if (!decoder->wg_transform)
         return MF_E_TRANSFORM_TYPE_NOT_SET;
 
-    if (decoder->start_time == -1 && FAILED(IMFSample_GetSampleTime(sample, (LONGLONG *)&decoder->start_time)))
-        decoder->start_time = 0;
+    if (decoder->sample_time == -1 && FAILED(IMFSample_GetSampleTime(sample, (LONGLONG *)&decoder->sample_time)))
+        decoder->sample_time = 0;
 
     return wg_transform_push_mf(decoder->wg_transform, sample, decoder->wg_sample_queue);
 }
@@ -884,7 +882,7 @@ static HRESULT WINAPI transform_ProcessOutput(IMFTransform *iface, DWORD flags, 
 {
     struct video_decoder *decoder = impl_from_IMFTransform(iface);
     UINT32 sample_size;
-    LONGLONG duration, timestamp;
+    LONGLONG duration;
     IMFSample *sample;
     UINT64 frame_size, frame_rate;
     GUID subtype;
@@ -940,12 +938,11 @@ static HRESULT WINAPI transform_ProcessOutput(IMFTransform *iface, DWORD flags, 
             frame_rate = (UINT64)30000 << 32 | 1001;
 
         duration = (UINT64)10000000 * (UINT32)frame_rate / (frame_rate >> 32);
-        timestamp = decoder->sample_count * (UINT64)10000000 * (UINT32)frame_rate / (frame_rate >> 32);
-        if (FAILED(IMFSample_SetSampleTime(sample, decoder->start_time + timestamp)))
+        if (FAILED(IMFSample_SetSampleTime(sample, decoder->sample_time)))
             WARN("Failed to set sample time\n");
         if (FAILED(IMFSample_SetSampleDuration(sample, duration)))
             WARN("Failed to set sample duration\n");
-        decoder->sample_count++;
+        decoder->sample_time += duration;
     }
 
     if (hr == MF_E_TRANSFORM_STREAM_CHANGE)

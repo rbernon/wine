@@ -64,7 +64,6 @@ struct video_stream
     LONG refcount;
     unsigned int id;
     unsigned int flags;
-    unsigned int preroll_count;
     struct video_renderer *parent;
     IMFMediaEventQueue *event_queue;
     IMFVideoSampleAllocator *allocator;
@@ -427,16 +426,9 @@ static HRESULT WINAPI video_stream_sink_ProcessSample(IMFStreamSink *iface, IMFS
 
         if (stream->flags & EVR_STREAM_PREROLLING)
         {
-            if (stream->preroll_count--)
-                IMFMediaEventQueue_QueueEventParamVar(stream->event_queue, MEStreamSinkRequestSample,
-                        &GUID_NULL, S_OK, NULL);
-            else
-            {
-                IMFMediaEventQueue_QueueEventParamVar(stream->event_queue, MEStreamSinkPrerolled,
-                        &GUID_NULL, S_OK, NULL);
-                stream->flags &= ~EVR_STREAM_PREROLLING;
-                stream->flags |= EVR_STREAM_PREROLLED;
-            }
+            IMFMediaEventQueue_QueueEventParamVar(stream->event_queue, MEStreamSinkPrerolled, &GUID_NULL, S_OK, NULL);
+            stream->flags &= ~EVR_STREAM_PREROLLING;
+            stream->flags |= EVR_STREAM_PREROLLED;
         }
     }
 
@@ -1542,7 +1534,6 @@ static HRESULT WINAPI video_renderer_preroll_NotifyPreroll(IMFMediaSinkPreroll *
                 IMFMediaEventQueue_QueueEventParamVar(stream->event_queue, MEStreamSinkRequestSample,
                         &GUID_NULL, S_OK, NULL);
                 stream->flags |= EVR_STREAM_PREROLLING;
-                stream->preroll_count = 3;
             }
             LeaveCriticalSection(&stream->cs);
         }
