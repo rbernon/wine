@@ -108,7 +108,7 @@ static BOOL nores_get_current_mode(x11drv_settings_id id, DEVMODEW *mode)
 
     if (id.id != 1)
     {
-        FIXME("Non-primary sources are unsupported.\n");
+        FIXME("Non-primary adapters are unsupported.\n");
         mode->dmBitsPerPel = 0;
         mode->dmPelsWidth = 0;
         mode->dmPelsHeight = 0;
@@ -305,20 +305,20 @@ POINT root_to_virtual_screen(INT x, INT y)
 /* Get the primary monitor rect from the host system */
 RECT get_host_primary_monitor_rect(void)
 {
-    INT gpu_count, source_count, monitor_count;
+    INT gpu_count, adapter_count, monitor_count;
     struct x11drv_gpu *gpus = NULL;
-    struct x11drv_source *sources = NULL;
+    struct x11drv_adapter *adapters = NULL;
     struct gdi_monitor *monitors = NULL;
     RECT rect = {0};
 
     /* The first monitor is always primary */
     if (host_handler.get_gpus(&gpus, &gpu_count, FALSE) && gpu_count &&
-        host_handler.get_sources(gpus[0].id, &sources, &source_count) && source_count &&
-        host_handler.get_monitors(sources[0].id, &monitors, &monitor_count) && monitor_count)
+        host_handler.get_adapters(gpus[0].id, &adapters, &adapter_count) && adapter_count &&
+        host_handler.get_monitors(adapters[0].id, &monitors, &monitor_count) && monitor_count)
         rect = monitors[0].rc_monitor;
 
     if (gpus) host_handler.free_gpus( gpus, gpu_count );
-    if (sources) host_handler.free_sources(sources);
+    if (adapters) host_handler.free_adapters(adapters);
     if (monitors) host_handler.free_monitors(monitors, monitor_count);
     return rect;
 }
@@ -404,12 +404,11 @@ BOOL X11DRV_DisplayDevices_SupportEventHandlers(void)
 
 UINT X11DRV_UpdateDisplayDevices( const struct gdi_device_manager *device_manager, void *param )
 {
-    INT gpu_count, source_count, monitor_count, current_source_count = 0;
-    struct x11drv_source *sources;
+    INT gpu_count, adapter_count, monitor_count, current_adapter_count = 0;
+    struct x11drv_adapter *adapters;
     struct gdi_monitor *monitors;
     struct x11drv_gpu *gpus;
-    INT gpu_count, source_count, monitor_count;
-    INT gpu, source, monitor;
+    INT gpu, adapter, monitor;
     DEVMODEW *modes;
     UINT mode_count;
 
@@ -423,24 +422,24 @@ UINT X11DRV_UpdateDisplayDevices( const struct gdi_device_manager *device_manage
     {
         device_manager->add_gpu( gpus[gpu].name, &gpus[gpu].pci_id, &gpus[gpu].vulkan_uuid, param );
 
-        /* Initialize sources */
-        if (!host_handler.get_sources( gpus[gpu].id, &sources, &source_count )) break;
-        TRACE( "GPU: %#lx %s, source count: %d\n", gpus[gpu].id, debugstr_a( gpus[gpu].name ), source_count );
+        /* Initialize adapters */
+        if (!host_handler.get_adapters( gpus[gpu].id, &adapters, &adapter_count )) break;
+        TRACE( "GPU: %#lx %s, adapter count: %d\n", gpus[gpu].id, debugstr_a( gpus[gpu].name ), adapter_count );
 
-        for (source = 0; source < source_count; source++)
+        for (adapter = 0; adapter < adapter_count; adapter++)
         {
             DEVMODEW current_mode = {.dmSize = sizeof(current_mode)};
             WCHAR devname[32];
             char buffer[32];
             x11drv_settings_id settings_id;
-            BOOL is_primary = sources[source].state_flags & DISPLAY_DEVICE_PRIMARY_DEVICE;
+            BOOL is_primary = adapters[adapter].state_flags & DISPLAY_DEVICE_PRIMARY_DEVICE;
             UINT dpi = NtUserGetSystemDpiForProcess( NULL );
 
-            sprintf( buffer, "%04lx", sources[source].id );
-            device_manager->add_source( buffer, sources[source].state_flags, dpi, param );
+            sprintf( buffer, "%04lx", adapters[adapter].id );
+            device_manager->add_source( buffer, adapters[adapter].state_flags, dpi, param );
 
-            if (!host_handler.get_monitors( sources[source].id, &monitors, &monitor_count )) break;
-            TRACE("source: %#lx, monitor count: %d\n", sources[source].id, monitor_count);
+            if (!host_handler.get_monitors( adapters[adapter].id, &monitors, &monitor_count )) break;
+            TRACE("adapter: %#lx, monitor count: %d\n", adapters[adapter].id, monitor_count);
 
             /* Initialize monitors */
             for (monitor = 0; monitor < monitor_count; monitor++)
@@ -448,8 +447,8 @@ UINT X11DRV_UpdateDisplayDevices( const struct gdi_device_manager *device_manage
 
             host_handler.free_monitors( monitors, monitor_count );
 
-            /* Get the settings handler id for the source */
-            snprintf( buffer, sizeof(buffer), "\\\\.\\DISPLAY%d", current_source_count + adapter + 1 );
+            /* Get the settings handler id for the adapter */
+            snprintf( buffer, sizeof(buffer), "\\\\.\\DISPLAY%d", current_adapter_count + adapter + 1 );
             asciiz_to_unicode( devname, buffer );
             if (!settings_handler.get_id( devname, is_primary, &settings_id )) break;
 
@@ -461,8 +460,8 @@ UINT X11DRV_UpdateDisplayDevices( const struct gdi_device_manager *device_manage
             }
         }
 
-        current_source_count += source_count;
-        host_handler.free_adapters( sources );
+        current_adapter_count += adapter_count;
+        host_handler.free_adapters( adapters );
     }
 
     host_handler.free_gpus( gpus, gpu_count );

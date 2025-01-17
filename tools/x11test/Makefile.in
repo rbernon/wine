@@ -1,6 +1,0 @@
-PROGRAMS = x11test
-UNIX_CFLAGS = $(X_CFLAGS)
-UNIX_LIBS   = $(X_LIBS) $(PTHREAD_LIBS) -lm
-
-SOURCES = \
-	x11test.c
