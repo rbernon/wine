@@ -233,15 +233,13 @@ static void handle_display_settings_change( HWND hwnd )
     InvalidateRect( GetDlgItem( hwnd, IDC_VIRTUAL_DESKTOP ), NULL, TRUE );
 }
 
-static void handle_display_settings_apply( HWND hwnd )
+static void handle_display_settings_apply(void)
 {
     struct device_entry *entry;
 
     LIST_FOR_EACH_ENTRY( entry, &devices, struct device_entry, entry )
         ChangeDisplaySettingsExW( entry->adapter.DeviceName, &entry->current, 0, CDS_UPDATEREGISTRY | CDS_NORESET, NULL );
     ChangeDisplaySettingsExW( NULL, NULL, 0, 0, NULL );
-
-    update_display_settings_list( hwnd );
 }
 
 static void handle_emulate_modeset_change( HWND hwnd )
@@ -473,7 +471,7 @@ static INT_PTR CALLBACK desktop_dialog_proc( HWND hwnd, UINT msg, WPARAM wparam,
             handle_emulate_modeset_change( hwnd );
             break;
         case IDC_DISPLAY_SETTINGS_APPLY:
-            handle_display_settings_apply( hwnd );
+            handle_display_settings_apply();
             break;
         case IDC_DISPLAY_SETTINGS_RESET:
             refresh_device_list( hwnd );

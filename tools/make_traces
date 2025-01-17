@@ -304,9 +304,6 @@ def main():
   for build in ['64', '32']:
     if 'proton' in os.getcwd(): prefix = '/Code/build-proton/obj-'
     else: prefix = '/Code/build-wine/'
-
-    build = '-i386' if build == '32' and not os.path.exists(os.environ['HOME'] + prefix + f'wine{build}') else build
-    build = '-x86_64' if build == '64' and not os.path.exists(os.environ['HOME'] + prefix + f'wine{build}') else build
     compdb = CompilationDatabase.fromDirectory(os.environ['HOME'] + prefix + f'wine{build}')
 
     for file in files:

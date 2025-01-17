@@ -13,23 +13,6 @@
  * Copyright 2021-2024 The Khronos Group Inc.
  * SPDX-License-Identifier: Apache-2.0 OR MIT
  *
- * and from OpenXR xr.xml file covered
- * by the following copyright and permission notice:
- *
- * Copyright (c) 2017-2024, The Khronos Group Inc.
- *
- * SPDX-License-Identifier: Apache-2.0 OR MIT
- *
- * ------------------------------------------------------------------------
- *
- * This file, xr.xml, is the OpenXR API Registry. It is a critically important
- * and normative part of the OpenXR Specification, including a canonical
- * machine-readable definition of the API, parameter and member validation
- * language incorporated into the Specification and reference pages, and other
- * material which is registered by Khronos, such as tags used by extension and
- * layer authors. The only authoritative version of xr.xml is the one
- * maintained in the default branch of the Khronos OpenXR GitHub project.
- *
  */
 
 #ifndef __WINE_VULKAN_THUNKS_H
@@ -81,23 +64,5 @@ VkResult wine_vkMapMemory(VkDevice device, VkDeviceMemory memory, VkDeviceSize o
 VkResult wine_vkMapMemory2KHR(VkDevice device, const VkMemoryMapInfo *pMemoryMapInfo, void **ppData);
 void wine_vkUnmapMemory(VkDevice device, VkDeviceMemory memory);
 VkResult wine_vkUnmapMemory2KHR(VkDevice device, const VkMemoryUnmapInfo *pMemoryUnmapInfo);
-XrResult wine_xrCreateAction(XrActionSet actionSet, const XrActionCreateInfo *createInfo, XrAction *action);
-XrResult wine_xrCreateActionSet(XrInstance instance, const XrActionSetCreateInfo *createInfo, XrActionSet *actionSet);
-XrResult wine_xrCreateActionSpace(XrSession session, const XrActionSpaceCreateInfo *createInfo, XrSpace *space);
-XrResult wine_xrCreateInstance(const XrInstanceCreateInfo *createInfo, XrInstance *instance);
-XrResult wine_xrCreateReferenceSpace(XrSession session, const XrReferenceSpaceCreateInfo *createInfo, XrSpace *space);
-XrResult wine_xrCreateSession(XrInstance instance, const XrSessionCreateInfo *createInfo, XrSession *session);
-XrResult wine_xrCreateSwapchain(XrSession session, const XrSwapchainCreateInfo *createInfo, XrSwapchain *swapchain);
-XrResult wine_xrCreateVulkanDeviceKHR(XrInstance instance, const XrVulkanDeviceCreateInfoKHR *createInfo, VkDevice *vulkanDevice, VkResult *vulkanResult);
-XrResult wine_xrCreateVulkanInstanceKHR(XrInstance instance, const XrVulkanInstanceCreateInfoKHR *createInfo, VkInstance *vulkanInstance, VkResult *vulkanResult);
-XrResult wine_xrDestroyAction(XrAction action);
-XrResult wine_xrDestroyActionSet(XrActionSet actionSet);
-XrResult wine_xrDestroyInstance(XrInstance instance);
-XrResult wine_xrDestroySession(XrSession session);
-XrResult wine_xrDestroySpace(XrSpace space);
-XrResult wine_xrDestroySwapchain(XrSwapchain swapchain);
-XrResult wine_xrEnumerateInstanceExtensionProperties(const char *layerName, uint32_t propertyCapacityInput, uint32_t *propertyCountOutput, XrExtensionProperties *properties);
-XrResult wine_xrGetVulkanGraphicsDevice2KHR(XrInstance instance, const XrVulkanGraphicsDeviceGetInfoKHR *getInfo, VkPhysicalDevice *vulkanPhysicalDevice);
-XrResult wine_xrGetVulkanGraphicsDeviceKHR(XrInstance instance, XrSystemId systemId, VkInstance vkInstance, VkPhysicalDevice *vkPhysicalDevice);
 
 #endif /* __WINE_VULKAN_THUNKS_H */
