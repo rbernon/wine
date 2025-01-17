@@ -32,18 +32,6 @@
 
 DEFINE_GUID(IID_IDirectMusicBandTrackPrivate, 0x53466056, 0x6dc4, 0x11d1, 0xbf, 0x7b, 0x00, 0xc0, 0x4f, 0xbf, 0x8f, 0xef);
 
-#define check_interface(a, b, c) check_interface_(__LINE__, a, b, c)
-static void check_interface_(unsigned int line, void *iface_ptr, REFIID iid, BOOL supported)
-{
-    IUnknown *iface = iface_ptr;
-    HRESULT hr, expected;
-    IUnknown *unk;
-
-    expected = supported ? S_OK : E_NOINTERFACE;
-    hr = IUnknown_QueryInterface(iface, iid, (void **)&unk);
-    ok_(__FILE__, line)(hr == expected, "got hr %#lx, expected %#lx.\n", hr, expected);
-}
-
 static BOOL missing_dmband(void)
 {
     IDirectMusicBand *dmb;
@@ -58,6 +46,107 @@ static BOOL missing_dmband(void)
     return TRUE;
 }
 
+static void test_COM(void)
+{
+    IDirectMusicBand *dmb = (IDirectMusicBand*)0xdeadbeef;
+    IDirectMusicObject *dmo;
+    IPersistStream *ps;
+    IUnknown *unk;
+    ULONG refcount;
+    HRESULT hr;
+
+    /* COM aggregation */
+    hr = CoCreateInstance(&CLSID_DirectMusicBand, (IUnknown *)0xdeadbeef, CLSCTX_INPROC_SERVER,
+            &IID_IUnknown, (void**)&dmb);
+    ok(hr == CLASS_E_NOAGGREGATION,
+            "DirectMusicBand create failed: %#lx, expected CLASS_E_NOAGGREGATION\n", hr);
+    ok(!dmb, "dmb = %p\n", dmb);
+
+    /* Invalid RIID */
+    hr = CoCreateInstance(&CLSID_DirectMusicBand, NULL, CLSCTX_INPROC_SERVER, &IID_IClassFactory,
+            (void**)&dmb);
+    ok(hr == E_NOINTERFACE, "DirectMusicBand create failed: %#lx, expected E_NOINTERFACE\n", hr);
+
+    /* Same refcount for all DirectMusicBand interfaces */
+    hr = CoCreateInstance(&CLSID_DirectMusicBand, NULL, CLSCTX_INPROC_SERVER, &IID_IDirectMusicBand,
+            (void**)&dmb);
+    ok(hr == S_OK, "DirectMusicBand create failed: %#lx, expected S_OK\n", hr);
+    refcount = IDirectMusicBand_AddRef(dmb);
+    ok(refcount == 2, "refcount == %lu, expected 2\n", refcount);
+
+    hr = IDirectMusicBand_QueryInterface(dmb, &IID_IDirectMusicObject, (void**)&dmo);
+    ok(hr == S_OK, "QueryInterface for IID_IDirectMusicObject failed: %#lx\n", hr);
+    refcount = IDirectMusicObject_AddRef(dmo);
+    ok(refcount == 4, "refcount == %lu, expected 4\n", refcount);
+    refcount = IDirectMusicObject_Release(dmo);
+
+    hr = IDirectMusicBand_QueryInterface(dmb, &IID_IPersistStream, (void**)&ps);
+    ok(hr == S_OK, "QueryInterface for IID_IPersistStream failed: %#lx\n", hr);
+    refcount = IPersistStream_AddRef(ps);
+    ok(refcount == 5, "refcount == %lu, expected 5\n", refcount);
+    refcount = IPersistStream_Release(ps);
+
+    hr = IDirectMusicBand_QueryInterface(dmb, &IID_IUnknown, (void**)&unk);
+    ok(hr == S_OK, "QueryInterface for IID_IUnknown failed: %#lx\n", hr);
+    refcount = IUnknown_AddRef(unk);
+    ok(refcount == 6, "refcount == %lu, expected 6\n", refcount);
+    refcount = IUnknown_Release(unk);
+
+    while (IDirectMusicBand_Release(dmb));
+}
+
+static void test_COM_bandtrack(void)
+{
+    IDirectMusicTrack *dmbt = (IDirectMusicTrack*)0xdeadbeef;
+    IPersistStream *ps;
+    IUnknown *private;
+    IUnknown *unk;
+    ULONG refcount;
+    HRESULT hr;
+
+    /* COM aggregation */
+    hr = CoCreateInstance(&CLSID_DirectMusicBandTrack, (IUnknown *)0xdeadbeef, CLSCTX_INPROC_SERVER,
+            &IID_IUnknown, (void**)&dmbt);
+    ok(hr == CLASS_E_NOAGGREGATION,
+            "DirectMusicBandTrack create failed: %#lx, expected CLASS_E_NOAGGREGATION\n", hr);
+    ok(!dmbt, "dmbt = %p\n", dmbt);
+
+    /* Invalid RIID */
+    hr = CoCreateInstance(&CLSID_DirectMusicBandTrack, NULL, CLSCTX_INPROC_SERVER,
+            &IID_IDirectMusicObject, (void**)&dmbt);
+    ok(hr == E_NOINTERFACE, "DirectMusicBandTrack create failed: %#lx, expected E_NOINTERFACE\n", hr);
+
+    /* Same refcount for all DirectMusicBandTrack interfaces */
+    hr = CoCreateInstance(&CLSID_DirectMusicBandTrack, NULL, CLSCTX_INPROC_SERVER,
+            &IID_IDirectMusicTrack, (void**)&dmbt);
+    ok(hr == S_OK, "DirectMusicBandTrack create failed: %#lx, expected S_OK\n", hr);
+    refcount = IDirectMusicTrack_AddRef(dmbt);
+    ok(refcount == 2, "refcount == %lu, expected 2\n", refcount);
+
+    hr = IDirectMusicTrack_QueryInterface(dmbt, &IID_IPersistStream, (void**)&ps);
+    ok(hr == S_OK, "QueryInterface for IID_IPersistStream failed: %#lx\n", hr);
+    refcount = IPersistStream_AddRef(ps);
+    ok(refcount == 4, "refcount == %lu, expected 4\n", refcount);
+    IPersistStream_Release(ps);
+
+    hr = IDirectMusicTrack_QueryInterface(dmbt, &IID_IUnknown, (void**)&unk);
+    ok(hr == S_OK, "QueryInterface for IID_IUnknown failed: %#lx\n", hr);
+    refcount = IUnknown_AddRef(unk);
+    ok(refcount == 5, "refcount == %lu, expected 5\n", refcount);
+    refcount = IUnknown_Release(unk);
+
+    hr = IDirectMusicTrack_QueryInterface(dmbt, &IID_IDirectMusicBandTrackPrivate,
+            (void**)&private);
+    todo_wine ok(hr == S_OK, "QueryInterface for IID_IDirectMusicBandTrackPrivate failed: %#lx\n", hr);
+    if (hr == S_OK) {
+        refcount = IUnknown_AddRef(private);
+        ok(refcount == 6, "refcount == %lu, expected 6\n", refcount);
+        refcount = IUnknown_Release(private);
+    }
+
+    while (IDirectMusicTrack_Release(dmbt));
+}
+
 static void test_dmband(void)
 {
     IDirectMusicBand *dmb;
@@ -69,11 +158,6 @@ static void test_dmband(void)
     hr = CoCreateInstance(&CLSID_DirectMusicBand, NULL, CLSCTX_INPROC_SERVER,
             &IID_IDirectMusicBand, (void**)&dmb);
     ok(hr == S_OK, "DirectMusicBand create failed: %#lx, expected S_OK\n", hr);
-
-    check_interface(dmb, &IID_IUnknown, TRUE);
-    check_interface(dmb, &IID_IDirectMusicBand, TRUE);
-    check_interface(dmb, &IID_IPersistStream, TRUE);
-    check_interface(dmb, &IID_IDirectMusicObject, TRUE);
 
     /* Unimplemented IPersistStream methods */
     hr = IDirectMusicBand_QueryInterface(dmb, &IID_IPersistStream, (void**)&ps);
@@ -143,14 +227,6 @@ static void test_bandtrack(void)
     hr = CoCreateInstance(&CLSID_DirectMusicBandTrack, NULL, CLSCTX_INPROC_SERVER,
             &IID_IDirectMusicTrack8, (void**)&dmt8);
     ok(hr == S_OK, "DirectMusicBandTrack create failed: %#lx, expected S_OK\n", hr);
-
-    check_interface(dmt8, &IID_IUnknown, TRUE);
-    check_interface(dmt8, &IID_IDirectMusicTrack, TRUE);
-    check_interface(dmt8, &IID_IDirectMusicTrack8, TRUE);
-    check_interface(dmt8, &IID_IDirectMusicBandTrackPrivate, TRUE);
-    check_interface(dmt8, &IID_IPersistStream, TRUE);
-
-    check_interface(dmt8, &IID_IDirectMusicObject, FALSE);
 
     /* IDirectMusicTrack8 */
     hr = IDirectMusicTrack8_Init(dmt8, NULL);
@@ -528,6 +604,8 @@ START_TEST(dmband)
         return;
     }
 
+    test_COM();
+    test_COM_bandtrack();
     test_dmband();
     test_bandtrack();
     test_parsedescriptor();
