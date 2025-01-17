@@ -383,10 +383,7 @@ static HRESULT get_first_supported_media_type(IMFMediaTypeHandler *handler, IMFM
 
     for (i = 0; SUCCEEDED(hr = IMFMediaTypeHandler_GetMediaTypeByIndex(handler, i, &media_type)); i++)
     {
-        /* HACK: Force initialize media type here, this is now something the topology laoder should do
-         * according to conformance tests but it should hopefully going to solve uninitialized audio
-         * renderer issues. */
-        if (SUCCEEDED(hr = IMFMediaTypeHandler_SetCurrentMediaType(handler, media_type)))
+        if (SUCCEEDED(hr = IMFMediaTypeHandler_IsMediaTypeSupported(handler, media_type, NULL)))
         {
             *type = media_type;
             return hr;
