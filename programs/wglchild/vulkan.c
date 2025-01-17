@@ -50,7 +50,6 @@
 #include <windef.h>
 #include <winbase.h>
 #include <wine/vulkan.h>
-#include <wglgears_private.h>
 
 #include "linmath.h"
 #include "object_type_string_helper.h"
@@ -2594,7 +2593,7 @@ LRESULT CALLBACK vulkan_window_proc( HWND hwnd, UINT msg, WPARAM wparam, LPARAM 
         return 0;
     }
 
-    return default_window_proc( hwnd, msg, wparam, lparam );
+    return DefWindowProcW( hwnd, msg, wparam, lparam );
 }
 
 #elif defined( VK_USE_PLATFORM_XLIB_KHR )
