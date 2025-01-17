@@ -72,7 +72,6 @@
 @ extern ??_7bad_cast@@6B@ bad_cast_vtable
 @ extern ??_7bad_typeid@@6B@ bad_typeid_vtable
 @ extern ??_7exception@@6B@ exception_vtable
-@ extern ??_7type_info@@6B@ type_info_vtable
 @ cdecl -arch=arm ??_Fbad_cast@@QAAXXZ(ptr) bad_cast_default_ctor
 @ thiscall -arch=i386 ??_Fbad_cast@@QAEXXZ(ptr) bad_cast_default_ctor
 @ cdecl -arch=win64 ??_Fbad_cast@@QEAAXXZ(ptr) bad_cast_default_ctor
