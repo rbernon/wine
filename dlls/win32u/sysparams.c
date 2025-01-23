@@ -1584,8 +1584,18 @@ static SIZE *get_screen_sizes( const DEVMODEW *maximum, const DEVMODEW *modes, U
 {
     static SIZE lowres_sizes[] =
     {
+        /* 4:3 */
+        { 320,  240},
+        { 400,  300},
+        { 512,  384},
+        { 640,  480},
+        { 768,  576},
         /* 16:9 */
         { 960,  540},
+        /* 16:10 */
+        { 320,  200},
+        { 640,  400},
+
     };
     static SIZE default_sizes[] =
     {
