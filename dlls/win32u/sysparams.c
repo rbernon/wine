@@ -159,7 +159,8 @@ static INT64 last_query_display_time;
 static UINT64 monitor_update_serial;
 static pthread_mutex_t display_lock = PTHREAD_MUTEX_INITIALIZER;
 
-static BOOL emulate_modeset;
+static BOOL emulate_modeset = TRUE;
+static UINT limit_resolutions = 0;
 BOOL decorated_mode = TRUE;
 UINT64 thunk_lock_callback = 0;
 
@@ -1583,44 +1584,39 @@ static SIZE *get_screen_sizes( const DEVMODEW *maximum, const DEVMODEW *modes, U
 {
     static SIZE lowres_sizes[] =
     {
-        /* 4:3 */
-        { 320,  240},
-        { 400,  300},
-        { 512,  384},
-        { 640,  480},
-        { 768,  576},
         /* 16:9 */
         { 960,  540},
-        /* 16:10 */
-        { 320,  200},
-        { 640,  400},
     };
     static SIZE default_sizes[] =
     {
         /* 4:3 */
         { 800,  600},
         {1024,  768},
-        {1152,  864},
-        {1280,  960},
-        {1400, 1050},
         {1600, 1200},
-        {2048, 1536},
         /* 16:9 */
         {1280,  720},
-        {1366,  768},
         {1600,  900},
         {1920, 1080},
         {2560, 1440},
-        {3840, 2160},
+        {2880, 1620},
+        {3200, 1800},
         /* 16:10 */
-        {1280,  800},
         {1440,  900},
         {1680, 1050},
         {1920, 1200},
         {2560, 1600},
+        /* 3:2 */
+        {1440,  960},
+        {1920, 1280},
+        /* 21:9 ultra-wide */
+        {2560, 1080},
+        /* 12:5 */
+        {1920,  800},
+        {3840, 1600},
         /* 5:4 */
         {1280, 1024},
-        {2560, 2048},
+        /* 5:3 */
+        {1280,  768},
     };
     UINT max_width = devmode_get( maximum, DM_PELSWIDTH ), max_height = devmode_get( maximum, DM_PELSHEIGHT );
     SIZE *sizes, max_size = {.cx = max( max_width, max_height ), .cy = min( max_width, max_height )};
@@ -1649,6 +1645,7 @@ static SIZE *get_screen_sizes( const DEVMODEW *maximum, const DEVMODEW *modes, U
         count += add_screen_size( sizes, count, size );
     }
 
+    if (limit_resolutions && count > limit_resolutions) count = limit_resolutions;
     *sizes_count = count;
     return sizes;
 }
@@ -5524,6 +5521,8 @@ void sysparams_init(void)
         decorated_mode = IS_OPTION_TRUE( buffer[0] );
     if (!get_config_key( hkey, appkey, "EmulateModeset", buffer, sizeof(buffer) ))
         emulate_modeset = IS_OPTION_TRUE( buffer[0] );
+    if (!get_config_key( hkey, appkey, "LimitNumberOfResolutions", buffer, sizeof(buffer) ))
+        limit_resolutions = ntdll_wcstoul( buffer, NULL, 10 );
 
 #undef IS_OPTION_TRUE
 
