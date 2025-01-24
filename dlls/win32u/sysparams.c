@@ -159,7 +159,8 @@ static INT64 last_query_display_time;
 static UINT64 monitor_update_serial;
 static pthread_mutex_t display_lock = PTHREAD_MUTEX_INITIALIZER;
 
-static BOOL emulate_modeset;
+static BOOL emulate_modeset = TRUE;
+static UINT limit_resolutions = 0;
 BOOL decorated_mode = TRUE;
 UINT64 thunk_lock_callback = 0;
 
@@ -1569,103 +1570,193 @@ static void add_monitor( const struct gdi_monitor *gdi_monitor, void *param )
     }
 }
 
-static DEVMODEW *get_virtual_modes( const DEVMODEW *current, const DEVMODEW *initial,
-                                    const DEVMODEW *maximum, UINT32 *modes_count )
+static UINT add_screen_size( SIZE *sizes, UINT count, SIZE size )
 {
-    static struct screen_size
+    UINT i = 0;
+
+    while (i < count && memcmp( sizes + i, &size, sizeof(size) )) i++;
+    if (i == count) sizes[i] = size;
+    return i == count ? 1 : 0;
+}
+
+static SIZE *get_screen_sizes( const DEVMODEW *maximum, const DEVMODEW *modes, UINT modes_count,
+                               UINT *sizes_count )
+{
+    static SIZE lowres_sizes[] =
     {
-        unsigned int width;
-        unsigned int height;
-    } screen_sizes[] = {
         /* 4:3 */
         { 320,  240},
         { 400,  300},
         { 512,  384},
         { 640,  480},
         { 768,  576},
-        { 800,  600},
-        {1024,  768},
-        {1152,  864},
-        {1280,  960},
-        {1400, 1050},
-        {1600, 1200},
-        {2048, 1536},
-        /* 5:4 */
-        {1280, 1024},
-        {2560, 2048},
         /* 16:9 */
-        {1280,  720},
-        {1366,  768},
-        {1600,  900},
-        {1920, 1080},
-        {2560, 1440},
-        {3840, 2160},
+        { 960,  540},
         /* 16:10 */
         { 320,  200},
         { 640,  400},
-        {1280,  800},
+
+    };
+    static SIZE default_sizes[] =
+    {
+        /* 4:3 */
+        { 800,  600},
+        {1024,  768},
+        {1600, 1200},
+        /* 16:9 */
+        {1280,  720},
+        {1600,  900},
+        {1920, 1080},
+        {2560, 1440},
+        {2880, 1620},
+        {3200, 1800},
+        /* 16:10 */
         {1440,  900},
         {1680, 1050},
         {1920, 1200},
-        {2560, 1600}
+        {2560, 1600},
+        /* 3:2 */
+        {1440,  960},
+        {1920, 1280},
+        /* 21:9 ultra-wide */
+        {2560, 1080},
+        /* 12:5 */
+        {1920,  800},
+        {3840, 1600},
+        /* 5:4 */
+        {1280, 1024},
+        /* 5:3 */
+        {1280,  768},
     };
-    UINT depths[] = {8, 16, initial->dmBitsPerPel}, i, j, count;
+    UINT max_width = devmode_get( maximum, DM_PELSWIDTH ), max_height = devmode_get( maximum, DM_PELSHEIGHT );
+    SIZE *sizes, max_size = {.cx = max( max_width, max_height ), .cy = min( max_width, max_height )};
+    const DEVMODEW *mode;
+    UINT i, count;
+
+    const char *env;
+
+    count = 1 + ARRAY_SIZE(default_sizes) + ARRAY_SIZE(lowres_sizes) + modes_count;
+    if (!(sizes = malloc( count * sizeof(*sizes) ))) return NULL;
+
+    count = add_screen_size( sizes, 0, max_size );
+    for (i = 0; i < ARRAY_SIZE(default_sizes); i++)
+    {
+        if (default_sizes[i].cx > max_size.cx || default_sizes[i].cy > max_size.cy) continue;
+        count += add_screen_size( sizes, count, default_sizes[i] );
+    }
+
+    /* Titan Souls renders incorrectly if we report modes smaller than 800x600 */
+    if (!(env = getenv( "SteamAppId" )) || strcmp( env, "297130" ))
+    {
+        memcpy( sizes + count, lowres_sizes, ARRAY_SIZE(lowres_sizes) * sizeof(*sizes) );
+        count += ARRAY_SIZE(lowres_sizes);
+    }
+
+    for (mode = modes; mode && modes_count; mode = NEXT_DEVMODEW(mode), modes_count--)
+    {
+        UINT width = devmode_get( mode, DM_PELSWIDTH ), height = devmode_get( mode, DM_PELSHEIGHT );
+        SIZE size = {.cx = max( width, height ), .cy = min( width, height )};
+        if (!size.cx || size.cx < 800 || size.cx > max_size.cx) continue;
+        if (!size.cy || size.cy < 600 || size.cy > max_size.cy) continue;
+        count += add_screen_size( sizes, count, size );
+    }
+
+    if (limit_resolutions && count > limit_resolutions) count = limit_resolutions;
+    *sizes_count = count;
+    return sizes;
+}
+
+static UINT add_virtual_mode( DEVMODEW *modes, UINT count, const DEVMODEW *mode, BOOL center )
+{
+    TRACE( "adding %s\n", debugstr_devmodew(mode) );
+    modes[count++] = *mode;
+    if (!center) return 1;
+
+    modes[count] = *mode;
+    modes[count].dmFields |= DM_DISPLAYFIXEDOUTPUT;
+    modes[count].dmDisplayFixedOutput = DMDFO_CENTER;
+    return 2;
+}
+
+static DEVMODEW *get_virtual_modes( const DEVMODEW *current, const DEVMODEW *initial, const DEVMODEW *maximum,
+                                    const DEVMODEW *host_modes, UINT host_modes_count, UINT32 *modes_count )
+{
+    UINT depths[] = {8, 16, initial->dmBitsPerPel}, freqs[] = {60, -1}, sizes_count, i, j, f, count = 0;
+    DEVMODEW *modes = NULL;
+    SIZE *screen_sizes;
     BOOL vertical;
-    DEVMODEW *modes;
+
+    BOOL center_modes = FALSE;
+    const char *env;
 
     /* Check the ratio of dmPelsWidth to dmPelsHeight to determine whether the initial display mode
      * is in horizontal or vertical orientation. DMDO_DEFAULT is the natural orientation of the
      * device, which isn't necessarily a horizontal mode */
     vertical = initial->dmPelsHeight > initial->dmPelsWidth;
 
-    modes = malloc( ARRAY_SIZE(depths) * (ARRAY_SIZE(screen_sizes) + 2) * sizeof(*modes) );
+    if ((env = getenv( "WINE_CENTER_DISPLAY_MODES" )))
+        center_modes = (env[0] != '0');
+    else if ((env = getenv( "SteamAppId" )))
+        center_modes = !strcmp( env, "359870" );
 
-    for (count = i = 0; modes && i < ARRAY_SIZE(depths); ++i)
+    freqs[1] = devmode_get( initial, DM_DISPLAYFREQUENCY );
+    if (freqs[1] <= 60) freqs[1] = 0;
+
+    if (!(screen_sizes = get_screen_sizes( maximum, host_modes, host_modes_count, &sizes_count ))) return NULL;
+    modes = malloc( 2 * ARRAY_SIZE(freqs) * ARRAY_SIZE(depths) * (sizes_count + 2) * sizeof(*modes) );
+
+    for (i = 0; modes && i < ARRAY_SIZE(depths); ++i)
+    for (f = 0; f < ARRAY_SIZE(freqs); ++f)
     {
         DEVMODEW mode =
         {
             .dmSize = sizeof(mode),
             .dmFields = DM_DISPLAYORIENTATION | DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFLAGS | DM_DISPLAYFREQUENCY,
-            .dmDisplayFrequency = 60,
+            .dmDisplayFrequency = freqs[f],
             .dmBitsPerPel = depths[i],
             .dmDisplayOrientation = initial->dmDisplayOrientation,
         };
+        if (!mode.dmDisplayFrequency) continue;
 
-        for (j = 0; j < ARRAY_SIZE(screen_sizes); ++j)
+        for (j = 0; j < sizes_count; ++j)
         {
-            mode.dmPelsWidth = vertical ? screen_sizes[j].height : screen_sizes[j].width;
-            mode.dmPelsHeight = vertical ? screen_sizes[j].width : screen_sizes[j].height;
+            mode.dmPelsWidth = vertical ? screen_sizes[j].cy : screen_sizes[j].cx;
+            mode.dmPelsHeight = vertical ? screen_sizes[j].cx : screen_sizes[j].cy;
 
             if (mode.dmPelsWidth > maximum->dmPelsWidth || mode.dmPelsHeight > maximum->dmPelsHeight) continue;
             if (mode.dmPelsWidth == maximum->dmPelsWidth && mode.dmPelsHeight == maximum->dmPelsHeight) continue;
             if (mode.dmPelsWidth == initial->dmPelsWidth && mode.dmPelsHeight == initial->dmPelsHeight) continue;
-            modes[count++] = mode;
+            count += add_virtual_mode( modes, count, &mode, center_modes );
         }
 
         mode.dmPelsWidth = vertical ? initial->dmPelsHeight : initial->dmPelsWidth;
         mode.dmPelsHeight = vertical ? initial->dmPelsWidth : initial->dmPelsHeight;
-        modes[count++] = mode;
+        count += add_virtual_mode( modes, count, &mode, center_modes );
 
         if (maximum->dmPelsWidth != initial->dmPelsWidth || maximum->dmPelsHeight != initial->dmPelsHeight)
         {
             mode.dmPelsWidth = vertical ? maximum->dmPelsHeight : maximum->dmPelsWidth;
             mode.dmPelsHeight = vertical ? maximum->dmPelsWidth : maximum->dmPelsHeight;
-            modes[count++] = mode;
+            count += add_virtual_mode( modes, count, &mode, center_modes );
         }
     }
+
+    free( screen_sizes );
 
     *modes_count = count;
     return modes;
 }
 
-static void add_modes( const DEVMODEW *current, UINT modes_count, const DEVMODEW *modes, void *param )
+static void add_modes( const DEVMODEW *current, UINT host_modes_count, const DEVMODEW *host_modes, void *param )
 {
     struct device_manager_ctx *ctx = param;
     DEVMODEW dummy, physical, detached = *current, virtual, *virtual_modes = NULL;
+    UINT virtual_count, modes_count = host_modes_count;
+    const DEVMODEW *modes = host_modes;
     struct source *source;
-    UINT virtual_count;
 
-    TRACE( "current %s, modes_count %u, modes %p, param %p\n", debugstr_devmodew( current ), modes_count, modes, param );
+    TRACE( "current %s, host_modes_count %u, host_modes %p, param %p\n", debugstr_devmodew( current ),
+           host_modes_count, host_modes, param );
 
     assert( !list_empty( &sources ) );
     source = LIST_ENTRY( list_tail( &sources ), struct source, entry );
@@ -1693,7 +1784,7 @@ static void add_modes( const DEVMODEW *current, UINT modes_count, const DEVMODEW
         if (!read_source_mode( source->key, ENUM_CURRENT_SETTINGS, &virtual ))
             virtual = physical;
 
-        if ((virtual_modes = get_virtual_modes( &virtual, current, &physical, &virtual_count )))
+        if ((virtual_modes = get_virtual_modes( &virtual, current, &physical, host_modes, host_modes_count, &virtual_count )))
         {
             modes_count = virtual_count;
             modes = virtual_modes;
@@ -2210,7 +2301,7 @@ static BOOL add_virtual_source( struct device_manager_ctx *ctx )
     add_monitor( &monitor, ctx );
 
     /* Expose the virtual source display modes as physical modes, to avoid DPI scaling */
-    if (!(modes = get_virtual_modes( &current, &initial, &maximum, &modes_count ))) return STATUS_NO_MEMORY;
+    if (!(modes = get_virtual_modes( &current, &initial, &maximum, NULL, 0, &modes_count ))) return STATUS_NO_MEMORY;
     add_modes( &current, modes_count, modes, ctx );
     free( modes );
 
@@ -5464,6 +5555,8 @@ void sysparams_init(void)
         decorated_mode = IS_OPTION_TRUE( buffer[0] );
     if (!get_config_key( hkey, appkey, "EmulateModeset", buffer, sizeof(buffer) ))
         emulate_modeset = IS_OPTION_TRUE( buffer[0] );
+    if (!get_config_key( hkey, appkey, "LimitNumberOfResolutions", buffer, sizeof(buffer) ))
+        limit_resolutions = ntdll_wcstoul( buffer, NULL, 10 );
 
 #undef IS_OPTION_TRUE
 
