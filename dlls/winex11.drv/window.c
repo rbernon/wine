@@ -1988,6 +1988,7 @@ void detach_client_window( struct x11drv_win_data *data, Window client_window )
     }
 
     data->client_window = 0;
+    data->offscreen_client = client_window;
 }
 
 
@@ -2010,6 +2011,7 @@ void attach_client_window( struct x11drv_win_data *data, Window client_window )
     }
 
     data->client_window = client_window;
+    data->offscreen_client = 0;
 }
 
 
@@ -2024,6 +2026,7 @@ void destroy_client_window( HWND hwnd, Window client_window )
 
     if ((data = get_win_data( hwnd )))
     {
+        if (data->offscreen_client == client_window) data->offscreen_client = 0;
         if (data->client_window == client_window)
         {
             if (data->whole_window) client_window_events_disable( data, client_window );
@@ -2039,14 +2042,13 @@ void destroy_client_window( HWND hwnd, Window client_window )
 /**********************************************************************
  *		create_client_window
  */
-Window create_client_window( HWND hwnd, const XVisualInfo *visual, Colormap colormap )
+Window create_client_window( HWND hwnd, RECT client_rect, const XVisualInfo *visual, Colormap colormap )
 {
     Window dummy_parent = get_dummy_parent();
     struct x11drv_win_data *data = get_win_data( hwnd );
     XSetWindowAttributes attr;
     Window ret;
     int x, y, cx, cy;
-    RECT client_rect;
 
     if (!data)
     {
@@ -2068,8 +2070,6 @@ Window create_client_window( HWND hwnd, const XVisualInfo *visual, Colormap colo
 
     x = data->rects.client.left - data->rects.visible.left;
     y = data->rects.client.top - data->rects.visible.top;
-
-    NtUserGetClientRect( hwnd, &client_rect, NtUserGetDpiForWindow( hwnd ) );
     cx = min( max( 1, client_rect.right - client_rect.left ), 65535 );
     cy = min( max( 1, client_rect.bottom - client_rect.top ), 65535 );
 
@@ -2081,6 +2081,7 @@ Window create_client_window( HWND hwnd, const XVisualInfo *visual, Colormap colo
                                                CWBackingStore | CWColormap | CWBorderPixel, &attr );
     if (data->client_window)
     {
+        data->offscreen_client = 0;
         XMapWindow( gdi_display, data->client_window );
         if (data->whole_window)
         {
@@ -2722,7 +2723,17 @@ void X11DRV_GetDC( HDC hdc, HWND hwnd, HWND top, const RECT *win_rect,
 
     if ((data = get_win_data( top )))
     {
-        escape.drawable = data->whole_window;
+        if ((!(escape.drawable = data->client_window) && !(escape.drawable = data->offscreen_client)) || (flags & DCX_WINDOW))
+        {
+            if (data->client_window) WARN( "window %p/%lx has an onscreen client window\n", data->hwnd, data->whole_window );
+            escape.drawable = data->whole_window;
+        }
+        else
+        {
+            OffsetRect( &escape.dc_rect, data->rects.client.left - data->rects.window.left,
+                        data->rects.client.top - data->rects.window.top );
+        }
+
         escape.visual = data->vis;
         /* special case: when repainting the root window, clip out top-level windows */
         if (top == hwnd && data->whole_window == root_window) escape.mode = ClipByChildren;
