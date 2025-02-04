@@ -2233,15 +2233,11 @@ static void destroy_whole_window( struct x11drv_win_data *data, BOOL already_des
  *
  * Change the visual by destroying and recreating the X window if needed.
  */
-void set_window_visual( struct x11drv_win_data *data, const XVisualInfo *vis, BOOL use_alpha )
+void set_window_visual( struct x11drv_win_data *data, const XVisualInfo *vis )
 {
-    BOOL same_visual = (data->vis.visualid == vis->visualid);
     Window client_window = data->client_window;
 
-    if (!data->use_alpha == !use_alpha && same_visual) return;
-    data->use_alpha = use_alpha;
-
-    if (same_visual) return;
+    if (data->vis.visualid == vis->visualid) return;
     client_window = data->client_window;
     /* detach the client before re-creating whole_window */
     detach_client_window( data, client_window );
@@ -2287,7 +2283,7 @@ void X11DRV_SetWindowStyle( HWND hwnd, INT offset, STYLESTRUCT *style )
     if (offset == GWL_EXSTYLE && (changed & WS_EX_LAYERED)) /* changing WS_EX_LAYERED resets attributes */
     {
         data->layered = FALSE;
-        set_window_visual( data, &default_visual, FALSE );
+        set_window_visual( data, &default_visual );
         sync_window_opacity( data->display, data->whole_window, 0, 0 );
     }
 done:
@@ -2655,7 +2651,7 @@ BOOL X11DRV_SystrayDockInsert( HWND hwnd, UINT cx, UINT cy, void *icon )
     get_systray_visual_info( display, systray_window, &visual );
 
     if (!(data = get_win_data( hwnd ))) return FALSE;
-    set_window_visual( data, &visual, TRUE );
+    set_window_visual( data, &visual );
     make_window_embedded( data );
     window = data->whole_window;
     release_win_data( data );
@@ -3165,7 +3161,7 @@ void X11DRV_SetLayeredWindowAttributes( HWND hwnd, COLORREF key, BYTE alpha, DWO
 
     if (data)
     {
-        set_window_visual( data, &default_visual, FALSE );
+        set_window_visual( data, &default_visual );
 
         if (data->whole_window)
             sync_window_opacity( data->display, data->whole_window, alpha, flags );
