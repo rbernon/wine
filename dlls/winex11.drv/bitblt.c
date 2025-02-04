@@ -1880,8 +1880,7 @@ static const struct window_surface_funcs x11drv_surface_funcs =
 /***********************************************************************
  *           create_surface
  */
-static struct window_surface *create_surface( HWND hwnd, Window window, const XVisualInfo *vis, const RECT *rect,
-                                              BOOL use_alpha )
+static struct window_surface *create_surface( HWND hwnd, Window window, const XVisualInfo *vis, const RECT *rect )
 {
     const XPixmapFormatValues *format = pixmap_formats[vis->depth];
     char buffer[FIELD_OFFSET( BITMAPINFO, bmiColors[256] )];
@@ -1902,7 +1901,7 @@ static struct window_surface *create_surface( HWND hwnd, Window window, const XV
     info->bmiHeader.biPlanes      = 1;
     info->bmiHeader.biBitCount    = format->bits_per_pixel;
     info->bmiHeader.biSizeImage   = get_dib_image_size( info );
-    set_color_info( vis, info, use_alpha );
+    set_color_info( vis, info, TRUE );
 
     if (!(image = x11drv_image_create( info, vis ))) return NULL;
 
@@ -1984,7 +1983,7 @@ BOOL X11DRV_CreateWindowSurface( HWND hwnd, BOOL layered, const RECT *surface_re
     if (layered)
     {
         data->layered = TRUE;
-        if (!data->embedded && argb_visual.visualid) set_window_visual( data, &argb_visual, TRUE );
+        if (!data->embedded && argb_visual.visualid) set_window_visual( data, &argb_visual );
     }
     else if (enable_direct_drawing( data, layered ))
     {
@@ -1992,8 +1991,7 @@ BOOL X11DRV_CreateWindowSurface( HWND hwnd, BOOL layered, const RECT *surface_re
         goto done; /* draw directly to the window */
     }
 
-    *surface = create_surface( data->hwnd, data->whole_window, &data->vis, surface_rect,
-                               layered ? data->use_alpha : FALSE );
+    *surface = create_surface( data->hwnd, data->whole_window, &data->vis, surface_rect );
 
 done:
     release_win_data( data );
