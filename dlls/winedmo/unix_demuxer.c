@@ -47,6 +47,8 @@ struct demuxer
 
     AVPacket *last_packet; /* last read packet */
     struct stream *last_stream; /* last read packet stream */
+
+    INT64 timestamp_offset;
 };
 
 static struct demuxer *get_demuxer( struct winedmo_demuxer demuxer )
@@ -144,6 +146,8 @@ NTSTATUS demuxer_create( void *arg )
     TRACE( "context %p, url %s, mime %s\n", params->context, debugstr_a(params->url), debugstr_a(params->mime_type) );
 
     if (!(demuxer = calloc( 1, sizeof(*demuxer) ))) return STATUS_NO_MEMORY;
+    demuxer->timestamp_offset = -1;
+
     if (!(demuxer->ctx = avformat_alloc_context())) goto failed;
     if (!(demuxer->ctx->pb = avio_alloc_context( NULL, 0, 0, params->context, unix_read_callback, NULL, unix_seek_callback ))) goto failed;
 
@@ -289,8 +293,13 @@ NTSTATUS demuxer_read( void *arg )
     }
 
     stream = demuxer->ctx->streams[packet->stream_index];
-    sample->pts = get_stream_time( stream, packet->pts );
-    sample->dts = get_stream_time( stream, packet->dts );
+    if (demuxer->timestamp_offset < 0)
+    {
+        demuxer->timestamp_offset = -2 * get_stream_time( stream, packet->dts );
+        if (demuxer->timestamp_offset < 0) demuxer->timestamp_offset = 0;
+    }
+    sample->pts = get_stream_time( stream, packet->pts ) + demuxer->timestamp_offset;
+    sample->dts = get_stream_time( stream, packet->dts ) + demuxer->timestamp_offset;
     sample->duration = get_stream_time( stream, packet->duration );
     if (packet->flags & AV_PKT_FLAG_KEY) sample->flags |= SAMPLE_FLAG_SYNC_POINT;
     memcpy( (void *)(UINT_PTR)sample->data, packet->data, packet->size );
