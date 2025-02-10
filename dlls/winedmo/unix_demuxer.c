@@ -34,10 +34,13 @@ static inline const char *debugstr_averr( int err )
     return wine_dbg_sprintf( "%d (%s)", err, av_err2str(err) );
 }
 
+#define AV_PKT_FLAG_FIRST (1<<30)
+
 struct stream
 {
     AVBSFContext *filter;
-    BOOL eos;
+    BOOL started;
+    BOOL ended;
 };
 
 struct demuxer
@@ -236,8 +239,14 @@ static NTSTATUS demuxer_filter_packet( struct demuxer *demuxer, AVPacket **packe
         if (!(stream = demuxer->last_stream)) ret = 0;
         else
         {
-            if (!(ret = av_bsf_receive_packet( stream->filter, *packet ))) return STATUS_SUCCESS;
-            if (ret == AVERROR_EOF) stream->eos = TRUE;
+            if (!(ret = av_bsf_receive_packet( stream->filter, *packet )))
+            {
+                if (!stream->started) (*packet)->flags |= AV_PKT_FLAG_FIRST;
+                else (*packet)->flags &= ~AV_PKT_FLAG_FIRST;
+                stream->started = TRUE;
+                return STATUS_SUCCESS;
+            }
+            if (ret == AVERROR_EOF) stream->ended = TRUE;
             if (!ret || ret == AVERROR_EOF || ret == AVERROR(EAGAIN)) ret = 0;
             else WARN( "Failed to read packet from filter, error %s.\n", debugstr_averr( ret ) );
             stream = demuxer->last_stream = NULL;
@@ -256,7 +265,7 @@ static NTSTATUS demuxer_filter_packet( struct demuxer *demuxer, AVPacket **packe
         {
             for (i = 0; ret == AVERROR_EOF && i < demuxer->ctx->nb_streams; i++)
             {
-                if (demuxer->streams[i].eos) continue;
+                if (demuxer->streams[i].ended) continue;
                 stream = demuxer->streams + i;
                 ret = av_bsf_send_packet( stream->filter, NULL );
                 if (ret < 0) WARN( "Failed to send packet to filter, error %s.\n", debugstr_averr( ret ) );
@@ -302,6 +311,7 @@ NTSTATUS demuxer_read( void *arg )
     sample->dts = get_stream_time( stream, packet->dts ) + demuxer->timestamp_offset;
     sample->duration = get_stream_time( stream, packet->duration );
     if (packet->flags & AV_PKT_FLAG_KEY) sample->flags |= SAMPLE_FLAG_SYNC_POINT;
+    if (packet->flags & AV_PKT_FLAG_FIRST) sample->flags |= SAMPLE_FLAG_DISCONTINUITY;
     memcpy( (void *)(UINT_PTR)sample->data, packet->data, packet->size );
     params->stream = packet->stream_index;
     av_packet_free( &packet );
@@ -328,7 +338,8 @@ NTSTATUS demuxer_seek( void *arg )
     for (i = 0; i < demuxer->ctx->nb_streams; i++)
     {
         av_bsf_flush( demuxer->streams[i].filter );
-        demuxer->streams[i].eos = FALSE;
+        demuxer->streams[i].started = FALSE;
+        demuxer->streams[i].ended = FALSE;
     }
     av_packet_free( &demuxer->last_packet );
     demuxer->last_stream = NULL;

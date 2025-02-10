@@ -146,6 +146,7 @@ static void buffer_unlock( DMO_OUTPUT_DATA_BUFFER *buffer, struct sample *sample
         if (sample->pts != INT64_MIN) IMFSample_SetSampleTime( object, sample->pts );
         if (sample->duration != INT64_MIN) IMFSample_SetSampleDuration( object, sample->duration );
         if (sample->flags & SAMPLE_FLAG_SYNC_POINT) IMFSample_SetUINT32( object, &MFSampleExtension_CleanPoint, 1 );
+        if (sample->flags & SAMPLE_FLAG_DISCONTINUITY) IMFSample_SetUINT32( object, &MFSampleExtension_Discontinuity, 1 );
         IMFSample_Release( object );
     }
 

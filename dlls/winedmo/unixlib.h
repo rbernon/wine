@@ -68,6 +68,7 @@ enum sample_flag
 {
     SAMPLE_FLAG_SYNC_POINT = 1,
     SAMPLE_FLAG_INCOMPLETE = 2,
+    SAMPLE_FLAG_DISCONTINUITY = 4,
 };
 
 struct sample
