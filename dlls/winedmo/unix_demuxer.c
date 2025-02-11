@@ -327,7 +327,7 @@ NTSTATUS demuxer_seek( void *arg )
     int64_t timestamp = params->timestamp * AV_TIME_BASE / 10000000;
     int i, ret;
 
-    TRACE( "demuxer %p, timestamp 0x%s\n", demuxer, wine_dbgstr_longlong( params->timestamp ) );
+    TRACE( "demuxer %p, timestamp %d\n", demuxer, (int)timestamp );
 
     if ((ret = avformat_seek_file( demuxer->ctx, -1, 0, timestamp, timestamp, 0 )) < 0)
     {
