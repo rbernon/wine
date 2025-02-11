@@ -237,8 +237,8 @@ START_TEST(games)
     HRESULT hr;
     struct async_callback *callback = create_async_callback();
 
-const WCHAR *path = L"file://Z:/media/rbernon/LaCie/Games/Halo Infinite/subgames/CampaignS1/videos/InfinityDown.mp4";
-if (!winetest_platform_is_wine) path = L"file://Y:/Games/Halo Infinite/subgames/CampaignS1/videos/InfinityDown.mp4";
+const WCHAR *path = L"file://Z:/media/rbernon/LaCie/Games/Dead Island 2/DeadIsland/Content/DI2/Movies/DeadIsland2_Titles.mp4";
+if (!winetest_platform_is_wine) path = L"file://Y:/Games/Dead Island 2/DeadIsland/Content/DI2/Movies/DeadIsland2_Titles.mp4";
 
     hr = MFStartup(MF_VERSION, MFSTARTUP_FULL);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
@@ -265,8 +265,128 @@ hr = MFCreateSourceReaderFromMediaSource(source, attributes, &reader);
 ok(hr == S_OK, "got hr %#lx\n", hr);
 hr = MFGetService((IUnknown *)reader, &MF_SCRUBBING_SERVICE, &IID_IMFSeekInfo, (void **)&seek_info);
 ok(hr == E_NOINTERFACE, "got hr %#lx\n", hr);
+
+flags = 0xdeadbeef;
+hr = IMFMediaSource_GetCharacteristics(source, &flags);
+ok(hr == S_OK, "got hr %#lx\n", hr);
+ok(flags == 0, "got flags %#lx\n", flags);
+
+{
+IMFRateSupport *support;
+float rate;
+hr = MFGetService((IUnknown *)source, &MF_RATE_CONTROL_SERVICE, &IID_IMFRateSupport, (void **)&support);
+ok(hr == S_OK, "got hr %#lx\n", hr);
+
+rate = 0.123456;
+hr = IMFRateSupport_GetSlowestRate(support, 0, 1, &rate);
+ok(hr == S_OK, "got hr %#lx\n", hr);
+ok(rate == 0, "got rate %f\n", rate);
+rate = 0.123456;
+hr = IMFRateSupport_GetFastestRate(support, 0, 1, &rate);
+ok(hr == S_OK, "got hr %#lx\n", hr);
+ok(rate == 0, "got rate %f\n", rate);
+rate = 0.123456;
+hr = IMFRateSupport_GetSlowestRate(support, 0, 0, &rate);
+ok(hr == S_OK, "got hr %#lx\n", hr);
+ok(rate == 0, "got rate %f\n", rate);
+rate = 0.123456;
+hr = IMFRateSupport_GetFastestRate(support, 0, 0, &rate);
+ok(hr == S_OK, "got hr %#lx\n", hr);
+ok(rate == 0, "got rate %f\n", rate);
+
+IMFRateSupport_Release(support);
+}
+
+propvar.vt = VT_I8;
+propvar.hVal.QuadPart = 0;
+hr = IMFSourceReader_SetCurrentPosition(reader, &GUID_NULL, &propvar);
+ok(hr == S_OK, "got hr %#lx\n", hr);
+if (1)
+{
+propvar.vt = VT_I8;
+propvar.hVal.QuadPart = 3999998;
+hr = IMFSourceReader_SetCurrentPosition(reader, &GUID_NULL, &propvar);
+ok(hr == S_OK, "got hr %#lx\n", hr);
+}
+if (0)
+{
+propvar.vt = VT_I8;
+propvar.hVal.QuadPart = 692500;
+hr = IMFSourceReader_SetCurrentPosition(reader, &GUID_NULL, &propvar);
+ok(hr == S_OK, "got hr %#lx\n", hr);
+}
+
+{
+IMFRateControl *control;
+
+hr = MFGetService((IUnknown *)source, &MF_RATE_CONTROL_SERVICE, &IID_IMFRateControl, (void **)&control);
+ok(hr == S_OK, "got hr %#lx\n", hr);
+hr = IMFRateControl_SetRate(control, 0, 1.0);
+ok(hr == S_OK, "got hr %#lx\n", hr);
+IMFRateControl_Release(control);
+}
+
+
 IMFMediaSource_Release(source);
 IMFSourceResolver_Release(resolver);
+
+
+for (UINT i = 0; i < 10; i++)
+{
+IMFMediaBuffer *buffer;
+DWORD len, max_len;
+BYTE *data;
+
+hr = IMFSourceReader_ReadSample(reader, MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0, &index, &flags, &timestamp, &sample);
+ok(hr == S_OK, "got hr %#lx\n", hr);
+hr = IMFSample_GetTotalLength(sample, &length);
+ok(hr == S_OK, "got hr %#lx\n", hr);
+hr = IMFSample_GetSampleTime(sample, &time);
+ok(hr == S_OK, "got hr %#lx\n", hr);
+hr = IMFSample_GetSampleDuration(sample, &duration);
+ok(hr == S_OK, "got hr %#lx\n", hr);
+ok(0, "got index %lu, flags %#lx, time %I64d, sample %p (len %lu time %I64d duration %I64d)\n", index, flags, timestamp, sample, length, time, duration);
+dump_attributes((IMFAttributes *)sample);
+
+hr = IMFSample_GetBufferByIndex(sample, 0, &buffer);
+ok(hr == S_OK, "got hr %#lx\n", hr);
+hr = IMFMediaBuffer_Lock(buffer, &data, &max_len, &len);
+ok(hr == S_OK, "got hr %#lx\n", hr);
+
+if (0) do
+{
+    const unsigned char *ptr = (void *)data, *end = ptr + len;
+    ok(0, "dump %p-%p (%x)\n", (void *)ptr, (void *)end, (int)(end - ptr));
+    for (int i = 0, j; ptr + i < end;)
+    {
+        char buffer[256], *buf = buffer;
+        buf += sprintf(buf, "%08x ", i);
+        for (j = 0; j < 8 && ptr + i + j < end; ++j)
+            buf += sprintf(buf, " %02x", ptr[i + j]);
+        for (; j < 8 && ptr + i + j >= end; ++j)
+            buf += sprintf(buf, "   ");
+        buf += sprintf(buf, " ");
+        for (j = 8; j < 16 && ptr + i + j < end; ++j)
+            buf += sprintf(buf, " %02x", ptr[i + j]);
+        for (; j < 16 && ptr + i + j >= end; ++j)
+            buf += sprintf(buf, "   ");
+        buf += sprintf(buf, "  |");
+        for (j = 0; j < 16 && ptr + i < end; ++j, ++i)
+            buf += sprintf(buf, "%c", ptr[i] >= ' ' && ptr[i] <= '~' ? ptr[i] : '.');
+        buf += sprintf(buf, "|");
+        ok(0, "%s\n", buffer);
+    }
+}
+while(0);
+
+hr = IMFMediaBuffer_Unlock(buffer);
+ok(hr == S_OK, "got hr %#lx\n", hr);
+
+IMFSample_Release(sample);
+}
+
+return;
+
 
 hr = IMFSourceReader_GetPresentationAttribute(reader, MF_SOURCE_READER_MEDIASOURCE, &MF_PD_MIME_TYPE, &propvar);
 ok(hr == S_OK, "got hr %#lx\n", hr);
