@@ -1,5 +1,5 @@
 MODULE    = dmloader.dll
-IMPORTS   = dxguid uuid ole32 advapi32 shcore
+IMPORTS   = dxguid uuid ole32 advapi32
 PARENTSRC = ../dmusic
 
 SOURCES = \
