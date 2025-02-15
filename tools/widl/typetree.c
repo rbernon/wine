@@ -18,6 +18,8 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
+#include "config.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -106,54 +108,58 @@ const char *type_get_name(const type_t *type, enum name_type name_type)
     return NULL;
 }
 
-static void append_namespace( struct strbuf *str, struct namespace *namespace,
-                              const char *separator, const char *abi_prefix )
+static size_t append_namespace(char **buf, size_t *len, size_t pos, struct namespace *namespace, const char *separator, const char *abi_prefix)
 {
     int nested = namespace && !is_global_namespace(namespace);
     const char *name = nested ? namespace->name : abi_prefix;
-    if (!name) return;
-    if (nested) append_namespace( str, namespace->parent, separator, abi_prefix );
-    strappend( str, "%s%s", name, separator );
+    size_t n = 0;
+    if (!name) return 0;
+    if (nested) n += append_namespace(buf, len, pos + n, namespace->parent, separator, abi_prefix);
+    n += strappend(buf, len, pos + n, "%s%s", name, separator);
+    return n;
 }
 
-static void append_namespaces( struct strbuf *str, struct namespace *namespace, const char *prefix,
-                               const char *separator, const char *suffix, const char *abi_prefix )
+static size_t append_namespaces(char **buf, size_t *len, size_t pos, struct namespace *namespace, const char *prefix,
+                                const char *separator, const char *suffix, const char *abi_prefix)
 {
     int nested = namespace && !is_global_namespace(namespace);
-    strappend( str, "%s", prefix );
-    if (nested) append_namespace( str, namespace, separator, abi_prefix );
-    if (suffix) strappend( str, "%s", suffix );
+    size_t n = 0;
+    n += strappend(buf, len, pos + n, "%s", prefix);
+    if (nested) n += append_namespace(buf, len, pos + n, namespace, separator, abi_prefix);
+    if (suffix) n += strappend(buf, len, pos + n, "%s", suffix);
     else if (nested)
     {
-        str->pos -= strlen( separator );
-        str->buf[str->pos] = 0;
+        n -= strlen(separator);
+        (*buf)[n] = 0;
     }
+    return n;
 }
 
-static void append_pointer_stars( struct strbuf *str, type_t *type )
+static size_t append_pointer_stars(char **buf, size_t *len, size_t pos, type_t *type)
 {
-    for (; type && type_is_ptr( type ); type = type_pointer_get_ref_type( type ))
-        strappend( str, "*" );
+    size_t n = 0;
+    for (; type && type->type_type == TYPE_POINTER; type = type_pointer_get_ref_type(type)) n += strappend(buf, len, pos + n, "*");
+    return n;
 }
 
-static size_t append_type_signature( struct strbuf *str, type_t *type );
+static size_t append_type_signature(char **buf, size_t *len, size_t pos, type_t *type);
 
-static size_t append_var_list_signature( struct strbuf *str, var_list_t *var_list )
+static size_t append_var_list_signature(char **buf, size_t *len, size_t pos, var_list_t *var_list)
 {
     var_t *var;
     size_t n = 0;
 
-    if (!var_list) strappend( str, ";" );
+    if (!var_list) n += strappend(buf, len, pos + n, ";");
     else LIST_FOR_EACH_ENTRY(var, var_list, var_t, entry)
     {
-        strappend( str, ";" );
-        append_type_signature( str, var->declspec.type );
+        n += strappend(buf, len, pos + n, ";");
+        n += append_type_signature(buf, len, pos + n, var->declspec.type);
     }
 
     return n;
 }
 
-static size_t append_type_signature( struct strbuf *str, type_t *type )
+static size_t append_type_signature(char **buf, size_t *len, size_t pos, type_t *type)
 {
     const struct uuid *uuid;
     size_t n = 0;
@@ -162,71 +168,72 @@ static size_t append_type_signature( struct strbuf *str, type_t *type )
     switch (type->type_type)
     {
     case TYPE_INTERFACE:
-        if (!strcmp( type->name, "IInspectable" )) strappend( str, "cinterface(IInspectable)" );
-        else if (type->signature) strappend( str, "%s", type->signature );
+        if (!strcmp(type->name, "IInspectable")) n += strappend(buf, len, pos + n, "cinterface(IInspectable)");
+        else if (type->signature) n += strappend(buf, len, pos + n, "%s", type->signature);
         else
         {
             if (!(uuid = get_attrp( type->attrs, ATTR_UUID )))
                 error_at( &type->where, "cannot compute type signature, no uuid found for type %s.\n", type->name );
 
-            strappend( str, "{%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}", uuid->Data1,
-                       uuid->Data2, uuid->Data3, uuid->Data4[0], uuid->Data4[1], uuid->Data4[2],
-                       uuid->Data4[3], uuid->Data4[4], uuid->Data4[5], uuid->Data4[6], uuid->Data4[7] );
+            n += strappend(buf, len, pos + n, "{%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
+                           uuid->Data1, uuid->Data2, uuid->Data3,
+                           uuid->Data4[0], uuid->Data4[1], uuid->Data4[2], uuid->Data4[3],
+                           uuid->Data4[4], uuid->Data4[5], uuid->Data4[6], uuid->Data4[7]);
         }
         return n;
     case TYPE_DELEGATE:
-        strappend( str, "delegate(" );
-        append_type_signature( str, type_delegate_get_iface( type ) );
-        strappend( str, ")" );
+        n += strappend(buf, len, pos + n, "delegate(");
+        n += append_type_signature(buf, len, pos + n, type_delegate_get_iface(type));
+        n += strappend(buf, len, pos + n, ")");
         return n;
     case TYPE_RUNTIMECLASS:
-        strappend( str, "rc(" );
-        append_namespaces( str, type->namespace, "", ".", type->name, NULL );
-        strappend( str, ";" );
-        append_type_signature( str, type_runtimeclass_get_default_iface( type, TRUE ) );
-        strappend( str, ")" );
+        n += strappend(buf, len, pos + n, "rc(");
+        n += append_namespaces(buf, len, pos + n, type->namespace, "", ".", type->name, NULL);
+        n += strappend(buf, len, pos + n, ";");
+        n += append_type_signature(buf, len, pos + n, type_runtimeclass_get_default_iface(type, TRUE));
+        n += strappend(buf, len, pos + n, ")");
         return n;
     case TYPE_POINTER:
-        append_type_signature( str, type->details.pointer.ref.type );
+        n += append_type_signature(buf, len, pos + n, type->details.pointer.ref.type);
         return n;
     case TYPE_ALIAS:
-        if (!strcmp( type->name, "boolean" )) strappend( str, "b1" );
-        else if (!strcmp( type->name, "GUID" )) strappend( str, "g16" );
-        else if (!strcmp( type->name, "HSTRING" )) strappend( str, "string" );
-        else append_type_signature( str, type->details.alias.aliasee.type );
+        if (!strcmp(type->name, "boolean")) n += strappend(buf, len, pos + n, "b1");
+        else if (!strcmp(type->name, "GUID")) n += strappend(buf, len, pos + n, "g16");
+        else if (!strcmp(type->name, "HSTRING")) n += strappend(buf, len, pos + n, "string");
+        else n += append_type_signature(buf, len, pos + n, type->details.alias.aliasee.type);
         return n;
     case TYPE_STRUCT:
-        strappend( str, "struct(" );
-        append_namespaces( str, type->namespace, "", ".", type->name, NULL );
-        append_var_list_signature( str, type->details.structure.fields );
-        strappend( str, ")" );
+        n += strappend(buf, len, pos + n, "struct(");
+        n += append_namespaces(buf, len, pos + n, type->namespace, "", ".", type->name, NULL);
+        n += append_var_list_signature(buf, len, pos + n, type->details.structure->fields);
+        n += strappend(buf, len, pos + n, ")");
         return n;
     case TYPE_BASIC:
         switch (type_basic_get_type(type))
         {
         case TYPE_BASIC_INT16:
-            strappend( str, type_basic_get_sign( type ) <= 0 ? "i2" : "u2" );
+            n += strappend(buf, len, pos + n, type_basic_get_sign(type) <= 0 ? "i2" : "u2");
             return n;
         case TYPE_BASIC_INT:
         case TYPE_BASIC_INT32:
         case TYPE_BASIC_LONG:
-            strappend( str, type_basic_get_sign( type ) <= 0 ? "i4" : "u4" );
+            n += strappend(buf, len, pos + n, type_basic_get_sign(type) <= 0 ? "i4" : "u4");
             return n;
         case TYPE_BASIC_INT64:
-            strappend( str, type_basic_get_sign( type ) <= 0 ? "i8" : "u8" );
+            n += strappend(buf, len, pos + n, type_basic_get_sign(type) <= 0 ? "i8" : "u8");
             return n;
         case TYPE_BASIC_INT8:
             assert(type_basic_get_sign(type) > 0); /* signature string for signed char isn't specified */
-            strappend( str, "u1" );
+            n += strappend(buf, len, pos + n, "u1");
             return n;
         case TYPE_BASIC_FLOAT:
-            strappend( str, "f4" );
+            n += strappend(buf, len, pos + n, "f4");
             return n;
         case TYPE_BASIC_DOUBLE:
-            strappend( str, "f8" );
+            n += strappend(buf, len, pos + n, "f8");
             return n;
         case TYPE_BASIC_BYTE:
-            strappend( str, "u1" );
+            n += strappend(buf, len, pos + n, "u1");
             return n;
         case TYPE_BASIC_INT3264:
         case TYPE_BASIC_CHAR:
@@ -239,11 +246,11 @@ static size_t append_type_signature( struct strbuf *str, type_t *type )
             break;
         }
     case TYPE_ENUM:
-        strappend( str, "enum(" );
-        append_namespaces( str, type->namespace, "", ".", type->name, NULL );
-        if (is_attr( type->attrs, ATTR_FLAGS )) strappend( str, ";u4" );
-        else strappend( str, ";i4" );
-        strappend( str, ")" );
+        n += strappend(buf, len, pos + n, "enum(");
+        n += append_namespaces(buf, len, pos + n, type->namespace, "", ".", type->name, NULL);
+        if (is_attr(type->attrs, ATTR_FLAGS)) n += strappend(buf, len, pos + n, ";u4");
+        else n += strappend(buf, len, pos + n, ";i4");
+        n += strappend(buf, len, pos + n, ")");
         return n;
     case TYPE_ARRAY:
     case TYPE_ENCAPSULATED_UNION:
@@ -268,27 +275,29 @@ static size_t append_type_signature( struct strbuf *str, type_t *type )
 
 char *format_namespace(struct namespace *namespace, const char *prefix, const char *separator, const char *suffix, const char *abi_prefix)
 {
-    struct strbuf str = {0};
-    append_namespaces( &str, namespace, prefix, separator, suffix, abi_prefix );
-    return str.buf;
+    size_t len = 0;
+    char *buf = NULL;
+    append_namespaces(&buf, &len, 0, namespace, prefix, separator, suffix, abi_prefix);
+    return buf;
 }
 
 char *format_parameterized_type_name(type_t *type, typeref_list_t *params)
 {
-    struct strbuf str = {0};
+    size_t len = 0, pos = 0;
+    char *buf = NULL;
     typeref_t *ref;
 
-    strappend( &str, "%s<", type->name );
+    pos += strappend(&buf, &len, pos, "%s<", type->name);
     if (params) LIST_FOR_EACH_ENTRY(ref, params, typeref_t, entry)
     {
         type = type_pointer_get_root_type(ref->type);
-        strappend( &str, "%s", type->qualified_name );
-        append_pointer_stars( &str, ref->type );
-        if (list_next( params, &ref->entry )) strappend( &str, "," );
+        pos += strappend(&buf, &len, pos, "%s", type->qualified_name);
+        pos += append_pointer_stars(&buf, &len, pos, ref->type);
+        if (list_next(params, &ref->entry)) pos += strappend(&buf, &len, pos, ",");
     }
-    strappend( &str, " >" );
+    pos += strappend(&buf, &len, pos, " >");
 
-    return str.buf;
+    return buf;
 }
 
 static char const *parameterized_type_shorthands[][2] = {
@@ -300,104 +309,109 @@ static char const *parameterized_type_shorthands[][2] = {
 
 static char *format_parameterized_type_c_name(type_t *type, typeref_list_t *params, const char *prefix, const char *separator)
 {
-    struct strbuf str = {0};
     const char *tmp, *ns_prefix = "__x_", *abi_prefix = NULL;
+    size_t len = 0, pos = 0;
+    char *buf = NULL;
     int i, count = params ? list_count(params) : 0;
     typeref_t *ref;
 
     if (!strcmp(separator, "__C")) ns_prefix = "_C";
     else if (use_abi_namespace) abi_prefix = "ABI";
 
-    append_namespaces( &str, type->namespace, ns_prefix, separator, "", abi_prefix );
-    strappend( &str, "%s%s_%d", prefix, type->name, count );
+    pos += append_namespaces(&buf, &len, pos, type->namespace, ns_prefix, separator, "", abi_prefix);
+    pos += strappend(&buf, &len, pos, "%s%s_%d", prefix, type->name, count);
     if (params) LIST_FOR_EACH_ENTRY(ref, params, typeref_t, entry)
     {
         type = type_pointer_get_root_type(ref->type);
-        if ((tmp = type->param_name)) strappend( &str, "_%s", tmp );
-        else append_namespaces( &str, type->namespace, "_", "__C", type->name, NULL );
+        if ((tmp = type->param_name)) pos += strappend(&buf, &len, pos, "_%s", tmp);
+        else pos += append_namespaces(&buf, &len, pos, type->namespace, "_", "__C", type->name, NULL);
     }
 
     for (i = 0; i < ARRAY_SIZE(parameterized_type_shorthands); ++i)
     {
-        if ((tmp = strstr( str.buf, parameterized_type_shorthands[i][0] )) &&
-            (tmp - str.buf) == strlen( ns_prefix ) + (abi_prefix ? 5 : 0))
+        if ((tmp = strstr(buf, parameterized_type_shorthands[i][0])) &&
+            (tmp - buf) == strlen(ns_prefix) + (abi_prefix ? 5 : 0))
         {
            tmp += strlen(parameterized_type_shorthands[i][0]);
-           strcpy( str.buf, parameterized_type_shorthands[i][1] );
-           memmove( str.buf + 3, tmp, str.len - (tmp - str.buf) );
+           strcpy(buf, parameterized_type_shorthands[i][1]);
+           memmove(buf + 3, tmp, len - (tmp - buf));
         }
     }
 
-    return str.buf;
+    return buf;
 }
 
 static char *format_parameterized_type_signature(type_t *type, typeref_list_t *params)
 {
-    struct strbuf str = {0};
+    size_t len = 0, pos = 0;
+    char *buf = NULL;
     typeref_t *ref;
     const struct uuid *uuid;
 
     if (!(uuid = get_attrp( type->attrs, ATTR_UUID )))
         error_at( &type->where, "cannot compute type signature, no uuid found for type %s.\n", type->name );
 
-    strappend( &str, "pinterface({%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}", uuid->Data1,
-               uuid->Data2, uuid->Data3, uuid->Data4[0], uuid->Data4[1], uuid->Data4[2],
-               uuid->Data4[3], uuid->Data4[4], uuid->Data4[5], uuid->Data4[6], uuid->Data4[7] );
+    pos += strappend(&buf, &len, pos, "pinterface({%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
+                     uuid->Data1, uuid->Data2, uuid->Data3,
+                     uuid->Data4[0], uuid->Data4[1], uuid->Data4[2], uuid->Data4[3],
+                     uuid->Data4[4], uuid->Data4[5], uuid->Data4[6], uuid->Data4[7]);
     if (params) LIST_FOR_EACH_ENTRY(ref, params, typeref_t, entry)
     {
-        strappend( &str, ";" );
-        append_type_signature( &str, ref->type );
+        pos += strappend(&buf, &len, pos, ";");
+        pos += append_type_signature(&buf, &len, pos, ref->type);
     }
-    strappend( &str, ")" );
+    pos += strappend(&buf, &len, pos, ")");
 
-    return str.buf;
+    return buf;
 }
 
 static char *format_parameterized_type_short_name(type_t *type, typeref_list_t *params, const char *prefix)
 {
-    struct strbuf str = {0};
+    size_t len = 0, pos = 0;
+    char *buf = NULL;
     typeref_t *ref;
 
-    strappend( &str, "%s%s", prefix, type->name );
+    pos += strappend(&buf, &len, pos, "%s%s", prefix, type->name);
     if (params) LIST_FOR_EACH_ENTRY(ref, params, typeref_t, entry)
     {
         type = type_pointer_get_root_type(ref->type);
-        if (type->short_name) strappend( &str, "_%s", type->short_name );
-        else strappend( &str, "_%s", type->name );
+        if (type->short_name) pos += strappend(&buf, &len, pos, "_%s", type->short_name);
+        else pos += strappend(&buf, &len, pos, "_%s", type->name);
     }
 
-    return str.buf;
+    return buf;
 }
 
 static char *format_parameterized_type_impl_name(type_t *type, typeref_list_t *params, const char *prefix)
 {
-    struct strbuf str = {0};
+    size_t len = 0, pos = 0;
+    char *buf = NULL;
     typeref_t *ref;
     type_t *iface;
 
-    strappend( &str, "%s%s_impl<", prefix, type->name );
+    pos += strappend(&buf, &len, pos, "%s%s_impl<", prefix, type->name);
     if (params) LIST_FOR_EACH_ENTRY(ref, params, typeref_t, entry)
     {
         type = type_pointer_get_root_type(ref->type);
         if (type->type_type == TYPE_RUNTIMECLASS)
         {
-            strappend( &str, "ABI::Windows::Foundation::Internal::AggregateType<%s", type->qualified_name );
-            append_pointer_stars( &str, ref->type );
+            pos += strappend(&buf, &len, pos, "ABI::Windows::Foundation::Internal::AggregateType<%s", type->qualified_name);
+            pos += append_pointer_stars(&buf, &len, pos, ref->type);
             iface = type_runtimeclass_get_default_iface(type, TRUE);
-            strappend( &str, ", %s", iface->qualified_name );
-            append_pointer_stars( &str, ref->type );
-            strappend( &str, " >" );
+            pos += strappend(&buf, &len, pos, ", %s", iface->qualified_name);
+            pos += append_pointer_stars(&buf, &len, pos, ref->type);
+            pos += strappend(&buf, &len, pos, " >");
         }
         else
         {
-            strappend( &str, "%s", type->qualified_name );
-            append_pointer_stars( &str, ref->type );
+            pos += strappend(&buf, &len, pos, "%s", type->qualified_name);
+            pos += append_pointer_stars(&buf, &len, pos, ref->type);
         }
-        if (list_next( params, &ref->entry )) strappend( &str, ", " );
+        if (list_next(params, &ref->entry)) pos += strappend(&buf, &len, pos, ", ");
     }
-    strappend( &str, " >" );
+    pos += strappend(&buf, &len, pos, " >");
 
-    return str.buf;
+    return buf;
 }
 
 type_t *type_new_function(var_list_t *args)
@@ -444,9 +458,9 @@ type_t *type_new_function(var_list_t *args)
     }
 
     t = make_type(TYPE_FUNCTION);
-    t->details.function.args = args;
-    t->details.function.retval = make_var(xstrdup("_RetVal"));
-    t->defined = TRUE;
+    t->details.function = xmalloc(sizeof(*t->details.function));
+    t->details.function->args = args;
+    t->details.function->retval = make_var(xstrdup("_RetVal"));
     return t;
 }
 
@@ -545,7 +559,8 @@ type_t *type_new_enum(const char *name, struct namespace *namespace,
 
     if (defined)
     {
-        t->details.enumeration.enums = enums;
+        t->details.enumeration = xmalloc(sizeof(*t->details.enumeration));
+        t->details.enumeration->enums = enums;
         define_type(t, where);
     }
 
@@ -571,7 +586,8 @@ type_t *type_new_struct(char *name, struct namespace *namespace,
 
     if (defined)
     {
-        t->details.structure.fields = fields;
+        t->details.structure = xmalloc(sizeof(*t->details.structure));
+        t->details.structure->fields = fields;
         define_type(t, where);
     }
 
@@ -597,7 +613,8 @@ type_t *type_new_nonencapsulated_union(const char *name, struct namespace *names
 
     if (!t->defined && defined)
     {
-        t->details.structure.fields = fields;
+        t->details.structure = xmalloc(sizeof(*t->details.structure));
+        t->details.structure->fields = fields;
         define_type(t, where);
     }
 
@@ -625,12 +642,10 @@ type_t *type_new_encapsulated_union(char *name, var_t *switch_field,
         union_field = make_var(xstrdup("tagged_union"));
     union_field->declspec.type = type_new_nonencapsulated_union(gen_name(), NULL, TRUE, cases, where);
 
-        t->details.structure.fields = append_var(NULL, switch_field);
-        t->details.structure.fields = append_var(t->details.structure.fields, union_field);
-        define_type(t, where);
-    }
-    else
-        error_loc("redefinition of union %s\n", name);
+    t->details.structure = xmalloc(sizeof(*t->details.structure));
+    t->details.structure->fields = append_var(NULL, switch_field);
+    t->details.structure->fields = append_var(t->details.structure->fields, union_field);
+    define_type(t, where);
 
     return t;
 }
@@ -691,6 +706,9 @@ static unsigned int compute_method_indexes(type_t *iface)
     unsigned int idx;
     statement_t *stmt;
 
+    if (!iface->details.iface)
+        return 0;
+
     if (type_iface_get_inherit(iface))
         idx = compute_method_indexes(type_iface_get_inherit(iface));
     else
@@ -722,13 +740,14 @@ type_t *type_interface_define(type_t *iface, attr_list_t *attrs, type_t *inherit
         error_loc("interface %s can't inherit from itself\n",
                   iface->name);
     iface->attrs = check_interface_attrs(iface->name, attrs);
-    iface->details.iface.disp_props = NULL;
-    iface->details.iface.disp_methods = NULL;
-    iface->details.iface.stmts = stmts;
-    iface->details.iface.inherit = inherit;
-    iface->details.iface.disp_inherit = NULL;
-    iface->details.iface.async_iface = NULL;
-    iface->details.iface.requires = requires;
+    iface->details.iface = xmalloc(sizeof(*iface->details.iface));
+    iface->details.iface->disp_props = NULL;
+    iface->details.iface->disp_methods = NULL;
+    iface->details.iface->stmts = stmts;
+    iface->details.iface->inherit = inherit;
+    iface->details.iface->disp_inherit = NULL;
+    iface->details.iface->async_iface = NULL;
+    iface->details.iface->requires = requires;
     define_type(iface, where);
     compute_method_indexes(iface);
     return iface;
@@ -747,14 +766,15 @@ type_t *type_dispinterface_define(type_t *iface, attr_list_t *attrs,
         var_list_t *props, var_list_t *methods, const struct location *where)
 {
     iface->attrs = check_dispiface_attrs(iface->name, attrs);
-    iface->details.iface.disp_props = props;
-    iface->details.iface.disp_methods = methods;
-    iface->details.iface.stmts = NULL;
-    iface->details.iface.inherit = find_type("IDispatch", NULL, 0);
-    if (!iface->details.iface.inherit) error_loc("IDispatch is undefined\n");
-    iface->details.iface.disp_inherit = NULL;
-    iface->details.iface.async_iface = NULL;
-    iface->details.iface.requires = NULL;
+    iface->details.iface = xmalloc(sizeof(*iface->details.iface));
+    iface->details.iface->disp_props = props;
+    iface->details.iface->disp_methods = methods;
+    iface->details.iface->stmts = NULL;
+    iface->details.iface->inherit = find_type("IDispatch", NULL, 0);
+    if (!iface->details.iface->inherit) error_loc("IDispatch is undefined\n");
+    iface->details.iface->disp_inherit = NULL;
+    iface->details.iface->async_iface = NULL;
+    iface->details.iface->requires = NULL;
     define_type(iface, where);
     compute_method_indexes(iface);
     return iface;
@@ -764,14 +784,15 @@ type_t *type_dispinterface_define_from_iface(type_t *dispiface,
         attr_list_t *attrs, type_t *iface, const struct location *where)
 {
     dispiface->attrs = check_dispiface_attrs(dispiface->name, attrs);
-    dispiface->details.iface.disp_props = NULL;
-    dispiface->details.iface.disp_methods = NULL;
-    dispiface->details.iface.stmts = NULL;
-    dispiface->details.iface.inherit = find_type("IDispatch", NULL, 0);
-    if (!dispiface->details.iface.inherit) error_loc("IDispatch is undefined\n");
-    dispiface->details.iface.disp_inherit = iface;
-    dispiface->details.iface.async_iface = NULL;
-    dispiface->details.iface.requires = NULL;
+    dispiface->details.iface = xmalloc(sizeof(*dispiface->details.iface));
+    dispiface->details.iface->disp_props = NULL;
+    dispiface->details.iface->disp_methods = NULL;
+    dispiface->details.iface->stmts = NULL;
+    dispiface->details.iface->inherit = find_type("IDispatch", NULL, 0);
+    if (!dispiface->details.iface->inherit) error_loc("IDispatch is undefined\n");
+    dispiface->details.iface->disp_inherit = iface;
+    dispiface->details.iface->async_iface = NULL;
+    dispiface->details.iface->requires = NULL;
     define_type(dispiface, where);
     compute_method_indexes(dispiface);
     return dispiface;
@@ -790,7 +811,8 @@ type_t *type_module_define(type_t* module, attr_list_t *attrs,
         statement_list_t *stmts, const struct location *where)
 {
     module->attrs = check_module_attrs(module->name, attrs);
-    module->details.module.stmts = stmts;
+    module->details.module = xmalloc(sizeof(*module->details.module));
+    module->details.module->stmts = stmts;
     define_type(module, where);
     return module;
 }
@@ -905,15 +927,17 @@ type_t *type_delegate_define(type_t *delegate, attr_list_t *attrs,
 
     iface = make_type(TYPE_INTERFACE);
     iface->attrs = delegate->attrs;
-    iface->details.iface.disp_props = NULL;
-    iface->details.iface.disp_methods = NULL;
-    iface->details.iface.stmts = stmts;
-    iface->details.iface.inherit = find_type("IUnknown", NULL, 0);
-    if (!iface->details.iface.inherit) error_loc("IUnknown is undefined\n");
-    iface->details.iface.disp_inherit = NULL;
-    iface->details.iface.async_iface = NULL;
-    iface->details.iface.requires = NULL;
+    iface->details.iface = xmalloc(sizeof(*iface->details.iface));
+    iface->details.iface->disp_props = NULL;
+    iface->details.iface->disp_methods = NULL;
+    iface->details.iface->stmts = stmts;
+    iface->details.iface->inherit = find_type("IUnknown", NULL, 0);
+    if (!iface->details.iface->inherit) error_loc("IUnknown is undefined\n");
+    iface->details.iface->disp_inherit = NULL;
+    iface->details.iface->async_iface = NULL;
+    iface->details.iface->requires = NULL;
     define_type(iface, where);
+    iface->defined = TRUE;
     compute_method_indexes(iface);
 
     delegate->details.delegate.iface = iface;
@@ -947,13 +971,14 @@ type_t *type_parameterized_interface_define(type_t *type, attr_list_t *attrs, ty
     type->attrs = check_interface_attrs(type->name, attrs);
 
     iface = type->details.parameterized.type;
-    iface->details.iface.disp_props = NULL;
-    iface->details.iface.disp_methods = NULL;
-    iface->details.iface.stmts = stmts;
-    iface->details.iface.inherit = inherit;
-    iface->details.iface.disp_inherit = NULL;
-    iface->details.iface.async_iface = NULL;
-    iface->details.iface.requires = requires;
+    iface->details.iface = xmalloc(sizeof(*iface->details.iface));
+    iface->details.iface->disp_props = NULL;
+    iface->details.iface->disp_methods = NULL;
+    iface->details.iface->stmts = stmts;
+    iface->details.iface->inherit = inherit;
+    iface->details.iface->disp_inherit = NULL;
+    iface->details.iface->async_iface = NULL;
+    iface->details.iface->requires = requires;
 
     iface->name = type->name;
 
@@ -984,14 +1009,15 @@ type_t *type_parameterized_delegate_define(type_t *type, attr_list_t *attrs,
     delegate->details.delegate.iface = make_type(TYPE_INTERFACE);
 
     iface = delegate->details.delegate.iface;
-    iface->details.iface.disp_props = NULL;
-    iface->details.iface.disp_methods = NULL;
-    iface->details.iface.stmts = stmts;
-    iface->details.iface.inherit = find_type("IUnknown", NULL, 0);
-    if (!iface->details.iface.inherit) error_loc("IUnknown is undefined\n");
-    iface->details.iface.disp_inherit = NULL;
-    iface->details.iface.async_iface = NULL;
-    iface->details.iface.requires = NULL;
+    iface->details.iface = xmalloc(sizeof(*iface->details.iface));
+    iface->details.iface->disp_props = NULL;
+    iface->details.iface->disp_methods = NULL;
+    iface->details.iface->stmts = stmts;
+    iface->details.iface->inherit = find_type("IUnknown", NULL, 0);
+    if (!iface->details.iface->inherit) error_loc("IUnknown is undefined\n");
+    iface->details.iface->disp_inherit = NULL;
+    iface->details.iface->async_iface = NULL;
+    iface->details.iface->requires = NULL;
 
     delegate->name = type->name;
     compute_delegate_iface_names(delegate, type, type->details.parameterized.params);
@@ -1152,8 +1178,9 @@ static type_t *replace_type_parameters_in_type(type_t *type, typeref_list_t *ori
         return type;
     case TYPE_FUNCTION:
         t = duptype(type, 0);
-        t->details.function.args = replace_type_parameters_in_var_list(type->details.function.args, orig, repl);
-        t->details.function.retval = replace_type_parameters_in_var(type->details.function.retval, orig, repl);
+        t->details.function = xmalloc(sizeof(*t->details.function));
+        t->details.function->args = replace_type_parameters_in_var_list(type->details.function->args, orig, repl);
+        t->details.function->retval = replace_type_parameters_in_var(type->details.function->retval, orig, repl);
         return t;
     case TYPE_PARAMETERIZED_TYPE:
         t = type->details.parameterized.type;
@@ -1173,13 +1200,15 @@ static type_t *replace_type_parameters_in_type(type_t *type, typeref_list_t *ori
 
 static void type_parameterized_interface_specialize(type_t *tmpl, type_t *iface, typeref_list_t *orig, typeref_list_t *repl)
 {
-    iface->details.iface.disp_methods = NULL;
-    iface->details.iface.disp_props = NULL;
-    iface->details.iface.stmts = replace_type_parameters_in_statement_list(tmpl->details.iface.stmts, orig, repl, &tmpl->loc_info);
-    iface->details.iface.inherit = replace_type_parameters_in_type(tmpl->details.iface.inherit, orig, repl);
-    iface->details.iface.disp_inherit = NULL;
-    iface->details.iface.async_iface = NULL;
-    iface->details.iface.requires = NULL;
+    iface->details.iface = xmalloc(sizeof(*iface->details.iface));
+    iface->details.iface->disp_methods = NULL;
+    iface->details.iface->disp_props = NULL;
+    iface->details.iface->stmts = replace_type_parameters_in_statement_list( tmpl->details.iface->stmts,
+                                                                             orig, repl, &tmpl->where );
+    iface->details.iface->inherit = replace_type_parameters_in_type(tmpl->details.iface->inherit, orig, repl);
+    iface->details.iface->disp_inherit = NULL;
+    iface->details.iface->async_iface = NULL;
+    iface->details.iface->requires = NULL;
 }
 
 static void type_parameterized_delegate_specialize(type_t *tmpl, type_t *delegate, typeref_list_t *orig, typeref_list_t *repl)
