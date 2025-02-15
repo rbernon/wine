@@ -1404,7 +1404,7 @@ void init_cpu_info(void)
     num = 1;
     FIXME("Detecting the number of processors is not supported.\n");
 #endif
-    peb->NumberOfProcessors = cpu_info.MaximumProcessors = 4;
+    peb->NumberOfProcessors = cpu_info.MaximumProcessors = num;
     get_cpuinfo( &cpu_info );
     TRACE( "<- CPU arch %d, level %d, rev %d, features 0x%x\n",
            (int)cpu_info.ProcessorArchitecture, (int)cpu_info.ProcessorLevel,

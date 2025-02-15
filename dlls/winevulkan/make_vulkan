@@ -66,8 +66,6 @@ LOGGER.addHandler(logging.StreamHandler())
 
 VK_XML_VERSION = "1.4.307"
 WINE_VK_VERSION = (1, 4)
-XR_XML_VERSION = "1.1.42"
-WINE_XR_VERSION = (1, 1)
 
 # Filenames to create.
 WINE_VULKAN_H = "../../include/wine/vulkan.h"
@@ -90,6 +88,7 @@ EXT_BLOCK_SIZE = 1000
 
 UNSUPPORTED_EXTENSIONS = [
     # Instance extensions
+    "VK_EXT_headless_surface", # Needs WSI work.
     "VK_KHR_display", # Needs WSI work.
     "VK_KHR_surface_protected_capabilities",
     "VK_LUNARG_direct_driver_loading", # Implemented in the Vulkan loader
@@ -98,14 +97,23 @@ UNSUPPORTED_EXTENSIONS = [
     "VK_AMD_display_native_hdr",
     "VK_EXT_full_screen_exclusive",
     "VK_GOOGLE_display_timing",
+    "VK_KHR_external_fence_win32",
+    "VK_KHR_external_semaphore_win32",
     # Relates to external_semaphore and needs type conversions in bitflags.
     "VK_KHR_maintenance7", # Causes infinity recursion in struct convert code
     "VK_KHR_shared_presentable_image", # Needs WSI work.
+    "VK_KHR_win32_keyed_mutex",
     "VK_NV_external_memory_rdma", # Needs shared resources work.
 
     # Extensions for other platforms
+    "VK_EXT_external_memory_dma_buf",
+    "VK_EXT_image_drm_format_modifier",
+    "VK_EXT_metal_objects",
     "VK_EXT_physical_device_drm",
     "VK_GOOGLE_surfaceless_query",
+    "VK_KHR_external_fence_fd",
+    "VK_KHR_external_memory_fd",
+    "VK_KHR_external_semaphore_fd",
     "VK_SEC_amigo_profiling", # Angle specific.
 
     # Extensions which require callback handling
@@ -117,17 +125,6 @@ UNSUPPORTED_EXTENSIONS = [
 
     # Causes a warning
     "VK_INTEL_performance_query",
-
-    "XR_EXT_debug_utils",
-    "XR_EXT_hand_tracking",
-    "XR_EXT_plane_detection",
-    "XR_KHR_android_surface_swapchain",
-    "XR_KHR_opengl_enable",
-    "XR_KHR_opengl_es_enable",
-    "XR_KHR_convert_timespec_time",
-
-    # OpenXR loader extension
-    "XR_KHR_loader_init",
 ]
 
 # Either internal extensions which aren't present on the win32 platform which
@@ -135,13 +132,7 @@ UNSUPPORTED_EXTENSIONS = [
 # but not expose to applications (useful for test commits)
 UNEXPOSED_EXTENSIONS = {
     "VK_EXT_map_memory_placed",
-    # Extensions for other platforms
-    "VK_EXT_external_memory_dma_buf",
-    "VK_EXT_image_drm_format_modifier",
-    "VK_EXT_metal_objects",
-    "VK_KHR_external_fence_fd",
-    "VK_KHR_external_memory_fd",
-    "VK_KHR_external_semaphore_fd",
+    "VK_KHR_external_memory_win32",
 }
 
 # The Vulkan loader provides entry-points for core functionality and important
@@ -168,18 +159,6 @@ ALLOWED_X_EXTENSIONS = [
     "VK_NVX_image_view_handle",
 ]
 
-UNSUPPORTED_EXTGROUPS = (
-    "VK_KHX",
-    "VK_NVX",
-    "XR_META",
-    "XR_MNDX",
-    "XR_VARJO",
-    "XR_FB",
-    "XR_ML",
-    "XR_HTC",
-    "XR_MSFT",
-)
-
 # Some frequently called functions skip traces and checks for performance reasons.
 PERF_CRITICAL_FUNCTIONS = [
     "vkUpdateDescriptorSets",
@@ -198,78 +177,54 @@ FUNCTION_OVERRIDES = {
 
     # Instance functions
     "vkCreateDevice" : {"extra_param" : "client_ptr"},
+    "vkGetPhysicalDeviceExternalBufferProperties" : {"dispatch" : False},
+    "vkGetPhysicalDeviceExternalFenceProperties" : {"dispatch" : False},
+    "vkGetPhysicalDeviceExternalSemaphoreProperties" : {"dispatch" : False},
 
     # Device functions
     "vkCreateCommandPool" : {"extra_param" : "client_ptr"},
     "vkGetDeviceProcAddr" : {"dispatch" : False},
+
+    # VK_KHR_external_fence_capabilities
+    "vkGetPhysicalDeviceExternalFencePropertiesKHR" : {"dispatch" : False},
+
+    # VK_KHR_external_memory_capabilities
+    "vkGetPhysicalDeviceExternalBufferPropertiesKHR" : {"dispatch" : False},
+
+    # VK_KHR_external_semaphore_capabilities
+    "vkGetPhysicalDeviceExternalSemaphorePropertiesKHR" : {"dispatch" : False},
 }
 
 # functions for which a user driver entry must be generated
 USER_DRIVER_FUNCS = {
     "vkAcquireNextImage2KHR",
     "vkAcquireNextImageKHR",
-    "vkAllocateMemory",
-    "vkBindImageMemory2",
-    "vkBindImageMemory2KHR",
-    "vkCreateBuffer",
-    "vkCreateFence",
-    "vkCreateHeadlessSurfaceEXT",
-    "vkCreateImage",
-    "vkCreateSemaphore",
     "vkCreateSwapchainKHR",
     "vkCreateWin32SurfaceKHR",
-    "vkDestroyBuffer",
-    "vkDestroyFence",
-    "vkDestroyImage",
-    "vkDestroySemaphore",
     "vkDestroySurfaceKHR",
     "vkDestroySwapchainKHR",
-    "vkFreeMemory",
-    "vkGetDeviceBufferMemoryRequirements",
-    "vkGetDeviceImageMemoryRequirements",
     "vkGetDeviceProcAddr",
-    "vkGetFenceWin32HandleKHR",
     "vkGetInstanceProcAddr",
-    "vkGetMemoryWin32HandleKHR",
-    "vkGetMemoryWin32HandlePropertiesKHR",
-    "vkGetPhysicalDeviceExternalBufferProperties",
-    "vkGetPhysicalDeviceExternalBufferPropertiesKHR",
-    "vkGetPhysicalDeviceExternalFenceProperties",
-    "vkGetPhysicalDeviceExternalFencePropertiesKHR",
-    "vkGetPhysicalDeviceExternalSemaphoreProperties",
-    "vkGetPhysicalDeviceExternalSemaphorePropertiesKHR",
-    "vkGetPhysicalDeviceImageFormatProperties2",
-    "vkGetPhysicalDeviceImageFormatProperties2KHR",
     "vkGetPhysicalDevicePresentRectanglesKHR",
     "vkGetPhysicalDeviceSurfaceCapabilities2KHR",
     "vkGetPhysicalDeviceSurfaceCapabilitiesKHR",
     "vkGetPhysicalDeviceSurfaceFormats2KHR",
     "vkGetPhysicalDeviceSurfaceFormatsKHR",
     "vkGetPhysicalDeviceWin32PresentationSupportKHR",
-    "vkGetSemaphoreWin32HandleKHR",
-    "vkGetSwapchainImagesKHR",
-    "vkImportFenceWin32HandleKHR",
-    "vkImportSemaphoreWin32HandleKHR",
-    "vkMapMemory",
-    "vkMapMemory2KHR",
     "vkQueuePresentKHR",
-    "vkQueueSubmit",
-    "vkQueueSubmit2",
-    "vkQueueSubmit2KHR",
-    "vkReleaseSwapchainImagesEXT",
-    "vkUnmapMemory",
-    "vkUnmapMemory2KHR",
-    "vkWaitForPresentKHR",
 }
 
 # functions for which the unix thunk is manually implemented
 MANUAL_UNIX_THUNKS = {
     "vkAllocateCommandBuffers",
+    "vkAllocateMemory",
+    "vkCreateBuffer",
     "vkCreateCommandPool",
     "vkCreateDebugReportCallbackEXT",
     "vkCreateDebugUtilsMessengerEXT",
     "vkCreateDeferredOperationKHR",
     "vkCreateDevice",
+    "vkCreateImage",
     "vkCreateInstance",
     "vkDestroyCommandPool",
     "vkDestroyDebugReportCallbackEXT",
@@ -286,6 +241,7 @@ MANUAL_UNIX_THUNKS = {
     "vkEnumeratePhysicalDeviceGroupsKHR",
     "vkEnumeratePhysicalDevices",
     "vkFreeCommandBuffers",
+    "vkFreeMemory",
     "vkGetCalibratedTimestampsEXT",
     "vkGetCalibratedTimestampsKHR",
     "vkGetDeviceProcAddr",
@@ -294,28 +250,18 @@ MANUAL_UNIX_THUNKS = {
     "vkGetInstanceProcAddr",
     "vkGetPhysicalDeviceCalibrateableTimeDomainsEXT",
     "vkGetPhysicalDeviceCalibrateableTimeDomainsKHR",
+    "vkGetPhysicalDeviceExternalBufferProperties",
+    "vkGetPhysicalDeviceExternalBufferPropertiesKHR",
     "vkGetPhysicalDeviceExternalFenceProperties",
     "vkGetPhysicalDeviceExternalFencePropertiesKHR",
-
-    "xrCreateAction",
-    "xrCreateActionSet",
-    "xrCreateActionSpace",
-    "xrCreateInstance",
-    "xrCreateReferenceSpace",
-    "xrCreateSession",
-    "xrCreateSwapchain",
-    "xrCreateVulkanDeviceKHR",
-    "xrCreateVulkanInstanceKHR",
-    "xrDestroyAction",
-    "xrDestroyActionSet",
-    "xrDestroyActionSpace",
-    "xrDestroyInstance",
-    "xrDestroySession",
-    "xrDestroySpace",
-    "xrDestroySwapchain",
-    "xrEnumerateInstanceExtensionProperties",
-    "xrGetVulkanGraphicsDevice2KHR",
-    "xrGetVulkanGraphicsDeviceKHR",
+    "vkGetPhysicalDeviceExternalSemaphoreProperties",
+    "vkGetPhysicalDeviceExternalSemaphorePropertiesKHR",
+    "vkGetPhysicalDeviceImageFormatProperties2",
+    "vkGetPhysicalDeviceImageFormatProperties2KHR",
+    "vkMapMemory",
+    "vkMapMemory2KHR",
+    "vkUnmapMemory",
+    "vkUnmapMemory2KHR",
 }
 
 # loader functions which are entirely manually implemented
@@ -323,14 +269,6 @@ MANUAL_LOADER_FUNCTIONS = {
     "vkEnumerateInstanceLayerProperties",
     "vkGetDeviceProcAddr",
     "vkGetInstanceProcAddr",
-
-    "xrGetInstanceProcAddr",
-    "xrNegotiateLoaderRuntimeInterface",
-
-    # OpenXR layer functions, unused
-    "xrCreateApiLayerInstance",
-    "xrEnumerateApiLayerProperties",
-    "xrNegotiateLoaderApiLayerInterface",
 }
 
 # functions which loader thunks are manually implemented
@@ -347,61 +285,12 @@ MANUAL_LOADER_THUNKS = {
     "vkFreeCommandBuffers",
     "vkGetPhysicalDeviceProperties2",
     "vkGetPhysicalDeviceProperties2KHR",
-
-    "xrAcquireSwapchainImage",
-    "xrBeginFrame",
-    "xrConvertTimeToWin32PerformanceCounterKHR",
-    "xrConvertWin32PerformanceCounterToTimeKHR",
-    "xrCreateAction",
-    "xrCreateActionSet",
-    "xrCreateActionSpace",
-    "xrCreateApiLayerInstance",
-    "xrCreateInstance",
-    "xrCreateReferenceSpace",
-    "xrCreateSession",
-    "xrCreateSwapchain",
-    "xrCreateVulkanDeviceKHR",
-    "xrCreateVulkanInstanceKHR",
-    "xrDestroyAction",
-    "xrDestroyActionSet",
-    "xrDestroyActionSpace",
-    "xrDestroyInstance",
-    "xrDestroySession",
-    "xrDestroySpace",
-    "xrDestroySwapchain",
-    "xrEndFrame",
-    "xrEnumerateSwapchainFormats",
-    "xrEnumerateSwapchainImages",
-    "xrGetD3D11GraphicsRequirementsKHR",
-    "xrGetD3D12GraphicsRequirementsKHR",
-    "xrGetInstanceProcAddr",
-    "xrGetSystem",
-    "xrGetVulkanDeviceExtensionsKHR",
-    "xrGetVulkanGraphicsDevice2KHR",
-    "xrGetVulkanGraphicsDeviceKHR",
-    "xrGetVulkanInstanceExtensionsKHR",
-    "xrNegotiateLoaderRuntimeInterface",
-    "xrPollEvent",
-    "xrReleaseSwapchainImage",
 }
 
 STRUCT_CHAIN_CONVERSIONS = {
-    # Force making copies of some struct chains
-    "VkMemoryAllocateInfo": [],
-    "VkBufferCreateInfo": [],
-    "VkImageCreateInfo": [],
-    "VkPhysicalDeviceExternalBufferInfo": [],
-    "VkPhysicalDeviceImageFormatInfo2": [],
-    "VkSemaphoreCreateInfo": [],
-    "VkFenceCreateInfo": [],
-
     # Ignore to not confuse host loader.
     "VkDeviceCreateInfo": ["VK_STRUCTURE_TYPE_LOADER_DEVICE_CREATE_INFO"],
     "VkInstanceCreateInfo": ["VK_STRUCTURE_TYPE_LOADER_INSTANCE_CREATE_INFO"],
-}
-
-STRUCT_CHAIN_FORCE_UNWRAP = {
-    "VkDeviceCreateInfo": ["VK_STRUCTURE_TYPE_DEVICE_GROUP_DEVICE_CREATE_INFO"],
 }
 
 # Some struct members are conditionally ignored and callers are free to leave them uninitialized.
@@ -436,13 +325,8 @@ class Unwrap(Enum):
     DRIVER = 2
 
 
-def api_is_supported(obj):
-    return "vulkan" in obj.get("api", "vulkan").split(",") or \
-           "openxr" in obj.get("api", "openxr").split(",")
-
-
-def innertext(tag):
-    return (tag.text or '') + ''.join(innertext(e) for e in tag) + (tag.tail or '')
+def api_is_vulkan(obj):
+    return "vulkan" in obj.get("api", "vulkan").split(",")
 
 
 def convert_suffix(direction, win_type, unwrap, is_wrapped):
@@ -520,24 +404,68 @@ class VkConstant(object):
 
 
 class VkDefine(object):
-    def __init__(self, value):
+    def __init__(self, name, value):
+        self.name = name
         self.value = value
 
     @staticmethod
     def from_xml(define):
-        if not api_is_supported(define):
+        if not api_is_vulkan(define):
             return None
 
-        value = innertext(define)
-        value = re.sub(r'\s*//.*$', '', value, flags=re.M)
-        value = value.strip()
+        name_elem = define.find("name")
 
-        if "#define VK_USE_64_BIT_PTR_DEFINES" in value:
-            return VkDefine("#define VK_USE_64_BIT_PTR_DEFINES 0")
-        return VkDefine(value)
+        if name_elem is None:
+            # <type category="define" name="some_name">some_value</type>
+            name = define.attrib.get("name")
+
+            # We override behavior of VK_USE_64_BIT_PTR_DEFINES as the default non-dispatchable handle
+            # definition various between 64-bit (uses pointers) and 32-bit (uses uint64_t).
+            # This complicates TRACEs in the thunks, so just use uint64_t.
+            if name == "VK_USE_64_BIT_PTR_DEFINES":
+                value = "#define VK_USE_64_BIT_PTR_DEFINES 0"
+            else:
+                value = define.text
+            return VkDefine(name, value)
+
+        # With a name element the structure is like:
+        # <type category="define"><name>some_name</name>some_value</type>
+        name = name_elem.text
+
+        # Perform minimal parsing for Vulkan constants, which we don't need, but are referenced
+        # elsewhere in vk.xml.
+        # - VK_API_VERSION is a messy, deprecated constant and we don't want generate code for it.
+        # - AHardwareBuffer/ANativeWindow are forward declarations for Android types, which leaked
+        #   into the define region.
+        if name in ["VK_API_VERSION", "AHardwareBuffer", "ANativeWindow", "CAMetalLayer"]:
+            return VkDefine(name, None)
+
+        # The body of the define is basically unstructured C code. It is not meant for easy parsing.
+        # Some lines contain deprecated values or comments, which we try to filter out.
+        value = ""
+        for line in define.text.splitlines():
+            # Skip comments or deprecated values.
+            if "//" in line:
+                continue
+            value += line
+
+        for child in define:
+            value += child.text
+            if child.tail is not None:
+                # Split comments for VK_API_VERSION_1_0 / VK_API_VERSION_1_1
+                if "//" in child.tail:
+                    value += child.tail.split("//")[0]
+                else:
+                    value += child.tail
+
+        return VkDefine(name, value.rstrip(' '))
 
     def definition(self):
-        return self.value + '\n'
+        if self.value is None:
+            return ""
+
+        # Nothing to do as the value was already put in the right form during parsing.
+        return "{0}\n".format(self.value)
 
 
 class VkEnum(object):
@@ -561,7 +489,7 @@ class VkEnum(object):
 
     @staticmethod
     def from_xml(enum):
-        if not api_is_supported(enum):
+        if not api_is_vulkan(enum):
             return None
 
         name = enum.attrib.get("name")
@@ -729,7 +657,7 @@ class VkFunction(object):
         Returns:
             VkFunction
         """
-        if not api_is_supported(command):
+        if not api_is_vulkan(command):
             return None
 
         func_name = command.attrib.get("name")
@@ -740,7 +668,7 @@ class VkFunction(object):
 
     @staticmethod
     def from_xml(command, types):
-        if not api_is_supported(command):
+        if not api_is_vulkan(command):
             return None
 
         proto = command.find("proto")
@@ -1026,11 +954,11 @@ class VkFunction(object):
         stub += "\n{\n"
         stub += "    {0}".format(self.trace(message="stub: ", trace_func="FIXME"))
 
-        if self.type in ("VkResult", "XrResult"):
+        if self.type == "VkResult":
             stub += "    return VK_ERROR_OUT_OF_HOST_MEMORY;\n"
-        elif self.type in ("VkBool32", "XrBool32"):
+        elif self.type == "VkBool32":
             stub += "    return VK_FALSE;\n"
-        elif self.type in ("PFN_vkVoidFunction", "PFN_xrVoidFunction"):
+        elif self.type == "PFN_vkVoidFunction":
             stub += "    return NULL;\n"
 
         stub += "}\n\n"
@@ -1102,28 +1030,81 @@ class VkFunction(object):
 
 
 class VkFunctionPointer(object):
-    def __init__(self, value):
-        self.value = value
+    def __init__(self, _type, name, members, forward_decls):
+        self.name = name
+        self.members = members
+        self.type = _type
         self.required = False
+        self.forward_decls = forward_decls
 
     @staticmethod
     def from_xml(funcpointer):
-        if not api_is_supported(funcpointer):
+        if not api_is_vulkan(funcpointer):
             return None
 
-        value = innertext(funcpointer).replace('\n', '')
-        value = re.sub(r'\s*//.*$', '', value, flags=re.M)
-        value = re.sub(r'\s+', ' ', value, flags=re.M)
-        value = value.strip()
+        members = []
+        begin = None
 
-        return VkFunctionPointer(value)
+        for t in funcpointer.findall("type"):
+            # General form:
+            # <type>void</type>*       pUserData,
+            # Parsing of the tail (anything past </type>) is tricky since there
+            # can be other data on the next line like: const <type>int</type>..
+
+            const = True if begin and "const" in begin else False
+            _type = t.text
+            lines = t.tail.split(",\n")
+            if lines[0][0] == "*":
+                pointer = "*"
+                name = lines[0][1:].strip()
+            else:
+                pointer = None
+                name = lines[0].strip()
+
+            # Filter out ); if it is contained.
+            name = name.partition(");")[0]
+
+            # If tail encompasses multiple lines, assign the second line to begin
+            # for the next line.
+            try:
+                begin = lines[1].strip()
+            except IndexError:
+                begin = None
+
+            members.append(VkMember(const=const, _type=_type, pointer=pointer, name=name))
+
+        _type = funcpointer.text
+        name = funcpointer.find("name").text
+        if "requires" in funcpointer.attrib:
+            forward_decls = funcpointer.attrib.get("requires").split(",")
+        else:
+            forward_decls = []
+        return VkFunctionPointer(_type, name, members, forward_decls)
 
     def definition(self):
-        return self.value + '\n'
+        text = ""
+        # forward declare required structs
+        for decl in self.forward_decls:
+            text += "typedef struct {0} {0};\n".format(decl)
+
+        text += "{0} {1})(\n".format(self.type, self.name)
+
+        first = True
+        if len(self.members) > 0:
+            for m in self.members:
+                if first:
+                    text += "    " + m.definition()
+                    first = False
+                else:
+                    text += ",\n    " + m.definition()
+        else:
+            # Just make the compiler happy by adding a void parameter.
+            text += "void"
+        text += ");\n"
+        return text
 
     def is_alias(self):
         return False
-
 
 class VkHandle(object):
     def __init__(self, name, _type, parent, alias=None):
@@ -1141,7 +1122,7 @@ class VkHandle(object):
 
     @staticmethod
     def from_xml(handle):
-        if not api_is_supported(handle):
+        if not api_is_vulkan(handle):
             return None
 
         name = handle.find("name").text
@@ -1153,35 +1134,23 @@ class VkHandle(object):
         if not self.is_dispatchable():
             return None
 
-        if self.name == "VkInstance":
+        if self.parent is None:
+            # Should only happen for VkInstance
             return "vulkan_instance_from_handle({0})".format(param)
-        if self.name == "VkCommandBuffer":
-            return "vulkan_command_buffer_from_handle({0})->device".format(param)
-        if self.name == "VkDevice":
+        elif self.name == "VkCommandBuffer":
+            return "wine_cmd_buffer_from_handle({0})->device".format(param)
+        elif self.name == "VkDevice":
             return "vulkan_device_from_handle({0})".format(param)
-        if self.name == "VkPhysicalDevice":
+        elif self.name == "VkPhysicalDevice":
             return "vulkan_physical_device_from_handle({0})->instance".format(param)
-        if self.name == "VkQueue":
+        elif self.name == "VkQueue":
             return "vulkan_queue_from_handle({0})->device".format(param)
-        if self.parent in ["VkInstance", "VkPhysicalDevice"]:
+        elif self.parent in ["VkInstance", "VkPhysicalDevice"]:
             return "{0}->instance".format(param)
-        if self.parent in ["VkDevice", "VkCommandPool"]:
+        elif self.parent in ["VkDevice", "VkCommandPool"]:
             return "{0}->device".format(param)
-
-        if self.name == "XrAction":
-            return "openxr_action_from_handle({0})->instance".format(param)
-        if self.name == "XrActionSet":
-            return "openxr_action_set_from_handle({0})->instance".format(param)
-        if self.name == "XrInstance":
-            return "openxr_instance_from_handle({0})".format(param)
-        if self.name == "XrSession":
-            return "openxr_session_from_handle({0})->instance".format(param)
-        if self.name == "XrSpace":
-            return "openxr_space_from_handle({0})->instance".format(param)
-        if self.name == "XrSwapchain":
-            return "openxr_swapchain_from_handle({0})->instance".format(param)
-
-        LOGGER.error("Unhandled dispatchable parent: {0}".format(self.parent))
+        else:
+            LOGGER.error("Unhandled dispatchable parent: {0}".format(self.parent))
 
     def definition(self):
         """ Generates handle definition e.g. VK_DEFINE_HANDLE(vkInstance) """
@@ -1199,7 +1168,7 @@ class VkHandle(object):
         """ Some handles like VkInstance, VkDevice are dispatchable objects,
         which means they contain a dispatch table of function pointers.
         """
-        return self.type in ("VK_DEFINE_HANDLE", "XR_DEFINE_HANDLE")
+        return self.type == "VK_DEFINE_HANDLE"
 
     def is_required(self):
         return self.required
@@ -1208,7 +1177,7 @@ class VkHandle(object):
         """ Provide access to the host handle of a wrapped object. """
 
         if self.name == "VkCommandBuffer":
-            return "vulkan_command_buffer_from_handle({0})->host.command_buffer".format(name)
+            return "wine_cmd_buffer_from_handle({0})->host.command_buffer".format(name)
         if self.name == "VkCommandPool":
             return "wine_cmd_pool_from_handle({0})->host.command_pool".format(name)
         if self.name == "VkDebugUtilsMessengerEXT":
@@ -1222,7 +1191,7 @@ class VkHandle(object):
         if self.name == "VkInstance":
             return "vulkan_instance_from_handle({0})->host.instance".format(name)
         if self.name == "VkDeviceMemory":
-            return "vulkan_device_memory_from_handle({0})->host.device_memory".format(name)
+            return "wine_device_memory_from_handle({0})->host.device_memory".format(name)
         if self.name == "VkPhysicalDevice":
             return "vulkan_physical_device_from_handle({0})->host.physical_device".format(name)
         if self.name == "VkQueue":
@@ -1231,24 +1200,6 @@ class VkHandle(object):
             return "vulkan_surface_from_handle({0})->host.surface".format(name)
         if self.name == "VkSwapchainKHR":
             return "vulkan_swapchain_from_handle({0})->host.swapchain".format(name)
-        if self.name == "VkSemaphore":
-            return "vulkan_semaphore_from_handle({0})->host.semaphore".format(name)
-        if self.name == "VkFence":
-            return "vulkan_fence_from_handle({0})->host.fence".format(name)
-
-        if self.name == "XrInstance":
-            return "openxr_instance_from_handle({0})->host.instance".format(name)
-        if self.name == "XrSession":
-            return "openxr_session_from_handle({0})->host.session".format(name)
-        if self.name == "XrSwapchain":
-            return "openxr_swapchain_from_handle({0})->host.swapchain".format(name)
-        if self.name == "XrSpace":
-            return "openxr_space_from_handle({0})->host.space".format(name)
-        if self.name == "XrAction":
-            return "openxr_action_from_handle({0})->host.action".format(name)
-        if self.name == "XrActionSet":
-            return "openxr_action_set_from_handle({0})->host.action_set".format(name)
-
         if self.is_dispatchable():
             LOGGER.error("Unhandled host handle for: {0}".format(self.name))
         return None
@@ -1256,7 +1207,8 @@ class VkHandle(object):
     def unwrap_handle(self, name, unwrap):
         if unwrap == Unwrap.HOST:
             return self.host_handle(name)
-        return name
+        assert unwrap != Unwrap.NONE
+        return None
 
     def is_wrapped(self):
         return self.host_handle("test") is not None
@@ -1516,16 +1468,11 @@ class VkMember(VkVariable):
     def from_xml(member, returnedonly, parent):
         """ Helper function for parsing a member tag within a struct or union. """
 
-        if not api_is_supported(member):
+        if not api_is_vulkan(member):
             return None
 
         name_elem = member.find("name")
         type_elem = member.find("type")
-
-        if name_elem.text == 'next' and parent.name.startswith('Xr'):
-            name_elem.text = 'pNext'
-        if name_elem.text == 'type' and parent.name.startswith('Xr'):
-            name_elem.text = 'sType'
 
         const = False
         struct_fwd_decl = False
@@ -1725,8 +1672,6 @@ class VkMember(VkVariable):
         if self.is_handle():
             if unwrap != Unwrap.NONE and self.handle.is_wrapped():
                 return True
-            if self.is_dynamic_array() and self.handle.is_wrapped():
-                return True
             if conv and self.handle.is_dispatchable():
                 return True
         elif self.is_generic_handle():
@@ -1762,7 +1707,7 @@ class VkParam(VkVariable):
     def from_xml(param, types, parent):
         """ Helper function to create VkParam from xml. """
 
-        if not api_is_supported(param):
+        if not api_is_vulkan(param):
             return None
 
         # Parameter parsing is slightly tricky. All the data is contained within
@@ -1818,9 +1763,6 @@ class VkParam(VkVariable):
                     self.format_str = "%#x"
             elif self.type_info["category"] in ["enum"]:
                 self.format_str = "%#x"
-            elif self.is_struct():
-                self.format_str = "%p"
-                self.format_conv = "&{0}"
             elif self.is_handle():
                 # We use uint64_t for non-dispatchable handles as opposed to pointers
                 # for dispatchable handles.
@@ -1838,9 +1780,9 @@ class VkParam(VkVariable):
             elif self.type == "size_t":
                 self.format_str = "0x%s"
                 self.format_conv = "wine_dbgstr_longlong({0})"
-            elif self.type in ["uint16_t", "uint32_t", "VkBool32", "XrBool32"]:
+            elif self.type in ["uint16_t", "uint32_t", "VkBool32"]:
                 self.format_str = "%u"
-            elif self.type in ["uint64_t", "VkDeviceAddress", "VkDeviceSize", "XrTime", "XrDuration"]:
+            elif self.type in ["uint64_t", "VkDeviceAddress", "VkDeviceSize"]:
                 self.format_str = "0x%s"
                 self.format_conv = "wine_dbgstr_longlong({0})"
             elif self.type == "HANDLE":
@@ -2001,7 +1943,7 @@ class VkParam(VkVariable):
             return "int64"
         if self.type == "float":
             return "float"
-        if self.type in ["int", "int32_t", "size_t", "uint16_t", "uint32_t", "VkBool32", "XrBool32"]:
+        if self.type in ["int", "int32_t", "size_t", "uint16_t", "uint32_t", "VkBool32"]:
             return "long"
         if self.type in ["uint64_t", "VkDeviceSize"]:
             return "int64"
@@ -2063,7 +2005,6 @@ class VkStruct(Sequence):
         self.type_info = None # To be set later.
         self.struct_extensions = []
         self.aliased_by = []
-        self.order = 0
 
     def __getitem__(self, i):
         return self.members[i]
@@ -2081,7 +2022,7 @@ class VkStruct(Sequence):
 
     @staticmethod
     def from_xml(struct):
-        if not api_is_supported(struct):
+        if not api_is_vulkan(struct):
             return None
 
         # Unions and structs are the same parsing wise, but we need to
@@ -2114,19 +2055,58 @@ class VkStruct(Sequence):
 
         return s
 
-    def set_order(self, order, structs):
-        if order < self.order:
-            return
+    @staticmethod
+    def decouple_structs(structs):
+        """ Helper function which decouples a list of structs.
+        Structures often depend on other structures. To make the C compiler
+        happy we need to define 'substructures' first. This function analyzes
+        the list of structures and reorders them in such a way that they are
+        decoupled.
+        """
 
-        self.order = order + 1
-        for member in self.members:
-            if member.type == self.name:
-                continue
-            if not member.is_union() and not member.is_struct():
-                continue
-            if structs[member.type].is_alias():
-                structs[member.type].alias.set_order(self.order, structs)
-            structs[member.type].set_order(self.order, structs)
+        tmp_structs = list(structs) # Don't modify the original structures.
+        decoupled_structs = []
+
+        while (len(tmp_structs) > 0):
+            # Iterate over a copy because we want to modify the list inside the loop.
+            for struct in list(tmp_structs):
+                dependends = False
+
+                if not struct.required:
+                    tmp_structs.remove(struct)
+                    continue
+
+                for m in struct:
+                    if not (m.is_struct() or m.is_union()):
+                        continue
+
+                    # VkBaseInstructure and VkBaseOutStructure reference themselves.
+                    if m.type == struct.name:
+                        break
+
+                    found = False
+                    # Check if a struct we depend on has already been defined.
+                    for s in decoupled_structs:
+                        if s.name == m.type:
+                            found = True
+                            break
+
+                    if not found:
+                        # Check if the struct we depend on is even in the list of structs.
+                        # If found now, it means we haven't met all dependencies before we
+                        # can operate on the current struct.
+                        # When generating 'host' structs we may not be able to find a struct
+                        # as the list would only contain the structs requiring conversion.
+                        for s in tmp_structs:
+                            if s.name == m.type:
+                                dependends = True
+                                break
+
+                if dependends == False:
+                    decoupled_structs.append(struct)
+                    tmp_structs.remove(struct)
+
+        return decoupled_structs
 
     def definition(self, align=False, conv=False):
         """ Convert structure to textual definition.
@@ -2322,7 +2302,6 @@ class VkStruct(Sequence):
             if not e.required:
                 continue
             conversions.extend(e.get_conversions(Unwrap.HOST, parent_const))
-            conversions.extend(e.get_conversions(Unwrap.NONE, parent_const))
 
         # Collect any conversion for any member structs.
         for m in self:
@@ -2423,16 +2402,16 @@ class StructConversionFunction(object):
         if needs_extensions:
             if self.direction == Direction.INPUT:
                 if self.conv:
-                    body += "    const {0}BaseInStructure32 *in_header;\n".format(self.type[:2])
+                    body += "    const VkBaseInStructure32 *in_header;\n"
                 else:
-                    body += "    const {0}BaseInStructure *in_header;\n".format(self.type[:2])
-                body += "    {0}BaseOutStructure *out_header = (void *)out;\n\n".format(self.type[:2])
+                    body += "    const VkBaseInStructure *in_header;\n"
+                body += "    VkBaseOutStructure *out_header = (void *)out;\n\n"
             else:
-                body += "    const {0}BaseInStructure *in_header;\n".format(self.type[:2])
+                body += "    const VkBaseInStructure *in_header;\n"
                 if self.conv:
-                    body += "    {0}BaseOutStructure32 *out_header = (void *)out;\n\n".format(self.type[:2])
+                    body += "    VkBaseOutStructure32 *out_header = (void *)out;\n\n"
                 else:
-                    body += "    {0}BaseOutStructure *out_header = (void *)out;\n\n".format(self.type[:2])
+                    body += "    VkBaseOutStructure *out_header = (void *)out;\n\n"
 
         body += "    if (!in) return;\n\n"
 
@@ -2464,8 +2443,7 @@ class StructConversionFunction(object):
             if self.direction == Direction.INPUT and self.type in STRUCT_CHAIN_CONVERSIONS:
                 for i in STRUCT_CHAIN_CONVERSIONS[self.type]:
                     body += "        case {0}:\n".format(i)
-                if len(STRUCT_CHAIN_CONVERSIONS[self.type]):
-                    body += ident + "break;\n"
+                body += ident + "break;\n"
 
             for ext in self.operand.struct_extensions:
                 if not ext.required:
@@ -2488,9 +2466,9 @@ class StructConversionFunction(object):
                 if self.direction == Direction.INPUT:
                     body += ident + "{0} *out_ext = conversion_context_alloc(ctx, sizeof(*out_ext));\n".format(out_type)
                 elif self.conv:
-                    body += ident + "{0} *out_ext = find_next_{2}_struct32(out_header, {1});\n".format(out_type, stype, stype[:2].lower())
+                    body += ident + "{0} *out_ext = find_next_struct32(out_header, {1});\n".format(out_type, stype)
                 else:
-                    body += ident + "{0} *out_ext = find_next_{2}_struct(out_header, {1});\n".format(out_type, stype, stype[:2].lower())
+                    body += ident + "{0} *out_ext = find_next_struct(out_header, {1});\n".format(out_type, stype)
 
                 copy_body = ""
 
@@ -2503,10 +2481,7 @@ class StructConversionFunction(object):
                     if m.name == "pNext":
                         copy_body += ident + "out_ext->pNext = NULL;\n"
                         continue
-                    if stype in STRUCT_CHAIN_FORCE_UNWRAP.get(self.type, []):
-                        copy_body += ident + m.copy("in_ext->", "out_ext->", self.direction, self.conv, Unwrap.HOST)
-                    else:
-                        copy_body += ident + m.copy("in_ext->", "out_ext->", self.direction, self.conv, self.unwrap)
+                    copy_body += ident + m.copy("in_ext->", "out_ext->", self.direction, self.conv, Unwrap.HOST)
 
                 # Generate the definition of "in_ext" if we need it
                 if "in_ext->" in copy_body:
@@ -2702,8 +2677,6 @@ class VkGenerator(object):
         for func in self.registry.funcs.values():
             if not func.needs_exposing():
                 continue
-            if func.name in MANUAL_LOADER_FUNCTIONS:
-                continue
 
             conversions = func.get_conversions()
             for conv in conversions:
@@ -2737,9 +2710,6 @@ class VkGenerator(object):
         lines.extend(["and from Vulkan video.xml file covered",
             "by the following copyright and permission notice:"])
         lines.extend([l.rstrip(" ") for l in self.registry.video_copyright.splitlines()])
-        lines.extend(["and from OpenXR xr.xml file covered",
-            "by the following copyright and permission notice:"])
-        lines.extend([l.rstrip(" ") for l in self.registry.xr_copyright.splitlines()])
         for line in lines:
             f.write("{0}{1}".format("# " if spec_file else " * ", line).rstrip(" ") + "\n")
         f.write("\n" if spec_file else " */\n\n")
@@ -2769,30 +2739,6 @@ class VkGenerator(object):
         f.write("    {\n")
         for handle in self.registry.handles:
             if not handle.is_required() or not handle.is_wrapped() or handle.is_alias():
-                continue
-            if not handle.object_type.startswith('VK_'):
-                continue
-            f.write("    case {}:\n".format(handle.object_type))
-            if handle.is_dispatchable():
-                f.write("        return (uint64_t) (uintptr_t) ")
-                f.write(handle.host_handle("(({}) (uintptr_t) handle)".format(handle.name)))
-            else:
-                f.write("        return (uint64_t) ")
-                f.write(handle.host_handle("handle"))
-            f.write(";\n");
-        f.write("    default:\n")
-        f.write("       return handle;\n")
-        f.write("    }\n")
-        f.write("}\n\n")
-
-        f.write("static inline uint64_t wine_xr_unwrap_handle(uint32_t type, uint64_t handle)\n")
-        f.write("{\n")
-        f.write("    switch(type)\n")
-        f.write("    {\n")
-        for handle in self.registry.handles:
-            if not handle.is_required() or not handle.is_wrapped() or handle.is_alias():
-                continue
-            if not handle.object_type.startswith('XR_'):
                 continue
             f.write("    case {}:\n".format(handle.object_type))
             if handle.is_dispatchable():
@@ -2890,20 +2836,6 @@ class VkGenerator(object):
         for handle in self.registry.handles:
             if not handle.is_required() or not handle.is_wrapped() or handle.is_alias():
                 continue
-            if not handle.object_type.startswith('VK_'):
-                continue
-            f.write(" ||\n        type == {}".format(handle.object_type))
-        f.write(";\n")
-        f.write("}\n\n")
-
-        f.write("BOOL wine_xr_is_type_wrapped(XrObjectType type)\n")
-        f.write("{\n")
-        f.write("    return FALSE")
-        for handle in self.registry.handles:
-            if not handle.is_required() or not handle.is_wrapped() or handle.is_alias():
-                continue
-            if not handle.object_type.startswith('XR_'):
-                continue
             f.write(" ||\n        type == {}".format(handle.object_type))
         f.write(";\n")
         f.write("}\n\n")
@@ -2914,10 +2846,8 @@ class VkGenerator(object):
         f.write("const unixlib_entry_t __wine_unix_call_funcs[] =\n")
         f.write("{\n")
         f.write("    init_vulkan,\n")
-        f.write("    init_openxr,\n")
         f.write("    vk_is_available_instance_function,\n")
         f.write("    vk_is_available_device_function,\n")
-        f.write("    xr_is_available_instance_function,\n")
         for vk_func in self.registry.funcs.values():
             if not vk_func.needs_exposing():
                 continue
@@ -2940,10 +2870,8 @@ class VkGenerator(object):
         f.write("#endif\n")
         f.write("{\n")
         f.write("    init_vulkan,\n")
-        f.write("    init_openxr,\n")
         f.write("    vk_is_available_instance_function32,\n")
         f.write("    vk_is_available_device_function32,\n")
-        f.write("    xr_is_available_instance_function32,\n")
         for vk_func in self.registry.funcs.values():
             if not vk_func.needs_exposing():
                 continue
@@ -3015,14 +2943,6 @@ class VkGenerator(object):
             f.write("    {{\"{0}\", {0}}},\n".format(vk_func.name))
         f.write("};\n\n")
 
-        f.write("static const struct vulkan_func xr_instance_dispatch_table[] =\n{\n")
-        for vk_func in self.registry.openxr_funcs:
-            if not vk_func.needs_exposing():
-                continue
-
-            f.write("    {{\"{0}\", {0}}},\n".format(vk_func.name))
-        f.write("};\n\n")
-
         f.write("void *wine_vk_get_device_proc_addr(const char *name)\n")
         f.write("{\n")
         f.write("    unsigned int i;\n")
@@ -3063,20 +2983,6 @@ class VkGenerator(object):
         f.write("        }\n")
         f.write("    }\n")
         f.write("    return NULL;\n")
-        f.write("}\n\n")
-
-        f.write("void *wine_xr_get_instance_proc_addr(const char *name)\n")
-        f.write("{\n")
-        f.write("    unsigned int i;\n")
-        f.write("    for (i = 0; i < ARRAY_SIZE(xr_instance_dispatch_table); i++)\n")
-        f.write("    {\n")
-        f.write("        if (strcmp(xr_instance_dispatch_table[i].name, name) == 0)\n")
-        f.write("        {\n")
-        f.write("            TRACE(\"Found name=%s in instance table\\n\", debugstr_a(name));\n")
-        f.write("            return xr_instance_dispatch_table[i].func;\n")
-        f.write("        }\n")
-        f.write("    }\n")
-        f.write("    return NULL;\n")
         f.write("}\n")
 
     def generate_loader_thunks_h(self, f):
@@ -3088,10 +2994,8 @@ class VkGenerator(object):
         f.write("enum unix_call\n")
         f.write("{\n")
         f.write("    unix_init,\n")
-        f.write("    unix_init_openxr,\n")
         f.write("    unix_is_available_instance_function,\n")
         f.write("    unix_is_available_device_function,\n")
-        f.write("    unix_is_available_xr_instance_function,\n")
         for vk_func in self.registry.funcs.values():
             if not vk_func.needs_exposing():
                 continue
@@ -3127,9 +3031,6 @@ class VkGenerator(object):
 
         f.write("#include <windef.h>\n")
         f.write("#include <stdint.h>\n\n")
-        f.write("#include <time.h>\n")
-        f.write("#include <d3d11.h>\n")
-        f.write("#include <d3d12.h>\n")
 
         f.write("#ifdef WINE_UNIX_LIB\n")
         f.write("#define VK_NO_PROTOTYPES\n")
@@ -3179,14 +3080,8 @@ class VkGenerator(object):
 
         # Define enums, this includes values for some of the bitmask types as well.
         for enum in self.registry.enums.values():
-            if enum.name == 'XrSessionState':
-                enum.required = True
             if enum.required:
                 f.write(enum.definition())
-
-        f.write("typedef struct VkDebugUtilsMessengerCallbackDataEXT VkDebugUtilsMessengerCallbackDataEXT;\n")
-        f.write("typedef struct XrDebugUtilsMessengerCallbackDataEXT XrDebugUtilsMessengerCallbackDataEXT;\n")
-        f.write("typedef struct XrInstanceCreateInfo XrInstanceCreateInfo;\n")
 
         for fp in self.registry.funcpointers:
             if fp.required:
@@ -3198,13 +3093,11 @@ class VkGenerator(object):
         # decoupled structs.
         # Note: unions are stored in structs for dependency reasons,
         # see comment in parsing section.
-        for struct in self.registry.structs:
-            if struct.name == 'XrCompositionLayerProjectionView':
-                struct.required = True
-            if struct.required:
-                LOGGER.debug("Generating struct: {0}".format(struct.name))
-                f.write(struct.definition(align=True))
-                f.write("\n")
+        structs = VkStruct.decouple_structs(self.registry.structs)
+        for struct in structs:
+            LOGGER.debug("Generating struct: {0}".format(struct.name))
+            f.write(struct.definition(align=True))
+            f.write("\n")
 
         for func in self.registry.funcs.values():
             if not func.is_required():
@@ -3258,23 +3151,6 @@ class VkGenerator(object):
                 f.write(" \\\n    USE_VK_FUNC({0})".format(vk_func.name))
         f.write("\n\n")
 
-        f.write("#define ALL_XR_INSTANCE_FUNCS \\\n")
-        first = True
-        for vk_func in self.registry.openxr_funcs:
-            if not vk_func.needs_exposing():
-                continue
-
-            if not vk_func.needs_dispatch():
-                LOGGER.debug("skipping {0} in ALL_XR_DEVICE_FUNCS".format(vk_func.name))
-                continue
-
-            if first:
-                f.write("    USE_XR_FUNC({0})".format(vk_func.name))
-                first = False
-            else:
-                f.write(" \\\n    USE_XR_FUNC({0})".format(vk_func.name))
-        f.write("\n\n")
-
         f.write("#endif /* __WINE_VULKAN_H */\n")
 
     def generate_vulkan_spec(self, f):
@@ -3285,7 +3161,7 @@ class VkGenerator(object):
 
         # Export symbols for all Vulkan Core functions.
         for func in self.registry.funcs.values():
-            if not func.is_core_func() or not func.name.startswith('vk'):
+            if not func.is_core_func():
                 continue
 
             # We support all Core functions except for VK_KHR_display* APIs.
@@ -3303,7 +3179,7 @@ class VkGenerator(object):
 
         # Export symbols for all Vulkan Core functions.
         for func in self.registry.funcs.values():
-            if not func.is_core_func() or not func.name.startswith('vk'):
+            if not func.is_core_func():
                 continue
 
             # We support all Core functions except for VK_KHR_display* APIs.
@@ -3315,7 +3191,7 @@ class VkGenerator(object):
 
 
 class VkRegistry(object):
-    def __init__(self, vk_xml, video_xml, xr_xml):
+    def __init__(self, vk_xml, video_xml):
         # Used for storage of type information.
         self.base_types = None
         self.bitmasks = None
@@ -3353,15 +3229,10 @@ class VkRegistry(object):
         video_tree = ET.parse(video_xml)
         video_root = video_tree.getroot()
 
-        xr_tree = ET.parse(xr_xml)
-        xr_root = xr_tree.getroot()
-
         self.copyright = root.find('./comment').text
         self.video_copyright = video_root.find('./comment').text
-        self.xr_copyright = xr_root.find('./comment').text
 
         root.extend(video_root)
-        root.extend(xr_root)
 
         self._parse_enums(root)
         self._parse_types(root)
@@ -3395,6 +3266,15 @@ class VkRegistry(object):
             if bitmask.requires is not None:
                 types[bitmask.requires]["data"].required = True
 
+        def mark_funcpointer_dependencies(fp, types):
+            for m in fp.members:
+                type_info = types[m.type]
+
+                # Complex types have a matching definition e.g. VkStruct.
+                # Not needed for base types such as uint32_t.
+                if "data" in type_info:
+                    types[m.type]["data"].required = True
+
         def mark_struct_dependencies(struct, types):
              for m in struct:
                 type_info = types[m.type]
@@ -3407,6 +3287,8 @@ class VkRegistry(object):
                 if type_info["category"] == "struct" and struct.name != m.type:
                     # Yay, recurse
                     mark_struct_dependencies(type_info["data"], types)
+                elif type_info["category"] == "funcpointer":
+                    mark_funcpointer_dependencies(type_info["data"], types)
                 elif type_info["category"] == "bitmask":
                     mark_bitmask_dependencies(type_info["data"], types)
 
@@ -3439,10 +3321,6 @@ class VkRegistry(object):
         object_types = {}
         for value in self.enums["VkObjectType"].values:
             object_name = "VK" + value.name[len("VK_OBJECT_TYPE"):].replace("_", "")
-            object_types[object_name] = value.name
-
-        for value in self.enums["XrObjectType"].values:
-            object_name = "XR" + value.name[len("XR_OBJECT_TYPE"):].replace("_", "")
             object_types[object_name] = value.name
 
         for handle in self.handles:
@@ -3488,11 +3366,8 @@ class VkRegistry(object):
         global_funcs = []
         phys_dev_funcs = []
         instance_funcs = []
-        openxr_funcs = []
         for func in funcs.values():
-            if func.name.startswith('xr'):
-                openxr_funcs.append(func)
-            elif func.is_device_func():
+            if func.is_device_func():
                 device_funcs.append(func)
             elif func.is_global_func():
                 global_funcs.append(func)
@@ -3506,7 +3381,6 @@ class VkRegistry(object):
         self.global_funcs = sorted(global_funcs, key=lambda func: func.name)
         self.phys_dev_funcs = sorted(phys_dev_funcs, key=lambda func: func.name)
         self.instance_funcs = sorted(instance_funcs, key=lambda func: func.name)
-        self.openxr_funcs = sorted(openxr_funcs, key=lambda func: func.name)
 
         # The funcs dictionary is used as a convenient way to lookup function
         # calls when needed e.g. to adjust member variables.
@@ -3636,8 +3510,7 @@ class VkRegistry(object):
 
             # Some extensions are not ready or have numbers reserved as a place holder
             # or are only supported for VulkanSC.
-            if not "vulkan" in ext.attrib["supported"].split(",") and \
-               not "openxr" in ext.attrib["supported"].split(","):
+            if not "vulkan" in ext.attrib["supported"].split(","):
                 LOGGER.debug("Skipping disabled extension: {0}".format(ext_name))
                 skipped_exts.append(ext_name)
                 return
@@ -3650,8 +3523,7 @@ class VkRegistry(object):
             # Disable highly experimental extensions as the APIs are unstable and can
             # change between minor Vulkan revisions until API is final and becomes KHR
             # or NV.
-            if ext_name.startswith(UNSUPPORTED_EXTGROUPS) and \
-                ext_name not in ALLOWED_X_EXTENSIONS:
+            if ("KHX" in ext_name or "NVX" in ext_name) and ext_name not in ALLOWED_X_EXTENSIONS:
                 LOGGER.debug("Skipping experimental extension: {0}".format(ext_name))
                 skipped_exts.append(ext_name)
                 return
@@ -3751,9 +3623,8 @@ class VkRegistry(object):
         """ Parse the feature section, which describes Core commands and types needed. """
 
         for feature in root.findall("./feature"):
-            if not api_is_supported(feature):
+            if not api_is_vulkan(feature):
                 continue
-
             feature_name = feature.attrib["name"]
             for require in feature.findall("require"):
                 LOGGER.info("Including features for {0}".format(require.attrib.get("comment")))
@@ -3771,7 +3642,7 @@ class VkRegistry(object):
                         name = tag.attrib["name"]
 
                         # Skip pull in for vk_platform.h for now.
-                        if name in ("vk_platform", "openxr_platform_defines"):
+                        if name == "vk_platform":
                             continue
 
                         type_info = self.types[name]
@@ -3788,25 +3659,11 @@ class VkRegistry(object):
         handles = []
         structs = []
 
-        t = ET.fromstring('<type category="funcpointer">typedef PFN_vkVoidFunction (VKAPI_PTR *'
-                          '<name>PFN_vkGetInstanceProcAddr</name>)(<type>VkInstance</type> instance, '
-                          'const char* pName);</type>')
-        funcpointer = VkFunctionPointer.from_xml(t)
-        funcpointers.append(funcpointer)
-        self.types["PFN_vkGetInstanceProcAddr"] = {"category": "funcpointer", "requires": "VkInstance", "data": funcpointer}
-
-        defines.append(VkDefine("#define XRAPI_PTR VKAPI_PTR"))
-        defines.append(VkDefine("#define XR_PTR_SIZE 8"))
-
         alias_types = []
         for t in types:
             type_info = {}
             type_info["category"] = t.attrib.get("category", None)
             type_info["requires"] = t.attrib.get("requires", None)
-
-            _type = t.find("type")
-            if _type is not None and _type.text in ("XR_DEFINE_OPAQUE_64", "XR_DEFINE_ATOM"):
-                type_info["category"] = "handle"
 
             # We parse aliases in a second pass when we know more.
             alias = t.attrib.get("alias")
@@ -3821,9 +3678,6 @@ class VkRegistry(object):
             # video.xml redefines stdint types which we already parsed in vk.xml.
             # For some reason, it doesn't define them the same way.
             if type_info["requires"] == "stdint":
-                continue
-
-            if type_info["requires"] == "vulkan/vulkan.h":
                 continue
 
             if type_info["category"] == "basetype":
@@ -3842,7 +3696,7 @@ class VkRegistry(object):
                     continue
 
             # Basic C types don't need us to define them, but we do need data for them
-            if type_info["requires"] in ("vk_platform", "openxr_platform_defines"):
+            if type_info["requires"] == "vk_platform":
                 requires = type_info["requires"]
                 basic_c = VkBaseType(name, _type, requires=requires)
                 type_info["data"] = basic_c
@@ -3955,8 +3809,7 @@ class VkRegistry(object):
         # are parsed among other types, so there is no guarantee
         # that any types needed have been parsed already, so set
         # the data now.
-        structs = {struct.name: struct for struct in structs}
-        for struct in structs.values():
+        for struct in structs:
             struct.set_type_info(self.types)
 
             # Alias structures have enum values equivalent to those of the
@@ -3970,18 +3823,15 @@ class VkRegistry(object):
                 s = self.types[structextend]["data"]
                 s.struct_extensions.append(struct)
 
-        for struct in structs.values():
-            struct.set_order(0, structs)
-
         # Guarantee everything is sorted, so code generation doesn't have
         # to deal with this.
         self.base_types = sorted(base_types, key=lambda base_type: base_type.name)
         self.bitmasks = sorted(bitmasks, key=lambda bitmask: bitmask.name)
         self.defines = defines
         self.enums = OrderedDict(sorted(self.enums.items()))
-        self.funcpointers = reversed(sorted(funcpointers, key=lambda fp: fp.value))
+        self.funcpointers = sorted(funcpointers, key=lambda fp: fp.name)
         self.handles = sorted(handles, key=lambda handle: handle.name)
-        self.structs = sorted(structs.values(), key=lambda struct: (-struct.order, struct.name))
+        self.structs = sorted(structs, key=lambda struct: struct.name)
 
 def generate_vulkan_json(f):
     f.write("{\n")
@@ -4002,16 +3852,10 @@ def download_vk_xml(dst_filename, src_filename):
     if not os.path.isfile(dst_filename):
         urllib.request.urlretrieve(url, dst_filename)
 
-def download_xr_xml(dst_filename, src_filename):
-    url = "https://raw.githubusercontent.com/KhronosGroup/OpenXR-SDK/release-{0}/specification/registry/{1}".format(XR_XML_VERSION, src_filename)
-    if not os.path.isfile(dst_filename):
-        urllib.request.urlretrieve(url, dst_filename)
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-v", "--verbose", action="count", default=0, help="increase output verbosity")
     parser.add_argument("-x", "--xml", default=None, type=str, help="path to specification XML file")
-    parser.add_argument("-y", "--xr-xml", default=None, type=str, help="path to specification XR XML file")
     parser.add_argument("-X", "--video-xml", default=None, type=str, help="path to specification video XML file")
 
     args = parser.parse_args()
@@ -4042,13 +3886,7 @@ def main():
         video_xml = os.path.join(cache, "video-{0}.xml".format(VK_XML_VERSION))
         download_vk_xml(video_xml, "video.xml")
 
-    if args.xr_xml:
-        xr_xml = args.xr_xml
-    else:
-        xr_xml = os.path.join(cache, "xr-{0}.xml".format(VK_XML_VERSION))
-        download_xr_xml(xr_xml, "xr.xml")
-
-    registry = VkRegistry(vk_xml, video_xml, xr_xml)
+    registry = VkRegistry(vk_xml, video_xml)
     generator = VkGenerator(registry)
 
     with open(WINE_VULKAN_H, "w") as f:

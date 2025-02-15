@@ -31,7 +31,7 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(x11drv);
 
-struct x11drv_display_device_handler host_handler;
+static struct x11drv_display_device_handler host_handler;
 static struct x11drv_settings_handler settings_handler;
 
 #define NEXT_DEVMODEW(mode) ((DEVMODEW *)((char *)((mode) + 1) + (mode)->dmDriverExtra))
@@ -391,6 +391,17 @@ void X11DRV_DisplayDevices_SetHandler(const struct x11drv_display_device_handler
     }
 }
 
+void X11DRV_DisplayDevices_RegisterEventHandlers(void)
+{
+    if (host_handler.register_event_handlers) host_handler.register_event_handlers();
+}
+
+/* Report whether a display device handler supports detecting dynamic device changes */
+BOOL X11DRV_DisplayDevices_SupportEventHandlers(void)
+{
+    return !!host_handler.register_event_handlers;
+}
+
 UINT X11DRV_UpdateDisplayDevices( const struct gdi_device_manager *device_manager, void *param )
 {
     INT gpu_count, adapter_count, monitor_count, current_adapter_count = 0;
@@ -423,7 +434,6 @@ UINT X11DRV_UpdateDisplayDevices( const struct gdi_device_manager *device_manage
             x11drv_settings_id settings_id;
             BOOL is_primary = adapters[adapter].state_flags & DISPLAY_DEVICE_PRIMARY_DEVICE;
             UINT dpi = NtUserGetSystemDpiForProcess( NULL );
-            POINT position = {0};
 
             sprintf( buffer, "%04lx", adapters[adapter].id );
             device_manager->add_source( buffer, adapters[adapter].state_flags, dpi, param );
@@ -435,12 +445,6 @@ UINT X11DRV_UpdateDisplayDevices( const struct gdi_device_manager *device_manage
             for (monitor = 0; monitor < monitor_count; monitor++)
                 device_manager->add_monitor( &monitors[monitor], param );
 
-            if (monitor_count)
-            {
-                position.x = monitors[0].rc_monitor.left;
-                position.y = monitors[0].rc_monitor.top;
-            }
-
             host_handler.free_monitors( monitors, monitor_count );
 
             /* Get the settings handler id for the adapter */
@@ -449,13 +453,6 @@ UINT X11DRV_UpdateDisplayDevices( const struct gdi_device_manager *device_manage
             if (!settings_handler.get_id( devname, is_primary, &settings_id )) break;
 
             settings_handler.get_current_mode( settings_id, &current_mode );
-            if (memcmp( &current_mode.dmPosition, &position, sizeof(position) ))
-            {
-                WARN( "Inconsistent monitor / current mode coordinates, using %s\n", wine_dbgstr_point( &position ));
-                current_mode.dmPosition.x = position.x;
-                current_mode.dmPosition.y = position.y;
-            }
-
             if (settings_handler.get_modes( settings_id, EDS_ROTATEDMODE, &modes, &mode_count, FALSE ))
             {
                 device_manager->add_modes( &current_mode, mode_count, modes, param );
@@ -468,9 +465,5 @@ UINT X11DRV_UpdateDisplayDevices( const struct gdi_device_manager *device_manage
     }
 
     host_handler.free_gpus( gpus, gpu_count );
-
-    TRACE( "After enumeration:\n" );
-    xrandr_dump_device();
-
     return STATUS_SUCCESS;
 }

@@ -70,65 +70,6 @@ static inline void vulkan_object_init( struct vulkan_object *obj, UINT64 host_ha
     obj->client_handle = (UINT_PTR)obj;
 }
 
-#define WIN32U_VK_DEVICE_FUNCS \
-    USE_VK_FUNC(vkAcquireNextImage2KHR) \
-    USE_VK_FUNC(vkAcquireNextImageKHR) \
-    USE_VK_FUNC(vkAllocateMemory) \
-    USE_VK_FUNC(vkBindImageMemory2) \
-    USE_VK_FUNC(vkBindImageMemory2KHR) \
-    USE_VK_FUNC(vkCreateBuffer) \
-    USE_VK_FUNC(vkCreateFence) \
-    USE_VK_FUNC(vkCreateImage) \
-    USE_VK_FUNC(vkCreateSemaphore) \
-    USE_VK_FUNC(vkCreateSwapchainKHR) \
-    USE_VK_FUNC(vkDestroyBuffer) \
-    USE_VK_FUNC(vkDestroyFence) \
-    USE_VK_FUNC(vkDestroyImage) \
-    USE_VK_FUNC(vkDestroySemaphore) \
-    USE_VK_FUNC(vkDestroySwapchainKHR) \
-    USE_VK_FUNC(vkFreeMemory) \
-    USE_VK_FUNC(vkGetDeviceBufferMemoryRequirements) \
-    USE_VK_FUNC(vkGetDeviceImageMemoryRequirements) \
-    USE_VK_FUNC(vkGetDeviceProcAddr) \
-    USE_VK_FUNC(vkGetFenceWin32HandleKHR) \
-    USE_VK_FUNC(vkGetMemoryWin32HandleKHR) \
-    USE_VK_FUNC(vkGetMemoryWin32HandlePropertiesKHR) \
-    USE_VK_FUNC(vkGetSemaphoreWin32HandleKHR) \
-    USE_VK_FUNC(vkGetSwapchainImagesKHR) \
-    USE_VK_FUNC(vkImportFenceWin32HandleKHR) \
-    USE_VK_FUNC(vkImportSemaphoreWin32HandleKHR) \
-    USE_VK_FUNC(vkMapMemory) \
-    USE_VK_FUNC(vkMapMemory2KHR) \
-    USE_VK_FUNC(vkQueuePresentKHR) \
-    USE_VK_FUNC(vkQueueSubmit) \
-    USE_VK_FUNC(vkQueueSubmit2) \
-    USE_VK_FUNC(vkQueueSubmit2KHR) \
-    USE_VK_FUNC(vkReleaseSwapchainImagesEXT) \
-    USE_VK_FUNC(vkUnmapMemory) \
-    USE_VK_FUNC(vkUnmapMemory2KHR) \
-    USE_VK_FUNC(vkWaitForPresentKHR) \
-
-#define WIN32U_VK_INSTANCE_FUNCS \
-    USE_VK_FUNC(vkCreateHeadlessSurfaceEXT) \
-    USE_VK_FUNC(vkCreateWin32SurfaceKHR) \
-    USE_VK_FUNC(vkDestroySurfaceKHR) \
-    USE_VK_FUNC(vkGetInstanceProcAddr) \
-    USE_VK_FUNC(vkGetPhysicalDeviceExternalBufferProperties) \
-    USE_VK_FUNC(vkGetPhysicalDeviceExternalBufferPropertiesKHR) \
-    USE_VK_FUNC(vkGetPhysicalDeviceExternalFenceProperties) \
-    USE_VK_FUNC(vkGetPhysicalDeviceExternalFencePropertiesKHR) \
-    USE_VK_FUNC(vkGetPhysicalDeviceExternalSemaphoreProperties) \
-    USE_VK_FUNC(vkGetPhysicalDeviceExternalSemaphorePropertiesKHR) \
-    USE_VK_FUNC(vkGetPhysicalDeviceImageFormatProperties2) \
-    USE_VK_FUNC(vkGetPhysicalDeviceImageFormatProperties2KHR) \
-    USE_VK_FUNC(vkGetPhysicalDevicePresentRectanglesKHR) \
-    USE_VK_FUNC(vkGetPhysicalDeviceSurfaceCapabilities2KHR) \
-    USE_VK_FUNC(vkGetPhysicalDeviceSurfaceCapabilitiesKHR) \
-    USE_VK_FUNC(vkGetPhysicalDeviceSurfaceFormats2KHR) \
-    USE_VK_FUNC(vkGetPhysicalDeviceSurfaceFormatsKHR) \
-    USE_VK_FUNC(vkGetPhysicalDeviceWin32PresentationSupportKHR) \
-    WIN32U_VK_DEVICE_FUNCS
-
 struct vulkan_instance
 {
     VULKAN_OBJECT_HEADER( VkInstance, instance );
@@ -137,12 +78,6 @@ struct vulkan_instance
 #undef USE_VK_FUNC
     void (*p_insert_object)( struct vulkan_instance *instance, struct vulkan_object *obj );
     void (*p_remove_object)( struct vulkan_instance *instance, struct vulkan_object *obj );
-
-    VkExtensionProperties *extensions; /* enabled host extensions */
-    uint32_t extension_count;
-
-    struct vulkan_physical_device *physical_devices;
-    uint32_t physical_device_count;
 };
 
 static inline struct vulkan_instance *vulkan_instance_from_handle( VkInstance handle )
@@ -155,14 +90,6 @@ struct vulkan_physical_device
 {
     VULKAN_OBJECT_HEADER( VkPhysicalDevice, physical_device );
     struct vulkan_instance *instance;
-
-    VkExtensionProperties *extensions;
-    uint32_t extension_count;
-
-    /* for WOW64 memory mapping with VK_EXT_external_memory_host */
-    VkPhysicalDeviceMemoryProperties memory_properties;
-    uint32_t external_memory_align;
-    uint32_t map_placed_align;
 };
 
 static inline struct vulkan_physical_device *vulkan_physical_device_from_handle( VkPhysicalDevice handle )
@@ -178,9 +105,6 @@ struct vulkan_device
 #define USE_VK_FUNC(x) PFN_ ## x p_ ## x;
     ALL_VK_DEVICE_FUNCS
 #undef USE_VK_FUNC
-
-    VkExtensionProperties *extensions; /* enabled host extensions */
-    uint32_t extension_count;
 };
 
 static inline struct vulkan_device *vulkan_device_from_handle( VkDevice handle )
@@ -199,28 +123,6 @@ static inline struct vulkan_queue *vulkan_queue_from_handle( VkQueue handle )
 {
     struct vulkan_client_object *client = (struct vulkan_client_object *)handle;
     return (struct vulkan_queue *)(UINT_PTR)client->unix_handle;
-}
-
-struct vulkan_command_buffer
-{
-    VULKAN_OBJECT_HEADER( VkCommandBuffer, command_buffer );
-    struct vulkan_device *device;
-};
-
-static inline struct vulkan_command_buffer *vulkan_command_buffer_from_handle( VkCommandBuffer handle )
-{
-    struct vulkan_client_object *client = (struct vulkan_client_object *)handle;
-    return (struct vulkan_command_buffer *)(UINT_PTR)client->unix_handle;
-}
-
-struct vulkan_device_memory
-{
-    VULKAN_OBJECT_HEADER( VkDeviceMemory, device_memory );
-};
-
-static inline struct vulkan_device_memory *vulkan_device_memory_from_handle( VkDeviceMemory handle )
-{
-    return (struct vulkan_device_memory *)(UINT_PTR)handle;
 }
 
 struct vulkan_surface
@@ -242,26 +144,6 @@ struct vulkan_swapchain
 static inline struct vulkan_swapchain *vulkan_swapchain_from_handle( VkSwapchainKHR handle )
 {
     return (struct vulkan_swapchain *)(UINT_PTR)handle;
-}
-
-struct vulkan_semaphore
-{
-    VULKAN_OBJECT_HEADER( VkSemaphore, semaphore );
-};
-
-static inline struct vulkan_semaphore *vulkan_semaphore_from_handle( VkSemaphore handle )
-{
-    return (struct vulkan_semaphore *)(UINT_PTR)handle;
-}
-
-struct vulkan_fence
-{
-    VULKAN_OBJECT_HEADER( VkFence, fence );
-};
-
-static inline struct vulkan_fence *vulkan_fence_from_handle( VkFence handle )
-{
-    return (struct vulkan_fence *)(UINT_PTR)handle;
 }
 
 struct vulkan_funcs
@@ -296,7 +178,7 @@ struct vulkan_driver_funcs
     VkResult (*p_vulkan_surface_create)(HWND, VkInstance, VkSurfaceKHR *, void **);
     void (*p_vulkan_surface_destroy)(HWND, void *);
     void (*p_vulkan_surface_detach)(HWND, void *);
-    void (*p_vulkan_surface_update)(HWND, void *, BOOL);
+    void (*p_vulkan_surface_update)(HWND, void *);
     void (*p_vulkan_surface_presented)(HWND, void *, VkResult);
 
     VkBool32 (*p_vkGetPhysicalDeviceWin32PresentationSupportKHR)(VkPhysicalDevice, uint32_t);

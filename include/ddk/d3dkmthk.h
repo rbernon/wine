@@ -876,40 +876,6 @@ typedef struct _D3DKMT_OPENKEYEDMUTEXFROMNTHANDLE
     UINT PrivateRuntimeDataSize;
 } D3DKMT_OPENKEYEDMUTEXFROMNTHANDLE;
 
-typedef struct _D3DKMT_ACQUIREKEYEDMUTEX
-{
-    D3DKMT_HANDLE hKeyedMutex;
-    UINT64 Key;
-    PLARGE_INTEGER pTimeout;
-    UINT64 FenceValue;
-} D3DKMT_ACQUIREKEYEDMUTEX;
-
-typedef struct _D3DKMT_ACQUIREKEYEDMUTEX2
-{
-    D3DKMT_HANDLE hKeyedMutex;
-    UINT64 Key;
-    PLARGE_INTEGER pTimeout;
-    UINT64 FenceValue;
-    void *pPrivateRuntimeData;
-    UINT PrivateRuntimeDataSize;
-} D3DKMT_ACQUIREKEYEDMUTEX2;
-
-typedef struct _D3DKMT_RELEASEKEYEDMUTEX
-{
-    D3DKMT_HANDLE hKeyedMutex;
-    UINT64 Key;
-    UINT64 FenceValue;
-} D3DKMT_RELEASEKEYEDMUTEX;
-
-typedef struct _D3DKMT_RELEASEKEYEDMUTEX2
-{
-    D3DKMT_HANDLE hKeyedMutex;
-    UINT64 Key;
-    UINT64 FenceValue;
-    void *pPrivateRuntimeData;
-    UINT PrivateRuntimeDataSize;
-} D3DKMT_RELEASEKEYEDMUTEX2;
-
 typedef ULONGLONG D3DGPU_VIRTUAL_ADDRESS;
 
 #ifndef D3DDDI_SYNCHRONIZATIONOBJECT_FLAGS_EXT

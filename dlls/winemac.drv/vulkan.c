@@ -179,7 +179,7 @@ static void macdrv_vulkan_surface_detach(HWND hwnd, void *private)
 {
 }
 
-static void macdrv_vulkan_surface_update(HWND hwnd, void *private, BOOL size_only)
+static void macdrv_vulkan_surface_update(HWND hwnd, void *private)
 {
 }
 
