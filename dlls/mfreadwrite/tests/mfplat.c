@@ -162,57 +162,6 @@ static void init_attributes_(const char *file, int line, IMFAttributes *attribut
     }
 }
 
-#define dump_media_type(a) dump_attributes_(__LINE__, (IMFAttributes *)a)
-#define dump_attributes(a) dump_attributes_(__LINE__, a)
-extern void dump_attributes_(int line, IMFAttributes *attributes);
-extern void dump_properties(IPropertyStore *store);
-
-extern const char *debugstr_mf_guid(const GUID *guid);
-
-void dump_attributes_(int line, IMFAttributes *attributes)
-{
-    PROPVARIANT value;
-    char buffer[256];
-    UINT32 count;
-    HRESULT hr;
-    GUID guid;
-    int i, j;
-
-    hr = IMFAttributes_GetCount(attributes, &count);
-    ok_(__FILE__, line)(hr == S_OK, "GetCount returned %#lx\n", hr);
-
-    for (i = 0; i < count; ++i)
-    {
-        PropVariantInit(&value);
-        hr = IMFAttributes_GetItemByIndex(attributes, i, &guid, &value);
-        ok_(__FILE__, line)(hr == S_OK, "GetItemByIndex returned %#lx\n", hr);
-        switch (value.vt)
-        {
-        default: sprintf(buffer, "{%s, .vt = %u, .value = %s},", debugstr_mf_guid(&guid), value.vt, buffer); break;
-        case VT_LPWSTR: sprintf(buffer, "ATTR_WSTR(%s, %s),", debugstr_mf_guid(&guid), debugstr_w(value.pwszVal)); break;
-        case VT_CLSID: sprintf(buffer, "ATTR_GUID(%s, %s),", debugstr_mf_guid(&guid), debugstr_mf_guid(value.puuid)); break;
-        case VT_UI4: sprintf(buffer, "ATTR_UINT32(%s, %lu),", debugstr_mf_guid(&guid), value.ulVal); break;
-        case VT_UI8: sprintf(buffer, "ATTR_RATIO(%s, %lu, %lu),", debugstr_mf_guid(&guid), value.uhVal.HighPart, value.uhVal.LowPart); break;
-        case VT_VECTOR | VT_UI1:
-        {
-            char *buf = buffer;
-            buf += sprintf(buf, "ATTR_BLOB(%s, {", debugstr_mf_guid(&guid));
-            for (j = 0; j < 16 && j < value.caub.cElems; ++j)
-                buf += sprintf(buf, "0x%02x,", value.caub.pElems[j]);
-            if (value.caub.cElems > 16)
-                buf += sprintf(buf, "...}");
-            else
-                buf += sprintf(buf - (j ? 1 : 0), "}") - (j ? 1 : 0);
-            buf += sprintf(buf, ", %lu),", value.caub.cElems);
-            break;
-        }
-        }
-
-        ok_(__FILE__, line)(0, "%s\n", buffer);
-        PropVariantClear(&value);
-    }
-}
-
 static ULONG get_refcount(void *iface)
 {
     IUnknown *unknown = iface;
@@ -556,8 +505,6 @@ static HRESULT WINAPI test_source_Start(IMFMediaSource *iface, IMFPresentationDe
     PROPVARIANT var;
     HRESULT hr;
     int i;
-
-ok(0, "starting\n");
 
     ok(time_format && IsEqualGUID(time_format, &GUID_NULL), "Unexpected time format %s.\n",
             wine_dbgstr_guid(time_format));
@@ -2621,7 +2568,6 @@ static HRESULT WINAPI test_decoder_ProcessMessage(IMFTransform *iface, MFT_MESSA
     case MFT_MESSAGE_NOTIFY_END_STREAMING:
     case MFT_MESSAGE_NOTIFY_END_OF_STREAM:
     case MFT_MESSAGE_NOTIFY_START_OF_STREAM:
-        ok(0, "got %#x\n", message);
         return S_OK;
 
     case MFT_MESSAGE_SET_D3D_MANAGER:
@@ -2698,11 +2644,11 @@ static HRESULT WINAPI test_decoder_ProcessOutput(IMFTransform *iface, DWORD flag
 
         hr = IMFSample_GetBufferByIndex(data->pSample, 0, &buffer);
         ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-        check_interface(buffer, &IID_IMF2DBuffer2, TRUE);
-        check_interface(buffer, &IID_IMFGetService, TRUE);
+        todo_wine check_interface(buffer, &IID_IMF2DBuffer2, TRUE);
+        todo_wine check_interface(buffer, &IID_IMFGetService, TRUE);
         check_interface(buffer, &IID_IMFDXGIBuffer, FALSE);
         hr = MFGetService((IUnknown *)buffer, &MR_BUFFER_SERVICE, &IID_IDirect3DSurface9, (void **)&unknown);
-        ok(hr == E_NOTIMPL, "Unexpected hr %#lx.\n", hr);
+        todo_wine ok(hr == E_NOTIMPL, "Unexpected hr %#lx.\n", hr);
         IMFMediaBuffer_Release(buffer);
     }
 
@@ -2985,689 +2931,6 @@ skip_tests:
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
 }
 
-extern const char *debugstr_mf_guid(const GUID *guid);
-
-void dump_attributes_(int line, IMFAttributes *attributes)
-{
-    PROPVARIANT value;
-    char buffer[256];
-    UINT32 count;
-    HRESULT hr;
-    GUID guid;
-    int i, j;
-
-    hr = IMFAttributes_GetCount(attributes, &count);
-    ok_(__FILE__, line)(hr == S_OK, "GetCount returned %#lx\n", hr);
-
-    for (i = 0; i < count; ++i)
-    {
-        PropVariantInit(&value);
-        hr = IMFAttributes_GetItemByIndex(attributes, i, &guid, &value);
-        ok_(__FILE__, line)(hr == S_OK, "GetItemByIndex returned %#lx\n", hr);
-        switch (value.vt)
-        {
-        default: sprintf(buffer, "{%s, .vt = %u, .value = %s},", debugstr_mf_guid(&guid), value.vt, buffer); break;
-        case VT_LPWSTR: sprintf(buffer, "ATTR_WSTR(%s, %s),", debugstr_mf_guid(&guid), debugstr_w(value.pwszVal)); break;
-        case VT_CLSID: sprintf(buffer, "ATTR_GUID(%s, %s),", debugstr_mf_guid(&guid), debugstr_mf_guid(value.puuid)); break;
-        case VT_UI4: sprintf(buffer, "ATTR_UINT32(%s, %lu),", debugstr_mf_guid(&guid), value.ulVal); break;
-        case VT_UI8: sprintf(buffer, "ATTR_RATIO(%s, %lu, %lu),", debugstr_mf_guid(&guid), value.uhVal.HighPart, value.uhVal.LowPart); break;
-        case VT_VECTOR | VT_UI1:
-        {
-            char *buf = buffer;
-            buf += sprintf(buf, "ATTR_BLOB(%s, {", debugstr_mf_guid(&guid));
-            for (j = 0; j < 16 && j < value.caub.cElems; ++j)
-                buf += sprintf(buf, "0x%02x,", value.caub.pElems[j]);
-            if (value.caub.cElems > 16)
-                buf += sprintf(buf, "...}");
-            else
-                buf += sprintf(buf - (j ? 1 : 0), "}") - (j ? 1 : 0);
-            buf += sprintf(buf, ", %lu),", value.caub.cElems);
-            break;
-        }
-        }
-
-        ok_(__FILE__, line)(0, "%s\n", buffer);
-        PropVariantClear(&value);
-    }
-}
-
-static void test_source_reader_transform_stream_start(void)
-{
-    static const struct attribute_desc test_stream_type_desc[] =
-    {
-        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video),
-        ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_TEST),
-        ATTR_RATIO(MF_MT_FRAME_SIZE, 96, 96),
-        {0},
-    };
-    static const struct attribute_desc yuy2_stream_type_desc[] =
-    {
-        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video),
-        ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_YUY2),
-        {0},
-    };
-    static const struct attribute_desc yuy2_expect_desc[] =
-    {
-        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video),
-        ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_YUY2),
-        ATTR_RATIO(MF_MT_FRAME_SIZE, 96, 96),
-        ATTR_UINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, 1, .todo = TRUE),
-        ATTR_UINT32(MF_MT_FIXED_SIZE_SAMPLES, 1, .todo = TRUE),
-        ATTR_UINT32(MF_MT_DEFAULT_STRIDE, 96 * 2, .todo = TRUE),
-        ATTR_UINT32(MF_MT_SAMPLE_SIZE, 96 * 96 * 2, .todo = TRUE),
-        {0},
-    };
-    const MFT_REGISTER_TYPE_INFO output_info[] =
-    {
-        {MFMediaType_Video, MFVideoFormat_NV12},
-        {MFMediaType_Video, MFVideoFormat_YUY2},
-    };
-    const MFT_REGISTER_TYPE_INFO input_info[] =
-    {
-        {MFMediaType_Video, MFVideoFormat_TEST},
-    };
-    MFVIDEOFORMAT output_format = {.dwSize = sizeof(output_format)};
-    IClassFactory factory = {.lpVtbl = &test_mft_factory_vtbl};
-    IMFStreamDescriptor *video_stream;
-    IMFSourceReaderEx *reader_ex;
-    IMFTransform *test_decoder;
-    IMFMediaType *media_type;
-    IMFSourceReader *reader;
-    IMFMediaSource *source;
-    IMFByteStream *stream;
-    PROPVARIANT propvar;
-    LONGLONG timestamp, sample_time;
-    DWORD index, flags;
-    IMFSample *sample;
-    GUID category;
-    HRESULT hr;
-
-winetest_push_context("stream start");
-
-if (0)
-{
-    stream = get_resource_stream("test.mp4");
-
-    MFCreateFile(MF_ACCESSMODE_READWRITE, MF_OPENMODE_FAIL_IF_NOT_EXIST, 0,
-            winetest_platform_is_wine ? L"Z:/tmp/stream-00000000028B58A0.mp4"
-            : L"Z:/build-wine/stream-00000000028B58A0.mp4", &stream);
-    hr = MFCreateSourceReaderFromByteStream(stream, NULL, &reader);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    IMFByteStream_Release(stream);
-
-/*
-MFSampleExtension_CleanPoint 1
-MFSampleExtension_Discontinuity 1
-*/
-
-while (1)
-{
-    sample = (void *)0xdeadbeef;
-    index = flags = timestamp = 0xdeadbeef;
-    hr = IMFSourceReader_ReadSample(reader, MF_SOURCE_READER_ANY_STREAM, 0, &index, &flags, &timestamp, &sample);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(0, "actual_index %ld, stream_flags %#lx, timestamp %I64d, sample %p, ret %#lx\n", index, flags, timestamp, sample, hr);
-    if (!sample)
-        break;
-
-    hr = IMFSample_GetSampleTime(sample, &sample_time);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(sample_time == timestamp, "got sample time %I64d.\n", sample_time);
-    hr = IMFSample_GetSampleDuration(sample, &sample_time);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(sample_time == 333333, "got sample duration %I64d.\n", sample_time);
-    IMFSample_GetSampleFlags(sample, &flags);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(flags == 0, "got flags %#lx\n", flags);
-    IMFSample_Release(sample);
-}
-
-    hr = IMFSourceReader_Flush(reader, MF_SOURCE_READER_ANY_STREAM);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    propvar.vt = VT_I8;
-    propvar.hVal.QuadPart = 0;
-    hr = IMFSourceReader_SetCurrentPosition(reader, &GUID_NULL, &propvar);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-
-while (1)
-{
-    sample = (void *)0xdeadbeef;
-    index = flags = timestamp = 0xdeadbeef;
-    hr = IMFSourceReader_ReadSample(reader, MF_SOURCE_READER_ANY_STREAM, 0, &index, &flags, &timestamp, &sample);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(0, "actual_index %ld, stream_flags %#lx, timestamp %I64d, sample %p, ret %#lx\n", index, flags, timestamp, sample, hr);
-
-    hr = IMFSample_GetSampleTime(sample, &sample_time);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(sample_time == timestamp, "got sample time %I64d.\n", sample_time);
-    hr = IMFSample_GetSampleDuration(sample, &sample_time);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(sample_time == 333333, "got sample duration %I64d.\n", sample_time);
-    IMFSample_GetSampleFlags(sample, &flags);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(flags == 0, "got flags %#lx\n", flags);
-    IMFSample_Release(sample);
-
-    if (timestamp >= 1999998)
-        break;
-}
-
-IMFSourceReader_Release(reader);
-}
-
-
-    MFCreateFile(MF_ACCESSMODE_READWRITE, MF_OPENMODE_FAIL_IF_NOT_EXIST, 0,
-            winetest_platform_is_wine ? L"Z:/tmp/stream-000000005EF4CD60.mp4"
-            : L"Z:/build-wine/stream-000000005EF4CD60.mp4", &stream);
-    hr = MFCreateSourceReaderFromByteStream(stream, NULL, &reader);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    IMFByteStream_Release(stream);
-
-hr = MFCreateMediaType(&media_type);
-ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-hr = IMFMediaType_SetGUID(media_type, &MF_MT_MAJOR_TYPE, &MFMediaType_Audio);
-ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-hr = IMFMediaType_SetGUID(media_type, &MF_MT_SUBTYPE, &MFAudioFormat_PCM);
-ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-hr = IMFSourceReader_SetCurrentMediaType(reader, MF_SOURCE_READER_FIRST_AUDIO_STREAM, NULL, media_type);
-ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-IMFMediaType_Release(media_type);
-
-hr = MFCreateMediaType(&media_type);
-ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-hr = IMFMediaType_SetGUID(media_type, &MF_MT_MAJOR_TYPE, &MFMediaType_Video);
-ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-hr = IMFMediaType_SetGUID(media_type, &MF_MT_SUBTYPE, &MFVideoFormat_NV12);
-ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-hr = IMFSourceReader_SetCurrentMediaType(reader, MF_SOURCE_READER_FIRST_VIDEO_STREAM, NULL, media_type);
-ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-IMFMediaType_Release(media_type);
-
-while (1)
-{
-    sample = (void *)0xdeadbeef;
-    index = flags = timestamp = 0xdeadbeef;
-    hr = IMFSourceReader_ReadSample(reader, MF_SOURCE_READER_ANY_STREAM, 0, &index, &flags, &timestamp, &sample);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(0, "actual_index %ld, stream_flags %#lx, timestamp %I64d, sample %p, ret %#lx\n", index, flags, timestamp, sample, hr);
-
-    hr = IMFSample_GetSampleTime(sample, &sample_time);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(sample_time == timestamp, "got sample time %I64d.\n", sample_time);
-    hr = IMFSample_GetSampleDuration(sample, &sample_time);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(sample_time == (index == 0 ? 213333 : 333333) || sample_time == 333334, "got sample duration %I64d.\n", sample_time);
-    IMFSample_GetSampleFlags(sample, &flags);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(flags == 0, "got flags %#lx\n", flags);
-    IMFSample_Release(sample);
-
-    if (timestamp >= 1999998)
-        break;
-}
-
-    hr = IMFSourceReader_Flush(reader, MF_SOURCE_READER_ANY_STREAM);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    propvar.vt = VT_I8;
-    propvar.hVal.QuadPart = 90490000;
-    hr = IMFSourceReader_SetCurrentPosition(reader, &GUID_NULL, &propvar);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-
-
-while (1)
-{
-    sample = (void *)0xdeadbeef;
-    index = flags = timestamp = 0xdeadbeef;
-    hr = IMFSourceReader_ReadSample(reader, MF_SOURCE_READER_ANY_STREAM, 0, &index, &flags, &timestamp, &sample);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(0, "actual_index %ld, stream_flags %#lx, timestamp %I64d, sample %p, ret %#lx\n", index, flags, timestamp, sample, hr);
-
-    hr = IMFSample_GetSampleTime(sample, &sample_time);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(sample_time == timestamp, "got sample time %I64d.\n", sample_time);
-    hr = IMFSample_GetSampleDuration(sample, &sample_time);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(sample_time == (index == 0 ? 213333 : 333333) || sample_time == 333334, "got sample duration %I64d.\n", sample_time);
-    IMFSample_GetSampleFlags(sample, &flags);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(flags == 0, "got flags %#lx\n", flags);
-    IMFSample_Release(sample);
-
-    if (timestamp >= 92333331)
-        break;
-}
-
-    hr = IMFSourceReader_Flush(reader, MF_SOURCE_READER_ANY_STREAM);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    propvar.vt = VT_I8;
-    propvar.hVal.QuadPart = 96160000;
-    hr = IMFSourceReader_SetCurrentPosition(reader, &GUID_NULL, &propvar);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-
-
-while (1)
-{
-    sample = (void *)0xdeadbeef;
-    index = flags = timestamp = 0xdeadbeef;
-    hr = IMFSourceReader_ReadSample(reader, MF_SOURCE_READER_ANY_STREAM, 0, &index, &flags, &timestamp, &sample);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(0, "actual_index %ld, stream_flags %#lx, timestamp %I64d, sample %p, ret %#lx\n", index, flags, timestamp, sample, hr);
-
-    hr = IMFSample_GetSampleTime(sample, &sample_time);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(sample_time == timestamp, "got sample time %I64d.\n", sample_time);
-    hr = IMFSample_GetSampleDuration(sample, &sample_time);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(sample_time == (index == 0 ? 213333 : 333333) || sample_time == 333334, "got sample duration %I64d.\n", sample_time);
-    IMFSample_GetSampleFlags(sample, &flags);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(flags == 0, "got flags %#lx\n", flags);
-    IMFSample_Release(sample);
-
-    if (timestamp >= 97999997)
-        break;
-}
-
-    hr = IMFSourceReader_Flush(reader, MF_SOURCE_READER_ANY_STREAM);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    propvar.vt = VT_I8;
-    propvar.hVal.QuadPart = 101160000;
-    hr = IMFSourceReader_SetCurrentPosition(reader, &GUID_NULL, &propvar);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-
-
-while (1)
-{
-    sample = (void *)0xdeadbeef;
-    index = flags = timestamp = 0xdeadbeef;
-    hr = IMFSourceReader_ReadSample(reader, MF_SOURCE_READER_ANY_STREAM, 0, &index, &flags, &timestamp, &sample);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(0, "actual_index %ld, stream_flags %#lx, timestamp %I64d, sample %p, ret %#lx\n", index, flags, timestamp, sample, hr);
-
-    hr = IMFSample_GetSampleTime(sample, &sample_time);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(sample_time == timestamp, "got sample time %I64d.\n", sample_time);
-    hr = IMFSample_GetSampleDuration(sample, &sample_time);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(sample_time == (index == 0 ? 213333 : 333333) || sample_time == 333334, "got sample duration %I64d.\n", sample_time);
-    IMFSample_GetSampleFlags(sample, &flags);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(flags == 0, "got flags %#lx\n", flags);
-    IMFSample_Release(sample);
-
-    if (timestamp >= 102999997)
-        break;
-}
-
-    hr = IMFSourceReader_Flush(reader, MF_SOURCE_READER_ANY_STREAM);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    propvar.vt = VT_I8;
-    propvar.hVal.QuadPart = 105820000;
-    hr = IMFSourceReader_SetCurrentPosition(reader, &GUID_NULL, &propvar);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-
-
-while (1)
-{
-    sample = (void *)0xdeadbeef;
-    index = flags = timestamp = 0xdeadbeef;
-    hr = IMFSourceReader_ReadSample(reader, MF_SOURCE_READER_ANY_STREAM, 0, &index, &flags, &timestamp, &sample);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(0, "actual_index %ld, stream_flags %#lx, timestamp %I64d, sample %p, ret %#lx\n", index, flags, timestamp, sample, hr);
-
-    hr = IMFSample_GetSampleTime(sample, &sample_time);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(sample_time == timestamp, "got sample time %I64d.\n", sample_time);
-    hr = IMFSample_GetSampleDuration(sample, &sample_time);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(sample_time == (index == 0 ? 213333 : 333333) || sample_time == 333334, "got sample duration %I64d.\n", sample_time);
-    IMFSample_GetSampleFlags(sample, &flags);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(flags == 0, "got flags %#lx\n", flags);
-    IMFSample_Release(sample);
-
-    if (timestamp >= 107666664)
-        break;
-}
-
-    hr = IMFSourceReader_Flush(reader, MF_SOURCE_READER_ANY_STREAM);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    propvar.vt = VT_I8;
-    propvar.hVal.QuadPart = 110490000;
-    hr = IMFSourceReader_SetCurrentPosition(reader, &GUID_NULL, &propvar);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-
-
-while (1)
-{
-    sample = (void *)0xdeadbeef;
-    index = flags = timestamp = 0xdeadbeef;
-    hr = IMFSourceReader_ReadSample(reader, MF_SOURCE_READER_ANY_STREAM, 0, &index, &flags, &timestamp, &sample);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(0, "actual_index %ld, stream_flags %#lx, timestamp %I64d, sample %p, ret %#lx\n", index, flags, timestamp, sample, hr);
-
-    hr = IMFSample_GetSampleTime(sample, &sample_time);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(sample_time == timestamp, "got sample time %I64d.\n", sample_time);
-    hr = IMFSample_GetSampleDuration(sample, &sample_time);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(sample_time == (index == 0 ? 213333 : 333333) || sample_time == 333334, "got sample duration %I64d.\n", sample_time);
-    IMFSample_GetSampleFlags(sample, &flags);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(flags == 0, "got flags %#lx\n", flags);
-    IMFSample_Release(sample);
-
-    if (timestamp >= 110666556)
-        break;
-}
-
-
-return;
-
-
-
-    sample = (void *)0xdeadbeef;
-    index = flags = timestamp = 0xdeadbeef;
-    hr = IMFSourceReader_ReadSample(reader, MF_SOURCE_READER_FIRST_AUDIO_STREAM, 0, &index, &flags, &timestamp, &sample);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-
-dump_attributes_(__LINE__, (IMFAttributes *)sample);
-/* MFSampleExtension_CleanPoint 1 */
-
-    ok(index == 0, "got %lu.\n", index);
-    ok(flags == S_OK, "got %lu.\n", flags);
-    ok(timestamp == 464398, "got %I64d.\n", timestamp);
-    ok(sample != (void *)0xdeadbeef, "got %p.\n", sample);
-    hr = IMFSample_GetSampleTime(sample, &timestamp);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(timestamp == 464398, "got %I64d.\n", timestamp);
-    hr = IMFSample_GetSampleDuration(sample, &timestamp);
-    ok(timestamp == 232199, "got %I64d.\n", timestamp);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    IMFSample_GetSampleFlags(sample, &flags);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(flags == 0, "got flags %#lx\n", flags);
-    IMFSample_Release(sample);
-
-    sample = (void *)0xdeadbeef;
-    index = flags = timestamp = 0xdeadbeef;
-    hr = IMFSourceReader_ReadSample(reader, MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0, &index, &flags, &timestamp, &sample);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-
-dump_attributes_(__LINE__, (IMFAttributes *)sample);
-/*
-MFSampleExtension_DecodeTimestamp 800000
-MFSampleExtension_CleanPoint 1
-MFSampleExtension_Discontinuity 1
-MF_NALU_LENGTH_INFORMATION blob
-*/
-
-    ok(index == 1, "got %lu.\n", index);
-    ok(flags == S_OK, "got %lu.\n", flags);
-    ok(timestamp == 1600000, "got %I64d.\n", timestamp);
-    ok(sample != (void *)0xdeadbeef, "got %p.\n", sample);
-    hr = IMFSample_GetSampleTime(sample, &timestamp);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(timestamp == 1600000, "got %I64d.\n", timestamp);
-    hr = IMFSample_GetSampleDuration(sample, &timestamp);
-    ok(timestamp == 400000, "got %I64d.\n", timestamp);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    IMFSample_GetSampleFlags(sample, &flags);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(flags == 0, "got flags %#lx\n", flags);
-    IMFSample_Release(sample);
-
-    hr = IMFSourceReader_Flush(reader, MF_SOURCE_READER_ALL_STREAMS);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-
-    PropVariantClear(&propvar);
-    propvar.vt = VT_I8;
-    hr = IMFSourceReader_SetCurrentPosition(reader, &GUID_NULL, &propvar);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-
-    sample = (void *)0xdeadbeef;
-    index = flags = timestamp = 0xdeadbeef;
-    hr = IMFSourceReader_ReadSample(reader, MF_SOURCE_READER_FIRST_AUDIO_STREAM, 0, &index, &flags, &timestamp, &sample);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(index == 0, "got %lu.\n", index);
-    ok(flags == S_OK, "got %lu.\n", flags);
-    ok(timestamp == 232199, "got %I64d.\n", timestamp);
-    ok(sample != (void *)0xdeadbeef, "got %p.\n", sample);
-    hr = IMFSample_GetSampleTime(sample, &timestamp);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(timestamp == 232199, "got %I64d.\n", timestamp);
-    hr = IMFSample_GetSampleDuration(sample, &timestamp);
-    ok(timestamp == 232199, "got %I64d.\n", timestamp);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    IMFSample_GetSampleFlags(sample, &flags);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(flags == 0, "got flags %#lx\n", flags);
-    IMFSample_Release(sample);
-
-    sample = (void *)0xdeadbeef;
-    index = flags = timestamp = 0xdeadbeef;
-    hr = IMFSourceReader_ReadSample(reader, MF_SOURCE_READER_FIRST_AUDIO_STREAM, 0, &index, &flags, &timestamp, &sample);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(index == 0, "got %lu.\n", index);
-    ok(flags == S_OK, "got %lu.\n", flags);
-    ok(timestamp == 464398, "got %I64d.\n", timestamp);
-    ok(sample != (void *)0xdeadbeef, "got %p.\n", sample);
-    hr = IMFSample_GetSampleTime(sample, &timestamp);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(timestamp == 464398, "got %I64d.\n", timestamp);
-    hr = IMFSample_GetSampleDuration(sample, &timestamp);
-    ok(timestamp == 232199, "got %I64d.\n", timestamp);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    IMFSample_GetSampleFlags(sample, &flags);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(flags == 0, "got flags %#lx\n", flags);
-    IMFSample_Release(sample);
-
-    sample = (void *)0xdeadbeef;
-    index = flags = timestamp = 0xdeadbeef;
-    hr = IMFSourceReader_ReadSample(reader, MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0, &index, &flags, &timestamp, &sample);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(index == 1, "got %lu.\n", index);
-    ok(flags == S_OK, "got %lu.\n", flags);
-    ok(timestamp == 1600000, "got %I64d.\n", timestamp);
-    ok(sample != (void *)0xdeadbeef, "got %p.\n", sample);
-    hr = IMFSample_GetSampleTime(sample, &timestamp);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(timestamp == 1600000, "got %I64d.\n", timestamp);
-    hr = IMFSample_GetSampleDuration(sample, &timestamp);
-    ok(timestamp == 400000, "got %I64d.\n", timestamp);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    IMFSample_GetSampleFlags(sample, &flags);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(flags == 0, "got flags %#lx\n", flags);
-    IMFSample_Release(sample);
-
-    hr = IMFSourceReader_Flush(reader, MF_SOURCE_READER_ALL_STREAMS);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-
-    PropVariantClear(&propvar);
-    propvar.vt = VT_I8;
-    propvar.hVal.QuadPart = 10000000;
-    hr = IMFSourceReader_SetCurrentPosition(reader, &GUID_NULL, &propvar);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-
-    sample = (void *)0xdeadbeef;
-    index = flags = timestamp = 0xdeadbeef;
-    hr = IMFSourceReader_ReadSample(reader, MF_SOURCE_READER_FIRST_AUDIO_STREAM, 0, &index, &flags, &timestamp, &sample);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(index == 0, "got %lu.\n", index);
-    ok(flags == S_OK, "got %lu.\n", flags);
-    ok(timestamp == 232199, "got %I64d.\n", timestamp);
-    ok(sample != (void *)0xdeadbeef, "got %p.\n", sample);
-    hr = IMFSample_GetSampleTime(sample, &timestamp);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(timestamp == 232199, "got %I64d.\n", timestamp);
-    hr = IMFSample_GetSampleDuration(sample, &timestamp);
-    ok(timestamp == 232199, "got %I64d.\n", timestamp);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    IMFSample_GetSampleFlags(sample, &flags);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(flags == 0, "got flags %#lx\n", flags);
-    IMFSample_Release(sample);
-
-    sample = (void *)0xdeadbeef;
-    index = flags = timestamp = 0xdeadbeef;
-    hr = IMFSourceReader_ReadSample(reader, MF_SOURCE_READER_FIRST_AUDIO_STREAM, 0, &index, &flags, &timestamp, &sample);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(index == 0, "got %lu.\n", index);
-    ok(flags == S_OK, "got %lu.\n", flags);
-    ok(timestamp == 464398, "got %I64d.\n", timestamp);
-    ok(sample != (void *)0xdeadbeef, "got %p.\n", sample);
-    hr = IMFSample_GetSampleTime(sample, &timestamp);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(timestamp == 464398, "got %I64d.\n", timestamp);
-    hr = IMFSample_GetSampleDuration(sample, &timestamp);
-    ok(timestamp == 232199, "got %I64d.\n", timestamp);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    IMFSample_GetSampleFlags(sample, &flags);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(flags == 0, "got flags %#lx\n", flags);
-    IMFSample_Release(sample);
-
-    sample = (void *)0xdeadbeef;
-    index = flags = timestamp = 0xdeadbeef;
-    hr = IMFSourceReader_ReadSample(reader, MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0, &index, &flags, &timestamp, &sample);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(index == 1, "got %lu.\n", index);
-    ok(flags == S_OK, "got %lu.\n", flags);
-    ok(timestamp == 1600000, "got %I64d.\n", timestamp);
-    ok(sample != (void *)0xdeadbeef, "got %p.\n", sample);
-    hr = IMFSample_GetSampleTime(sample, &timestamp);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(timestamp == 1600000, "got %I64d.\n", timestamp);
-    hr = IMFSample_GetSampleDuration(sample, &timestamp);
-    ok(timestamp == 400000, "got %I64d.\n", timestamp);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    IMFSample_GetSampleFlags(sample, &flags);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(flags == 0, "got flags %#lx\n", flags);
-    IMFSample_Release(sample);
-
-    IMFSourceReader_Release(reader);
-
-
-    hr = MFTRegisterLocal(&factory, &MFT_CATEGORY_VIDEO_DECODER, L"Test Decoder", 0,
-            ARRAY_SIZE(input_info), input_info, ARRAY_SIZE(output_info), output_info);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-
-    /* test source reader with a custom source */
-
-    hr = MFCreateMediaType(&media_type);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    init_media_type(media_type, test_stream_type_desc, -1);
-    hr = MFCreateStreamDescriptor(0, 1, &media_type, &video_stream);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    IMFMediaType_Release(media_type);
-
-    source = create_test_source(&video_stream, 1);
-    ok(!!source, "Failed to create test source.\n");
-    IMFStreamDescriptor_Release(video_stream);
-
-    hr = MFCreateSourceReaderFromMediaSource(source, NULL, &reader);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    IMFMediaSource_Release(source);
-
-    /* skip tests on Win7 which misses IMFSourceReaderEx */
-    hr = IMFSourceReader_QueryInterface(reader, &IID_IMFSourceReaderEx, (void **)&reader_ex);
-    ok(hr == S_OK || broken(hr == E_NOINTERFACE) /* Win7 */, "Unexpected hr %#lx.\n", hr);
-    if (broken(hr == E_NOINTERFACE))
-    {
-        win_skip("missing IMFSourceReaderEx interface, skipping tests on Win7\n");
-        goto skip_tests;
-    }
-    IMFSourceReaderEx_Release(reader_ex);
-
-    hr = IMFSourceReader_SetStreamSelection(reader, 0, TRUE);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-
-
-    hr = IMFSourceReader_GetNativeMediaType(reader, 0, 0, &media_type);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    check_media_type(media_type, test_stream_type_desc, -1);
-    IMFMediaType_Release(media_type);
-
-    hr = IMFSourceReader_GetCurrentMediaType(reader, 0, &media_type);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    check_media_type(media_type, test_stream_type_desc, -1);
-    IMFMediaType_Release(media_type);
-
-    hr = MFCreateMediaType(&media_type);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    init_media_type(media_type, yuy2_stream_type_desc, -1);
-    hr = IMFSourceReader_SetCurrentMediaType(reader, 0, NULL, media_type);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    IMFMediaType_Release(media_type);
-
-    hr = IMFSourceReader_GetCurrentMediaType(reader, 0, &media_type);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    check_media_type(media_type, yuy2_expect_desc, -1);
-    IMFMediaType_Release(media_type);
-
-
-
-    hr = IMFSourceReader_QueryInterface(reader, &IID_IMFSourceReaderEx, (void **)&reader_ex);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    hr = IMFSourceReaderEx_GetTransformForStream(reader_ex, 0, 0, &category, NULL);
-    ok(hr == E_POINTER, "Unexpected hr %#lx.\n", hr);
-    hr = IMFSourceReaderEx_GetTransformForStream(reader_ex, 0, 0, NULL, &test_decoder);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(test_decoder->lpVtbl == &test_decoder_vtbl, "got unexpected transform\n");
-    IMFSourceReaderEx_Release(reader_ex);
-
-    fail_request_sample = FALSE;
-    test_decoder_set_next_output(test_decoder, S_OK);
-
-    sample = (void *)0xdeadbeef;
-    index = flags = timestamp = 0xdeadbeef;
-    hr = IMFSourceReader_ReadSample(reader, 0, 0, &index, &flags, &timestamp, &sample);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(index == 0, "got %lu.\n", index);
-    ok(flags == S_OK, "got %lu.\n", flags);
-    ok(timestamp == 0, "got %I64d.\n", timestamp);
-    ok(sample != (void *)0xdeadbeef, "got %p.\n", sample);
-    IMFSample_Release(sample);
-
-ok(0, "flushing\n");
-    hr = IMFSourceReader_Flush(reader, MF_SOURCE_READER_ALL_STREAMS);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-ok(0, "flushed\n");
-
-    PropVariantClear(&propvar);
-    propvar.vt = VT_I8;
-    hr = IMFSourceReader_SetCurrentPosition(reader, &GUID_NULL, &propvar);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-
-    fail_request_sample = FALSE;
-    test_decoder_set_next_output(test_decoder, S_OK);
-
-    sample = (void *)0xdeadbeef;
-    index = flags = timestamp = 0xdeadbeef;
-    hr = IMFSourceReader_ReadSample(reader, 0, 0, &index, &flags, &timestamp, &sample);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(index == 0, "got %lu.\n", index);
-    ok(flags == S_OK, "got %lu.\n", flags);
-    ok(timestamp == 0, "got %I64d.\n", timestamp);
-    ok(sample != (void *)0xdeadbeef, "got %p.\n", sample);
-    IMFSample_Release(sample);
-
-    fail_request_sample = TRUE;
-
-    IMFTransform_Release(test_decoder);
-
-skip_tests:
-    IMFSourceReader_Release(reader);
-
-    hr = MFTUnregisterLocal(&factory);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-
-winetest_pop_context();
-}
-
 static void test_source_reader_transforms_d3d9(void)
 {
     static const struct attribute_desc test_stream_type_desc[] =
@@ -3721,7 +2984,6 @@ static void test_source_reader_transforms_d3d9(void)
     HWND window;
     UINT token;
     HRESULT hr;
-    LONG ref;
 
     d3d9 = Direct3DCreate9(D3D_SDK_VERSION);
     if (!d3d9)
@@ -3908,11 +3170,10 @@ static void test_source_reader_transforms_d3d9(void)
     IMFTransform_Release(video_processor);
 
 
+    IMFTransform_Release(test_decoder);
     IMFSourceReaderEx_Release(reader_ex);
-    ref = IMFSourceReader_Release(reader);
-    ok(ref == 0, "got ref %ld\n", ref);
-    ref = IMFTransform_Release(test_decoder);
-    todo_wine ok(ref == 0, "got ref %ld\n", ref);
+    IMFSourceReader_Release(reader);
+
 
     /* test d3d aware decoder that allocates buffers */
 
@@ -3985,10 +3246,8 @@ static void test_source_reader_transforms_d3d9(void)
 
     fail_request_sample = TRUE;
 
-    ref = IMFSourceReader_Release(reader);
-    ok(ref == 0, "got ref %ld\n", ref);
-    ref = IMFTransform_Release(test_decoder);
-    todo_wine ok(ref == 0, "got ref %ld\n", ref);
+    IMFTransform_Release(test_decoder);
+    IMFSourceReader_Release(reader);
 
     test_decoder_allocate_samples = FALSE;
 
@@ -3997,8 +3256,7 @@ skip_tests:
     hr = MFTUnregisterLocal(&factory);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
 
-    ref = IDirect3DDeviceManager9_Release(d3d9_manager);
-    todo_wine ok(ref == 0, "got ref %ld\n", ref);
+    IDirect3DDeviceManager9_Release(d3d9_manager);
     DestroyWindow(window);
 
     test_decoder_got_d3d_manager = FALSE;
@@ -4283,9 +3541,6 @@ START_TEST(mfplat)
 
     init_functions();
 
-    test_source_reader_transform_stream_start();
-    return;
-
     test_factory();
     test_interfaces();
     test_source_reader("test.wav", false);
@@ -4295,7 +3550,6 @@ START_TEST(mfplat)
     test_source_reader_transforms(TRUE, FALSE);
     test_source_reader_transforms(FALSE, TRUE);
     test_source_reader_transform_stream_change();
-    test_source_reader_transform_stream_start();
     test_source_reader_transforms_d3d9();
     test_source_reader_transforms_d3d11();
     test_reader_d3d9();
