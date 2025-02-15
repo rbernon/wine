@@ -1202,25 +1202,6 @@ interface IMFVideoSampleAllocatorEx : IMFVideoSampleAllocator
     );
 }
 
-typedef enum MFSampleAllocatorUsage
-{
-    MFSampleAllocatorUsage_UsesProvidedAllocator,
-    MFSampleAllocatorUsage_UsesCustomAllocator,
-    MFSampleAllocatorUsage_DoesNotAllocate,
-} MFSampleAllocatorUsage;
-
-[
-    object,
-    uuid(da62b958-3a38-4a97-bd27-149c640c0771),
-    local,
-    pointer_default(unique)
-]
-interface IMFSampleAllocatorControl : IUnknown
-{
-    HRESULT SetDefaultAllocator(DWORD stream_id, IUnknown *allocator);
-    HRESULT GetAllocatorUsage(DWORD stream_id, DWORD *input_stream_id, MFSampleAllocatorUsage *usage);
-};
-
 typedef enum _MF_VIDEO_PROCESSOR_MIRROR
 {
     MIRROR_NONE,
@@ -1648,7 +1629,6 @@ cpp_quote("EXTERN_GUID(MF_WORKQUEUE_SERVICES, 0x8e37d489, 0x41e0, 0x413a, 0x90, 
 
 cpp_quote("EXTERN_GUID(MF_PROGRESSIVE_CODING_CONTENT, 0x8f020eea, 0x1508, 0x471f, 0x9d, 0xa6, 0x50, 0x7d, 0x7c, 0xfa, 0x40, 0xdb);")
 cpp_quote("EXTERN_GUID(MF_NALU_LENGTH_SET, 0xa7911d53, 0x12a4, 0x4965, 0xae, 0x70, 0x6e, 0xad, 0xd6, 0xff, 0x05, 0x51);")
-cpp_quote("EXTERN_GUID(MF_NALU_LENGTH_INFORMATION, 0x19124e7c, 0xad4b, 0x465f, 0xbb, 0x18, 0x20, 0x18, 0x62, 0x87, 0xb6, 0xaf);")
 
 cpp_quote("EXTERN_GUID(MF_SAMPLEGRABBERSINK_SAMPLE_TIME_OFFSET, 0x62e3d776, 0x8100, 0x4e03, 0xa6, 0xe8, 0xbd, 0x38, 0x57, 0xac, 0x9c, 0x47);")
 cpp_quote("EXTERN_GUID(MF_SAMPLEGRABBERSINK_IGNORE_CLOCK, 0x0efda2c0, 0x2b69, 0x4e2e, 0xab, 0x8d, 0x46, 0xdc, 0xbf, 0xf7, 0xd2, 0x5d);")
