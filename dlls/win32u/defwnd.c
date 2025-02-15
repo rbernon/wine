@@ -667,11 +667,11 @@ static void sys_command_size_move( HWND hwnd, WPARAM wparam )
     RECT sizing_rect, mouse_rect, orig_rect;
     UINT hittest = wparam & 0x0f;
     UINT syscommand = wparam & 0xfff0;
-    UINT style = get_window_long( hwnd, GWL_STYLE ), ex_style = get_window_long( hwnd, GWL_EXSTYLE );
-    POINT capture_point, pt, offset = {0};
-    LONG caption_height = 0;
+    UINT style = get_window_long( hwnd, GWL_STYLE );
+    POINT capture_point, pt;
     MINMAXINFO minmax;
     HWND parent;
+    UINT dpi;
     HDC hdc;
     MSG msg;
 
@@ -708,19 +708,16 @@ static void sys_command_size_move( HWND hwnd, WPARAM wparam )
         }
     }
 
-    SetRect( &sizing_rect, 0, 0, 0, 0 );
-    if (adjust_window_rect( &sizing_rect, style, FALSE, ex_style, get_thread_dpi() )) caption_height = -sizing_rect.top;
-    if (on_bottom_border( hittest )) caption_height = 0;
-
     minmax = get_min_max_info( hwnd );
-    get_window_rect_rel( hwnd, COORDS_PARENT, &sizing_rect, get_thread_dpi() );
+    dpi = get_thread_dpi();
+    get_window_rect_rel( hwnd, COORDS_PARENT, &sizing_rect, dpi );
     orig_rect = sizing_rect;
     if (style & WS_CHILD)
     {
         parent = get_parent( hwnd );
         get_client_rect( parent, &mouse_rect, get_thread_dpi() );
-        map_window_points( parent, 0, (POINT *)&mouse_rect, 2, get_thread_dpi() );
-        map_window_points( parent, 0, (POINT *)&sizing_rect, 2, get_thread_dpi() );
+        map_window_points( parent, 0, (POINT *)&mouse_rect, 2, dpi );
+        map_window_points( parent, 0, (POINT *)&sizing_rect, 2, dpi );
     }
     else
     {
@@ -730,38 +727,33 @@ static void sys_command_size_move( HWND hwnd, WPARAM wparam )
 
     if (on_left_border( hittest ))
     {
-        offset.x = capture_point.x - sizing_rect.left;
-        mouse_rect.left = max( mouse_rect.left, sizing_rect.right - minmax.ptMaxTrackSize.x );
-        mouse_rect.right = min( mouse_rect.right, sizing_rect.right - minmax.ptMinTrackSize.x );
+        mouse_rect.left = max( mouse_rect.left,
+                sizing_rect.right - minmax.ptMaxTrackSize.x + capture_point.x - sizing_rect.left );
+        mouse_rect.right = min( mouse_rect.right,
+                sizing_rect.right - minmax.ptMinTrackSize.x + capture_point.x - sizing_rect.left );
     }
     else if (on_right_border( hittest ))
     {
-        offset.x = capture_point.x - sizing_rect.right;
-        mouse_rect.left  = max( mouse_rect.left, sizing_rect.left + minmax.ptMinTrackSize.x );
-        mouse_rect.right = min( mouse_rect.right, sizing_rect.left + minmax.ptMaxTrackSize.x );
+        mouse_rect.left  = max( mouse_rect.left,
+                sizing_rect.left + minmax.ptMinTrackSize.x + capture_point.x - sizing_rect.right );
+        mouse_rect.right = min( mouse_rect.right,
+                sizing_rect.left + minmax.ptMaxTrackSize.x + capture_point.x - sizing_rect.right );
     }
 
     if (on_top_border( hittest ))
     {
-        offset.y = capture_point.y - sizing_rect.top;
-        mouse_rect.top = max( mouse_rect.top, sizing_rect.bottom - minmax.ptMaxTrackSize.y );
-        mouse_rect.bottom = min( mouse_rect.bottom, sizing_rect.bottom - minmax.ptMinTrackSize.y );
+        mouse_rect.top = max( mouse_rect.top,
+                sizing_rect.bottom - minmax.ptMaxTrackSize.y + capture_point.y - sizing_rect.top );
+        mouse_rect.bottom = min( mouse_rect.bottom,
+                sizing_rect.bottom - minmax.ptMinTrackSize.y + capture_point.y - sizing_rect.top );
     }
     else if (on_bottom_border( hittest ))
     {
-        offset.y = capture_point.y - sizing_rect.bottom;
-        mouse_rect.top = max( mouse_rect.top, sizing_rect.top + minmax.ptMinTrackSize.y );
-        mouse_rect.bottom = min( mouse_rect.bottom, sizing_rect.top + minmax.ptMaxTrackSize.y );
+        mouse_rect.top = max( mouse_rect.top,
+                sizing_rect.top + minmax.ptMinTrackSize.y + capture_point.y - sizing_rect.bottom );
+        mouse_rect.bottom = min( mouse_rect.bottom,
+                sizing_rect.top + minmax.ptMaxTrackSize.y + capture_point.y - sizing_rect.bottom );
     }
-    else
-    {
-        offset.y = capture_point.y - sizing_rect.top;
-    }
-
-    capture_point.x -= offset.x;
-    capture_point.y -= offset.y;
-    pt.x -= offset.x;
-    pt.y -= offset.y;
 
     /* Retrieve a default cache DC (without using the window style) */
     hdc = NtUserGetDCEx( parent, 0, DCX_CACHE );
@@ -797,16 +789,15 @@ static void sys_command_size_move( HWND hwnd, WPARAM wparam )
             if (!(NtUserGetKeyState( VK_LBUTTON ) & 0x8000))
             {
                 DWORD last_pos = NtUserGetThreadInfo()->message_pos;
-                pt.x = ((int)(short)LOWORD( last_pos )) - offset.x;
-                pt.y = ((int)(short)HIWORD( last_pos )) - offset.y;
+                pt.x = ((int)(short)LOWORD( last_pos ));
+                pt.y = ((int)(short)HIWORD( last_pos ));
                 break;
             }
 
             continue;  /* We are not interested in other messages */
         }
 
-        pt.x = msg.pt.x - offset.x;
-        pt.y = msg.pt.y - offset.y;
+        pt = msg.pt;
 
         if (msg.message == WM_KEYDOWN)
         {
@@ -822,7 +813,7 @@ static void sys_command_size_move( HWND hwnd, WPARAM wparam )
         pt.x = max( pt.x, mouse_rect.left );
         pt.x = min( pt.x, mouse_rect.right - 1 );
         pt.y = max( pt.y, mouse_rect.top );
-        pt.y = min( pt.y, mouse_rect.bottom - 1 - caption_height );
+        pt.y = min( pt.y, mouse_rect.bottom - 1 );
 
         if (!parent)
         {
@@ -834,7 +825,7 @@ static void sys_command_size_move( HWND hwnd, WPARAM wparam )
             pt.x = max( pt.x, info.rcWork.left );
             pt.x = min( pt.x, info.rcWork.right - 1 );
             pt.y = max( pt.y, info.rcWork.top );
-            pt.y = min( pt.y, info.rcWork.bottom - 1 - caption_height );
+            pt.y = min( pt.y, info.rcWork.bottom - 1 );
         }
 
         dx = pt.x - capture_point.x;
@@ -849,7 +840,7 @@ static void sys_command_size_move( HWND hwnd, WPARAM wparam )
                     draw_moving_frame( parent, hdc, &sizing_rect, thickframe );
             }
 
-            if (msg.message == WM_KEYDOWN) NtUserSetCursorPos( offset.x + pt.x, offset.x + pt.y );
+            if (msg.message == WM_KEYDOWN) NtUserSetCursorPos( pt.x, pt.y );
             else
             {
                 if (!drag_full_windows) draw_moving_frame( parent, hdc, &sizing_rect, thickframe );
@@ -928,7 +919,7 @@ static void sys_command_size_move( HWND hwnd, WPARAM wparam )
     if (is_iconic(hwnd) && !moved && (style & WS_SYSMENU))
     {
         /* Single click brings up the system menu when iconized */
-        send_message( hwnd, WM_SYSCOMMAND, SC_MOUSEMENU + HTSYSMENU, MAKELONG(offset.x + pt.x, offset.y + pt.y) );
+        send_message( hwnd, WM_SYSCOMMAND, SC_MOUSEMENU + HTSYSMENU, MAKELONG(pt.x, pt.y) );
     }
 }
 
