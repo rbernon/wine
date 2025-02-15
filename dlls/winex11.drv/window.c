@@ -377,7 +377,7 @@ static struct x11drv_win_data *alloc_win_data( Display *display, HWND hwnd )
  *
  * Check if a given window should be managed
  */
-static BOOL is_window_managed( HWND hwnd, UINT swp_flags, const RECT *window_rect, UINT dpi )
+static BOOL is_window_managed( HWND hwnd, UINT swp_flags, const RECT *window_rect )
 {
     DWORD style, ex_style;
 
@@ -395,10 +395,18 @@ static BOOL is_window_managed( HWND hwnd, UINT swp_flags, const RECT *window_rec
     if (style & WS_THICKFRAME) return TRUE;
     if (style & WS_POPUP)
     {
+        HMONITOR hmon;
+        MONITORINFO mi;
+
         /* popup with sysmenu == caption are managed */
         if (style & WS_SYSMENU) return TRUE;
         /* full-screen popup windows are managed */
-        if (NtUserIsWindowRectFullScreen(window_rect, dpi)) return TRUE;
+        hmon = NtUserMonitorFromWindow( hwnd, MONITOR_DEFAULTTOPRIMARY );
+        mi.cbSize = sizeof( mi );
+        NtUserGetMonitorInfo( hmon, &mi );
+        if (window_rect->left <= mi.rcWork.left && window_rect->right >= mi.rcWork.right &&
+            window_rect->top <= mi.rcWork.top && window_rect->bottom >= mi.rcWork.bottom)
+            return TRUE;
     }
     /* application windows are managed */
     ex_style = NtUserGetWindowLongW( hwnd, GWL_EXSTYLE );
@@ -2130,7 +2138,7 @@ static void create_whole_window( struct x11drv_win_data *data )
     HRGN win_rgn;
     POINT pos;
 
-    if (!data->managed && is_window_managed( data->hwnd, SWP_NOACTIVATE, &data->rects.window, get_win_monitor_dpi( data->hwnd ) ))
+    if (!data->managed && is_window_managed( data->hwnd, SWP_NOACTIVATE, &data->rects.window ))
     {
         TRACE( "making win %p/%lx managed\n", data->hwnd, data->whole_window );
         data->managed = TRUE;
@@ -2896,7 +2904,7 @@ BOOL X11DRV_WindowPosChanging( HWND hwnd, UINT swp_flags, BOOL shaped, const str
     data->shaped = shaped;
 
     /* check if we need to switch the window to managed */
-    if (!data->managed && data->whole_window && is_window_managed( hwnd, swp_flags, &rects->window, get_win_monitor_dpi( hwnd ) ))
+    if (!data->managed && data->whole_window && is_window_managed( hwnd, swp_flags, &rects->window ))
     {
         TRACE( "making win %p/%lx managed\n", hwnd, data->whole_window );
         window_set_wm_state( data, WithdrawnState );
