@@ -540,19 +540,10 @@ done:
 
 static void *opengl_handle;
 
-/**********************************************************************
- *           X11DRV_wine_get_wgl_driver
- */
-struct opengl_funcs *X11DRV_wine_get_wgl_driver(UINT version)
+static void init_opengl(void)
 {
     int error_base, event_base;
     unsigned int i;
-
-    if (version != WINE_WGL_DRIVER_VERSION)
-    {
-        ERR( "version mismatch, opengl32 wants %u but driver has %u\n", version, WINE_WGL_DRIVER_VERSION );
-        return NULL;
-    }
 
     /* No need to load any other libraries as according to the ABI, libGL should be self-sufficient
        and include all dependencies */
@@ -561,7 +552,7 @@ struct opengl_funcs *X11DRV_wine_get_wgl_driver(UINT version)
     {
         ERR( "Failed to load libGL: %s\n", dlerror() );
         ERR( "OpenGL support is disabled.\n");
-        return NULL;
+        return;
     }
 
     for (i = 0; i < ARRAY_SIZE( opengl_func_names ); i++)
@@ -729,13 +720,18 @@ struct opengl_funcs *X11DRV_wine_get_wgl_driver(UINT version)
 
     X11DRV_WineGL_LoadExtensions();
     init_pixel_formats( gdi_display );
-
-    return &opengl_funcs;
+    return;
 
 failed:
     dlclose(opengl_handle);
     opengl_handle = NULL;
-    return NULL;
+}
+
+static BOOL has_opengl(void)
+{
+    static pthread_once_t init_once = PTHREAD_ONCE_INIT;
+
+    return !pthread_once( &init_once, init_opengl );
 }
 
 static const char *debugstr_fbconfig( GLXFBConfig fbconfig )
@@ -1405,6 +1401,8 @@ static int describe_pixel_format( int iPixelFormat, struct wgl_pixel_format *pf 
     int value, drawable_type = 0, render_type = 0;
     int rb, gb, bb, ab;
     const struct glx_pixel_format *fmt;
+
+    if (!has_opengl()) return 0;
 
     /* Look for the iPixelFormat in our list of supported formats. If it is
      * supported we get the index in the FBConfig table and the number of
@@ -2915,12 +2913,20 @@ static struct opengl_funcs opengl_funcs =
     }
 };
 
+struct opengl_funcs *get_glx_driver( UINT version )
+{
+    if (version != WINE_WGL_DRIVER_VERSION)
+    {
+        ERR( "version mismatch, opengl32 wants %u but driver has %u\n", version, WINE_WGL_DRIVER_VERSION );
+        return NULL;
+    }
+    if (has_opengl()) return &opengl_funcs;
+    return NULL;
+}
+
 #else  /* no OpenGL includes */
 
-/**********************************************************************
- *           X11DRV_wine_get_wgl_driver
- */
-struct opengl_funcs *X11DRV_wine_get_wgl_driver(UINT version)
+struct opengl_funcs *get_glx_driver( UINT version )
 {
     return NULL;
 }
