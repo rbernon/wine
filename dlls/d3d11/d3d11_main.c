@@ -104,7 +104,7 @@ HRESULT WINAPI D3D11CoreRegisterLayers(void)
     return S_OK;
 }
 
-HRESULT WINAPI d3d11_create_dxgi_device(IDXGIFactory *factory, IDXGIAdapter *adapter, UINT flags,
+HRESULT WINAPI D3D11CoreCreateDevice(IDXGIFactory *factory, IDXGIAdapter *adapter, UINT flags,
         const D3D_FEATURE_LEVEL *feature_levels, UINT levels, ID3D11Device **device)
 {
     struct d3d_device *d3d_device;
@@ -258,7 +258,7 @@ static HRESULT d3d11_create_device(IDXGIAdapter *adapter, D3D_DRIVER_TYPE driver
         feature_levels = default_feature_levels;
         levels = ARRAY_SIZE(default_feature_levels);
     }
-    hr = d3d11_create_dxgi_device(factory, adapter, flags, feature_levels, levels, &device);
+    hr = D3D11CoreCreateDevice(factory, adapter, flags, feature_levels, levels, &device);
     IDXGIAdapter_Release(adapter);
     IDXGIFactory_Release(factory);
     if (FAILED(hr))
@@ -289,14 +289,6 @@ HRESULT WINAPI D3D11CreateDevice(IDXGIAdapter *adapter, D3D_DRIVER_TYPE driver_t
 {
     return d3d11_create_device(adapter, driver_type, swrast, flags, feature_levels,
             levels, sdk_version, device_out, obtained_feature_level, immediate_context);
-}
-
-HRESULT WINAPI D3D11CoreCreateDevice(IDXGIFactory *factory, IDXGIAdapter *adapter, D3D_DRIVER_TYPE driver_type,
-        HMODULE swrast, UINT flags, const D3D_FEATURE_LEVEL *feature_levels, UINT levels, UINT sdk_version,
-        ID3D11Device **device_out, D3D_FEATURE_LEVEL *obtained_feature_level)
-{
-    return d3d11_create_device(adapter, driver_type, swrast, flags, feature_levels,
-            levels, sdk_version, device_out, obtained_feature_level, NULL);
 }
 
 HRESULT WINAPI D3D11CreateDeviceAndSwapChain(IDXGIAdapter *adapter, D3D_DRIVER_TYPE driver_type,
