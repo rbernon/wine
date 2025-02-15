@@ -34,13 +34,10 @@ static inline const char *debugstr_averr( int err )
     return wine_dbg_sprintf( "%d (%s)", err, av_err2str(err) );
 }
 
-#define AV_PKT_FLAG_FIRST (1<<30)
-
 struct stream
 {
     AVBSFContext *filter;
-    BOOL started;
-    BOOL ended;
+    BOOL eos;
 };
 
 struct demuxer
@@ -50,8 +47,6 @@ struct demuxer
 
     AVPacket *last_packet; /* last read packet */
     struct stream *last_stream; /* last read packet stream */
-
-    INT64 timestamp_offset;
 };
 
 static struct demuxer *get_demuxer( struct winedmo_demuxer demuxer )
@@ -84,7 +79,6 @@ static INT64 get_context_duration( const AVFormatContext *ctx )
         if (max_duration == AV_NOPTS_VALUE) max_duration = duration;
     }
 
-    if (max_duration == AV_NOPTS_VALUE) return get_user_time( ctx->duration, AV_TIME_BASE_Q );
     return max_duration;
 }
 
@@ -139,81 +133,10 @@ static NTSTATUS demuxer_create_streams( struct demuxer *demuxer )
     return STATUS_SUCCESS;
 }
 
-static int next_mov_atom( struct stream_context *context, UINT32 *type, UINT64 *size )
-{
-    struct
-    {
-        UINT32 size;
-        UINT32 type;
-    } atom;
-    int ret;
-
-    if ((ret = unix_read_callback( context, (uint8_t *)&atom, sizeof(atom) )) < 0) return ret;
-    if (!(*size = RtlUlongByteSwap( atom.size )) || (*size > 1 && *size < sizeof(atom))) return -1;
-    if (*size == 1 && (ret = unix_read_callback( context, (uint8_t *)size, sizeof(*size) )) < 0) return ret;
-    *size -= sizeof(atom);
-    *type = atom.type;
-    return 0;
-}
-
-static void parse_stream_names( struct demuxer *demuxer, UINT32 root, UINT64 size, int index )
-{
-    struct stream_context *context = demuxer->ctx->pb->opaque;
-    UINT64 end = context->position + size;
-    UINT32 atom;
-    char *name;
-
-    TRACE( "demuxer %p, root %s\n", demuxer, debugstr_fourcc(root) );
-
-    while (context->position < end && !next_mov_atom( context, &atom, &size ))
-    {
-#define CASE(l,h) (((UINT64)(h) << 32) | (l))
-        switch (CASE(root, atom))
-        {
-        case CASE(MAKEFOURCC('r','o','o','t'), MAKEFOURCC('m','o','o','v')):
-            parse_stream_names( demuxer, atom, size, 0 );
-            break;
-        case CASE(MAKEFOURCC('m','o','o','v'), MAKEFOURCC('t','r','a','k')):
-            parse_stream_names( demuxer, atom, size, index++ );
-            break;
-        case CASE(MAKEFOURCC('t','r','a','k'), MAKEFOURCC('u','d','t','a')):
-            parse_stream_names( demuxer, atom, size, index );
-            break;
-        case CASE(MAKEFOURCC('u','d','t','a'), MAKEFOURCC('n','a','m','e')):
-            if ((name = calloc( 1, size + 1 )))
-            {
-                unix_read_callback( context, (uint8_t *)name, size );
-                TRACE( "found name %s for stream %u\n", debugstr_a(name), index );
-                av_dict_set( &demuxer->ctx->streams[index]->metadata, "name", name, 0 );
-                free( name );
-                break;
-            }
-            /* fallthrough */
-        default:
-            unix_seek_callback( context, size, SEEK_CUR );
-            break;
-#undef CASE
-        }
-    }
-}
-
-static void parse_mp4_streams_metadata( struct demuxer *demuxer )
-{
-    struct stream_context *context = demuxer->ctx->pb->opaque;
-    int64_t pos = context->position;
-
-    if (context->length == -1) return;
-
-    unix_seek_callback( context, 0, SEEK_SET );
-    parse_stream_names( demuxer, MAKEFOURCC('r','o','o','t'), context->length, 0 );
-    unix_seek_callback( context, pos, SEEK_SET );
-}
-
 NTSTATUS demuxer_create( void *arg )
 {
     struct demuxer_create_params *params = arg;
     const char *ext = params->url ? strrchr( params->url, '.' ) : "";
-    AVDictionary *options = NULL;
     const AVInputFormat *format;
     struct demuxer *demuxer;
     int i, ret;
@@ -221,13 +144,10 @@ NTSTATUS demuxer_create( void *arg )
     TRACE( "context %p, url %s, mime %s\n", params->context, debugstr_a(params->url), debugstr_a(params->mime_type) );
 
     if (!(demuxer = calloc( 1, sizeof(*demuxer) ))) return STATUS_NO_MEMORY;
-    demuxer->timestamp_offset = -1;
-
     if (!(demuxer->ctx = avformat_alloc_context())) goto failed;
     if (!(demuxer->ctx->pb = avio_alloc_context( NULL, 0, 0, params->context, unix_read_callback, NULL, unix_seek_callback ))) goto failed;
 
-    av_dict_set( &options, "export_all", "true", 0 );
-    if ((ret = avformat_open_input( &demuxer->ctx, NULL, NULL, &options )) < 0)
+    if ((ret = avformat_open_input( &demuxer->ctx, NULL, NULL, NULL )) < 0)
     {
         ERR( "Failed to open input, error %s.\n", debugstr_averr(ret) );
         goto failed;
@@ -265,13 +185,9 @@ NTSTATUS demuxer_create( void *arg )
         strcpy( params->mime_type, "video/x-application" );
     }
 
-    if (strstr( format->name, "mp4" )) parse_mp4_streams_metadata( demuxer );
-
-    av_dict_free( &options );
     return STATUS_SUCCESS;
 
 failed:
-    av_dict_free( &options );
     if (demuxer->ctx)
     {
         avio_context_free( &demuxer->ctx->pb );
@@ -316,14 +232,8 @@ static NTSTATUS demuxer_filter_packet( struct demuxer *demuxer, AVPacket **packe
         if (!(stream = demuxer->last_stream)) ret = 0;
         else
         {
-            if (!(ret = av_bsf_receive_packet( stream->filter, *packet )))
-            {
-                if (!stream->started) (*packet)->flags |= AV_PKT_FLAG_FIRST;
-                else (*packet)->flags &= ~AV_PKT_FLAG_FIRST;
-                stream->started = TRUE;
-                return STATUS_SUCCESS;
-            }
-            if (ret == AVERROR_EOF) stream->ended = TRUE;
+            if (!(ret = av_bsf_receive_packet( stream->filter, *packet ))) return STATUS_SUCCESS;
+            if (ret == AVERROR_EOF) stream->eos = TRUE;
             if (!ret || ret == AVERROR_EOF || ret == AVERROR(EAGAIN)) ret = 0;
             else WARN( "Failed to read packet from filter, error %s.\n", debugstr_averr( ret ) );
             stream = demuxer->last_stream = NULL;
@@ -342,7 +252,7 @@ static NTSTATUS demuxer_filter_packet( struct demuxer *demuxer, AVPacket **packe
         {
             for (i = 0; ret == AVERROR_EOF && i < demuxer->ctx->nb_streams; i++)
             {
-                if (demuxer->streams[i].ended) continue;
+                if (demuxer->streams[i].eos) continue;
                 stream = demuxer->streams + i;
                 ret = av_bsf_send_packet( stream->filter, NULL );
                 if (ret < 0) WARN( "Failed to send packet to filter, error %s.\n", debugstr_averr( ret ) );
@@ -354,7 +264,7 @@ static NTSTATUS demuxer_filter_packet( struct demuxer *demuxer, AVPacket **packe
     } while (!ret || ret == AVERROR(EAGAIN));
 
     ERR( "Failed to read packet from demuxer %p, error %s.\n", demuxer, debugstr_averr( ret ) );
-    return STATUS_END_OF_FILE;
+    return STATUS_UNSUCCESSFUL;
 }
 
 NTSTATUS demuxer_read( void *arg )
@@ -379,16 +289,10 @@ NTSTATUS demuxer_read( void *arg )
     }
 
     stream = demuxer->ctx->streams[packet->stream_index];
-    if (demuxer->timestamp_offset < 0)
-    {
-        demuxer->timestamp_offset = -2 * get_stream_time( stream, packet->dts );
-        if (demuxer->timestamp_offset < 0) demuxer->timestamp_offset = 0;
-    }
-    sample->pts = get_stream_time( stream, packet->pts ) + demuxer->timestamp_offset;
-    sample->dts = get_stream_time( stream, packet->dts ) + demuxer->timestamp_offset;
+    sample->pts = get_stream_time( stream, packet->pts );
+    sample->dts = get_stream_time( stream, packet->dts );
     sample->duration = get_stream_time( stream, packet->duration );
     if (packet->flags & AV_PKT_FLAG_KEY) sample->flags |= SAMPLE_FLAG_SYNC_POINT;
-    if (packet->flags & AV_PKT_FLAG_FIRST) sample->flags |= SAMPLE_FLAG_DISCONTINUITY;
     memcpy( (void *)(UINT_PTR)sample->data, packet->data, packet->size );
     params->stream = packet->stream_index;
     av_packet_free( &packet );
@@ -404,9 +308,9 @@ NTSTATUS demuxer_seek( void *arg )
     int64_t timestamp = params->timestamp * AV_TIME_BASE / 10000000;
     int i, ret;
 
-    TRACE( "demuxer %p, timestamp %d\n", demuxer, (int)timestamp );
+    TRACE( "demuxer %p, timestamp 0x%s\n", demuxer, wine_dbgstr_longlong( params->timestamp ) );
 
-    if ((ret = avformat_seek_file( demuxer->ctx, -1, 0, timestamp, timestamp, 0 )) < 0)
+    if ((ret = av_seek_frame( demuxer->ctx, -1, timestamp, AVSEEK_FLAG_ANY )) < 0)
     {
         ERR( "Failed to seek demuxer %p, error %s.\n", demuxer, debugstr_averr(ret) );
         return STATUS_UNSUCCESSFUL;
@@ -415,8 +319,7 @@ NTSTATUS demuxer_seek( void *arg )
     for (i = 0; i < demuxer->ctx->nb_streams; i++)
     {
         av_bsf_flush( demuxer->streams[i].filter );
-        demuxer->streams[i].started = FALSE;
-        demuxer->streams[i].ended = FALSE;
+        demuxer->streams[i].eos = FALSE;
     }
     av_packet_free( &demuxer->last_packet );
     demuxer->last_stream = NULL;
@@ -449,8 +352,7 @@ NTSTATUS demuxer_stream_name( void *arg )
 
     TRACE( "demuxer %p, stream %u\n", demuxer, params->stream );
 
-    if (!(tag = av_dict_get( stream->metadata, "title", NULL, AV_DICT_IGNORE_SUFFIX )) &&
-        !(tag = av_dict_get( stream->metadata, "name", NULL, AV_DICT_IGNORE_SUFFIX )))
+    if (!(tag = av_dict_get( stream->metadata, "title", NULL, AV_DICT_IGNORE_SUFFIX )))
         return STATUS_NOT_FOUND;
 
     lstrcpynA( params->buffer, tag->value, ARRAY_SIZE( params->buffer ) );

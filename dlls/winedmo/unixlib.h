@@ -36,17 +36,14 @@ struct process_attach_params
 {
     UINT64 seek_callback;
     UINT64 read_callback;
-    UINT64 write_callback;
 };
 
 struct stream_context
 {
-    UINT64 stream; /* client-side stream handle */
-    UINT64 length; /* total length of the stream */
-    UINT64 position; /* current position in the stream */
-
-    UINT32 capacity; /* total allocated capacity for the buffer */
-    UINT32 size; /* current data size in the buffer */
+    UINT64 stream;
+    UINT64 length;
+    UINT64 position;
+    UINT64 buffer_size;
     BYTE buffer[];
 };
 
@@ -66,19 +63,11 @@ struct read_callback_params
     INT32 size;
 };
 
-struct write_params
-{
-    struct dispatch_callback_params dispatch;
-    UINT64 context;
-    INT32 size;
-};
-
 
 enum sample_flag
 {
     SAMPLE_FLAG_SYNC_POINT = 1,
     SAMPLE_FLAG_INCOMPLETE = 2,
-    SAMPLE_FLAG_DISCONTINUITY = 4,
 };
 
 struct sample
@@ -88,7 +77,6 @@ struct sample
     INT64 pts;
     UINT64 duration;
     UINT64 size;
-    UINT64 stride;
     UINT64 data; /* pointer to user memory */
 };
 
@@ -163,96 +151,6 @@ struct demuxer_stream_type_params
 };
 
 
-struct muxer_check_params
-{
-    char mime_type[256];
-};
-
-struct muxer_create_params
-{
-    struct stream_context *context;
-    const char *url;
-    char mime_type[256];
-
-    struct winedmo_muxer muxer;
-};
-
-struct muxer_destroy_params
-{
-    struct winedmo_muxer muxer;
-    struct stream_context *context;
-};
-
-struct muxer_add_stream_params
-{
-    struct winedmo_muxer muxer;
-    UINT32 stream_id;
-    struct media_type media_type;
-};
-
-struct muxer_start_params
-{
-    struct winedmo_muxer muxer;
-};
-
-struct muxer_write_params
-{
-    struct winedmo_muxer muxer;
-    UINT32 stream;
-    struct sample sample;
-};
-
-
-struct transform_check_params
-{
-    GUID major;
-    GUID input;
-    GUID output;
-};
-
-struct transform_create_params
-{
-    struct media_type input_type;
-    struct media_type output_type;
-    struct winedmo_transform transform;
-};
-
-struct transform_destroy_params
-{
-    struct winedmo_transform transform;
-};
-
-struct transform_drain_params
-{
-    struct winedmo_transform transform;
-    BOOL discard;
-};
-
-struct transform_get_output_type_params
-{
-    struct winedmo_transform transform;
-    struct media_type media_type;
-};
-
-struct transform_set_output_type_params
-{
-    struct winedmo_transform transform;
-    struct media_type media_type;
-};
-
-struct transform_process_input_params
-{
-    struct winedmo_transform transform;
-    struct sample sample;
-};
-
-struct transform_process_output_params
-{
-    struct winedmo_transform transform;
-    struct sample sample;
-};
-
-
 enum unix_funcs
 {
     unix_process_attach,
@@ -265,22 +163,6 @@ enum unix_funcs
     unix_demuxer_stream_lang,
     unix_demuxer_stream_name,
     unix_demuxer_stream_type,
-
-    unix_muxer_check,
-    unix_muxer_create,
-    unix_muxer_destroy,
-    unix_muxer_add_stream,
-    unix_muxer_start,
-    unix_muxer_write,
-
-    unix_transform_check,
-    unix_transform_create,
-    unix_transform_destroy,
-    unix_transform_process_input,
-    unix_transform_process_output,
-    unix_transform_get_output_type,
-    unix_transform_set_output_type,
-    unix_transform_drain,
 
     unix_funcs_count,
 };

@@ -461,8 +461,6 @@ const char *debugstr_mf_guid(const GUID *guid)
         X(MFSampleExtension_3DVideo),
         X(MFSampleExtension_3DVideo_SampleFormat),
         X(MFSampleExtension_DecodeTimestamp),
-        X(MFSampleExtension_Discontinuity),
-        X(MFSampleExtension_CleanPoint),
         X(MFSampleExtension_ForwardedDecodeUnits),
         X(MFSampleExtension_ForwardedDecodeUnitType),
         X(MFSampleExtension_TargetGlobalLuminance),
