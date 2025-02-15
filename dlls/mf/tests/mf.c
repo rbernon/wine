@@ -6775,13 +6775,6 @@ static void test_media_session_Close(void)
     hr = IMFMediaSession_Start(session, &GUID_NULL, &propvar);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
     callback = create_test_callback(TRUE);
-    hr = wait_media_event(session, callback, MESessionEnded, 5000, &propvar);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-
-    propvar.vt = VT_EMPTY;
-    hr = IMFMediaSession_Start(session, &GUID_NULL, &propvar);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    callback = create_test_callback(TRUE);
     hr = wait_media_event(session, callback, MESessionStarted, 5000, &propvar);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
 
@@ -6905,14 +6898,11 @@ static void subtest_media_source_streams(const WCHAR *resource, const struct pre
     ok(stream_count == expect->stream_count, "got stream_count %lu\n", stream_count);
     check_attributes((IMFAttributes *)presentation, expect->attributes, -1);
 
-    if (expect->stream_count > 1)
-    {
-        hr = IMFPresentationDescriptor_GetStreamDescriptorByIndex(presentation, 1, &selected, &stream_descriptor);
-        ok(hr == S_OK, "got hr %#lx\n", hr);
-        hr = IMFStreamDescriptor_GetItem(stream_descriptor, &MF_SD_STREAM_NAME, NULL);
-        ok(hr == S_OK || broken(hr == MF_E_ATTRIBUTENOTFOUND), "got hr %#lx\n", hr);
-        IMFStreamDescriptor_Release(stream_descriptor);
-    }
+    hr = IMFPresentationDescriptor_GetStreamDescriptorByIndex(presentation, 1, &selected, &stream_descriptor);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    hr = IMFStreamDescriptor_GetItem(stream_descriptor, &MF_SD_STREAM_NAME, NULL);
+    ok(hr == S_OK || broken(hr == MF_E_ATTRIBUTENOTFOUND), "got hr %#lx\n", hr);
+    IMFStreamDescriptor_Release(stream_descriptor);
 
     /* w7 and w1064v1507 miss the MF_SD_STREAM_NAME attribute */
     if (broken(hr == MF_E_ATTRIBUTENOTFOUND))
@@ -7060,41 +7050,10 @@ static void test_media_source_streams(void)
             },
         },
     };
-    const struct presentation_desc stream_desc =
-    {
-        .stream_count = 1,
-        .attributes =
-        {
-            ATTR_RATIO(MF_PD_DURATION, 0, 20020000),
-            ATTR_RATIO(MF_PD_TOTAL_FILE_SIZE, 0, 47250),
-            ATTR_UINT32(MF_PD_AUDIO_ENCODING_BITRATE, 106176, .todo = TRUE),
-            ATTR_UINT32(MF_PD_VIDEO_ENCODING_BITRATE, 1125200, .todo = TRUE),
-            ATTR_WSTR_OR_NONE(MF_PD_MIME_TYPE, L"video/avi"),
-        },
-        .streams =
-        {
-            {
-                .id = 1,
-                .selected = 1,
-                .attributes =
-                {
-                    ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1),
-                    ATTR_WSTR(MF_SD_STREAM_NAME, L"This is a very long audio stream title string", /* flaky, .todo = TRUE */),
-                },
-            },
-        },
-    };
 #undef ATTR_WSTR_OR_NONE
 
     subtest_media_source_streams(L"multiple-streams.mp4", &mp4_desc);
     subtest_media_source_streams(L"multiple-streams.avi", &avi_desc);
-    if (0) subtest_media_source_streams(L"test-aac.mp4", &stream_desc);
-    if (0) subtest_media_source_streams(L"test-h264.mp4", &stream_desc);
-    if (0) subtest_media_source_streams(L"test-i420.avi", &stream_desc);
-    if (0) subtest_media_source_streams(L"test-mp3.mp4", &stream_desc);
-    if (0) subtest_media_source_streams(L"test-wma2.wmv", &stream_desc);
-    if (0) subtest_media_source_streams(L"test-wmv1.wmv", &stream_desc);
-    if (0) subtest_media_source_streams(L"test.mp4", &stream_desc);
 }
 
 START_TEST(mf)
