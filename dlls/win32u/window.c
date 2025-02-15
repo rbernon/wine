@@ -4599,9 +4599,6 @@ void update_window_state( HWND hwnd )
     apply_window_pos( hwnd, 0, swp_flags, surface, &new_rects, valid_rects );
     if (surface) window_surface_release( surface );
 
-    NtUserInvalidateRect( hwnd, NULL, FALSE );
-    NtUserValidateRect( hwnd, &new_rects.client );
-
     set_thread_dpi_awareness_context( context );
 }
 

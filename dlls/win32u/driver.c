@@ -886,8 +886,7 @@ static BOOL nulldrv_GetWindowStateUpdates( HWND hwnd, UINT *state_cmd, UINT *con
     return FALSE;
 }
 
-static BOOL nulldrv_CreateWindowSurface( HWND hwnd, BOOL layered, float scale, const RECT *surface_rect,
-                                         struct window_surface **surface )
+static BOOL nulldrv_CreateWindowSurface( HWND hwnd, BOOL layered, const RECT *surface_rect, struct window_surface **surface )
 {
     return FALSE;
 }
