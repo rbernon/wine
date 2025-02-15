@@ -93,7 +93,7 @@ static BOOL X11DRV_ClientMessage( HWND hwnd, XEvent *event );
 
 #define MAX_EVENT_HANDLERS 128
 
-static x11drv_event_handler default_handlers[MAX_EVENT_HANDLERS] =
+static x11drv_event_handler handlers[MAX_EVENT_HANDLERS] =
 {
     NULL,                     /*  0 reserved */
     NULL,                     /*  1 reserved */
@@ -131,46 +131,6 @@ static x11drv_event_handler default_handlers[MAX_EVENT_HANDLERS] =
     X11DRV_ClientMessage,     /* 33 ClientMessage */
     X11DRV_MappingNotify,     /* 34 MappingNotify */
     X11DRV_GenericEvent       /* 35 GenericEvent */
-};
-
-static x11drv_event_handler server_x11_handlers[MAX_EVENT_HANDLERS] =
-{
-    NULL,                     /*  0 reserved */
-    NULL,                     /*  1 reserved */
-    NULL,                     /*  2 KeyPress */
-    NULL,                     /*  3 KeyRelease */
-    NULL,                     /*  4 ButtonPress */
-    NULL,                     /*  5 ButtonRelease */
-    NULL,                     /*  6 MotionNotify */
-    NULL,                     /*  7 EnterNotify */
-    NULL,                     /*  8 LeaveNotify */
-    X11DRV_FocusIn,           /*  9 FocusIn */
-    X11DRV_FocusOut,          /* 10 FocusOut */
-    NULL,                     /* 11 KeymapNotify */
-    X11DRV_Expose,            /* 12 Expose */
-    NULL,                     /* 13 GraphicsExpose */
-    NULL,                     /* 14 NoExpose */
-    NULL,                     /* 15 VisibilityNotify */
-    NULL,                     /* 16 CreateNotify */
-    X11DRV_DestroyNotify,     /* 17 DestroyNotify */
-    X11DRV_UnmapNotify,       /* 18 UnmapNotify */
-    X11DRV_MapNotify,         /* 19 MapNotify */
-    NULL,                     /* 20 MapRequest */
-    X11DRV_ReparentNotify,    /* 21 ReparentNotify */
-    X11DRV_ConfigureNotify,   /* 22 ConfigureNotify */
-    NULL,                     /* 23 ConfigureRequest */
-    X11DRV_GravityNotify,     /* 24 GravityNotify */
-    NULL,                     /* 25 ResizeRequest */
-    NULL,                     /* 26 CirculateNotify */
-    NULL,                     /* 27 CirculateRequest */
-    X11DRV_PropertyNotify,    /* 28 PropertyNotify */
-    X11DRV_SelectionClear,    /* 29 SelectionClear */
-    X11DRV_SelectionRequest,  /* 30 SelectionRequest */
-    NULL,                     /* 31 SelectionNotify */
-    NULL,                     /* 32 ColormapNotify */
-    X11DRV_ClientMessage,     /* 33 ClientMessage */
-    NULL,                     /* 34 MappingNotify */
-    NULL,                     /* 35 GenericEvent */
 };
 
 static const char * event_names[MAX_EVENT_HANDLERS] =
@@ -309,7 +269,6 @@ static void xembed_request_focus( Display *display, Window window, DWORD timesta
  */
 void X11DRV_register_event_handler( int type, x11drv_event_handler handler, const char *name )
 {
-    x11drv_event_handler *handlers = use_server_x11 ? server_x11_handlers : default_handlers;
     assert( type < MAX_EVENT_HANDLERS );
     assert( !handlers[type] || handlers[type] == handler );
     handlers[type] = handler;
@@ -363,27 +322,6 @@ static Bool filter_event( Display *display, XEvent *event, char *arg )
     }
 }
 
-static void wait_grab_pointer( Display *display )
-{
-    RECT rect;
-
-    /* release cursor grab held by any Wine process */
-    NtUserGetClipCursor( &rect );
-    NtUserClipCursor( NULL );
-
-    while (XGrabPointer( display, root_window, False, 0, GrabModeAsync, GrabModeAsync,
-                         None, None, CurrentTime ) != GrabSuccess)
-    {
-        LARGE_INTEGER timeout = {.QuadPart = -10 * (ULONGLONG)10000};
-        NtDelayExecution( FALSE, &timeout );
-    }
-
-    XUngrabPointer( display, CurrentTime );
-    XFlush( display );
-
-    /* restore the previously used clipping rect */
-    NtUserClipCursor( &rect );
-}
 
 enum event_merge_action
 {
@@ -440,10 +378,6 @@ static enum event_merge_action merge_raw_motion_events( XIRawEvent *prev, XIRawE
  */
 static enum event_merge_action merge_events( XEvent *prev, XEvent *next )
 {
-#ifdef HAVE_X11_EXTENSIONS_XINPUT2_H
-    struct x11drv_thread_data *thread_data = x11drv_thread_data();
-#endif
-
     switch (prev->type)
     {
     case ConfigureNotify:
@@ -475,21 +409,19 @@ static enum event_merge_action merge_events( XEvent *prev, XEvent *next )
         case GenericEvent:
             if (next->xcookie.extension != xinput2_opcode) break;
             if (next->xcookie.evtype != XI_RawMotion) break;
-            if (thread_data->xinput2_rawinput) break;
-            if (thread_data->warp_serial) break;
+            if (x11drv_thread_data()->warp_serial) break;
             return MERGE_KEEP;
         }
         break;
     case GenericEvent:
         if (prev->xcookie.extension != xinput2_opcode) break;
         if (prev->xcookie.evtype != XI_RawMotion) break;
-        if (thread_data->xinput2_rawinput) break;
         switch (next->type)
         {
         case GenericEvent:
             if (next->xcookie.extension != xinput2_opcode) break;
             if (next->xcookie.evtype != XI_RawMotion) break;
-            if (thread_data->warp_serial) break;
+            if (x11drv_thread_data()->warp_serial) break;
             return merge_raw_motion_events( prev->xcookie.data, next->xcookie.data );
 #endif
         }
@@ -504,7 +436,6 @@ static enum event_merge_action merge_events( XEvent *prev, XEvent *next )
  */
 static inline BOOL call_event_handler( Display *display, XEvent *event )
 {
-    x11drv_event_handler *handlers = use_server_x11 ? server_x11_handlers : default_handlers;
     HWND hwnd;
     XEvent *prev;
     struct x11drv_thread_data *thread_data;
@@ -548,11 +479,36 @@ static BOOL process_events( Display *display, Bool (*filter)(Display*, XEvent*,X
     while (XCheckIfEvent( display, &event, filter, (char *)arg ))
     {
         count++;
+        if (XFilterEvent( &event, None ))
+        {
+            /*
+             * SCIM on linux filters key events strangely. It does not filter the
+             * KeyPress events for these keys however it does filter the
+             * KeyRelease events. This causes wine to become very confused as
+             * to the keyboard state.
+             *
+             * We need to let those KeyRelease events be processed so that the
+             * keyboard state is correct.
+             */
+            if (event.type == KeyRelease)
+            {
+                KeySym keysym = 0;
+                XKeyEvent *keyevent = &event.xkey;
 
-        /* We need to pass key events through the entire input stack for rawinput key presses,
-         * and we will filter them later on, when the IME will call back into XIM. */
-        if (event.type != KeyPress && event.type != KeyRelease && XFilterEvent( &event, None ))
-            continue;  /* filtered, ignore it */
+                XLookupString(keyevent, NULL, 0, &keysym, NULL);
+                if (!(keysym == XK_Shift_L ||
+                    keysym == XK_Shift_R ||
+                    keysym == XK_Control_L ||
+                    keysym == XK_Control_R ||
+                    keysym == XK_Alt_R ||
+                    keysym == XK_Alt_L ||
+                    keysym == XK_Meta_R ||
+                    keysym == XK_Meta_L))
+                        continue; /* not a key we care about, ignore it */
+            }
+            else
+                continue;  /* filtered, ignore it */
+        }
 
         if (host_window_filter_event( &event, &prev_event )) continue;
 
@@ -686,7 +642,6 @@ static void set_input_focus( struct x11drv_win_data *data )
  */
 static void set_focus( Display *display, HWND hwnd, Time time )
 {
-    struct x11drv_win_data *data;
     HWND focus;
     Window win;
     GUITHREADINFO threadinfo;
@@ -701,18 +656,7 @@ static void set_focus( Display *display, HWND hwnd, Time time )
     if (focus) focus = NtUserGetAncestor( focus, GA_ROOT );
     win = X11DRV_get_whole_window(focus);
 
-    if ((data = get_win_data( focus )))
-    {
-        DWORD ex_style = NtUserGetWindowLongW( focus, GWL_EXSTYLE );
-
-        if (!(ex_style & WS_EX_APPWINDOW) && NtUserGetWindowRelative( focus, GW_OWNER ))
-            XRaiseWindow( display, data->whole_window );
-
-        TRACE( "setting focus to %p (%lx) time=%ld\n", focus, data->whole_window, time );
-        XSetInputFocus( display, data->whole_window, RevertToParent, time );
-        release_win_data( data );
-    }
-    else if ((win = X11DRV_get_whole_window( focus )))
+    if (win)
     {
         TRACE( "setting focus to %p (%lx) time=%ld\n", focus, win, time );
         XSetInputFocus( display, win, RevertToParent, time );
@@ -916,17 +860,6 @@ static BOOL X11DRV_FocusIn( HWND hwnd, XEvent *xev )
 
     x11drv_thread_data()->keymapnotify_hwnd = hwnd;
 
-    /* Focus was just restored but it can be right after super was
-     * pressed and gnome-shell needs a bit of time to respond and
-     * toggle the activity view. If we grab the cursor right away
-     * it will cancel it and super key will do nothing.
-     */
-    if (event->mode == NotifyUngrab && wm_is_mutter(event->display))
-    {
-        LARGE_INTEGER timeout = {.QuadPart = 100 * -10000};
-        NtDelayExecution( FALSE, &timeout );
-    }
-
     /* when keyboard grab is released, re-apply the cursor clipping rect */
     was_grabbed = keyboard_grabbed;
     keyboard_grabbed = event->mode == NotifyGrab || event->mode == NotifyWhileGrabbed;
@@ -1017,7 +950,7 @@ static BOOL X11DRV_FocusOut( HWND hwnd, XEvent *xev )
 
     /* in virtual desktop mode or when keyboard is grabbed, release any cursor grab but keep the clipping rect */
     keyboard_grabbed = event->mode == NotifyGrab || event->mode == NotifyWhileGrabbed;
-    if ((is_virtual_desktop() || keyboard_grabbed) && !use_server_x11) ungrab_clipping_window();
+    if (is_virtual_desktop() || keyboard_grabbed) ungrab_clipping_window();
     /* ignore wm specific NotifyUngrab / NotifyGrab events w.r.t focus */
     if (event->mode == NotifyGrab || event->mode == NotifyUngrab) return FALSE;
 
@@ -1341,7 +1274,6 @@ static BOOL X11DRV_PropertyNotify( HWND hwnd, XEvent *xev )
     if (event->atom == x11drv_atom(_XEMBED_INFO)) handle_xembed_info_notify( hwnd, event );
     if (event->atom == x11drv_atom(_NET_WM_STATE)) handle_net_wm_state_notify( hwnd, event );
     if (event->atom == x11drv_atom(_NET_SUPPORTED)) handle_net_supported_notify( event );
-    if (event->atom == x11drv_atom(_XKB_RULES_NAMES)) X11DRV_InitKeyboard( event->display );
 
     return TRUE;
 }

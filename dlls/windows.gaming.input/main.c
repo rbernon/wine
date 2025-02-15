@@ -149,8 +149,7 @@ static BOOL WINAPI start_monitor_thread( INIT_ONCE *once, void *param, void **co
     start_event = CreateEventA( NULL, FALSE, FALSE, NULL );
     if (!start_event) ERR( "Failed to create start event, error %lu\n", GetLastError() );
 
-    thread = CreateThread( NULL, 0x100000, monitor_thread_proc, start_event,
-                           STACK_SIZE_PARAM_IS_A_RESERVATION, NULL );
+    thread = CreateThread( NULL, 0, monitor_thread_proc, start_event, 0, NULL );
     if (!thread) ERR( "Failed to create monitor thread, error %lu\n", GetLastError() );
     else
     {

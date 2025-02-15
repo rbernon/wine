@@ -406,7 +406,6 @@ static const KBDTABLES kbdus_tables =
 
 static LONG clipping_cursor; /* clipping thread counter */
 
-LONG enable_mouse_in_pointer = -1;
 BOOL grab_pointer = TRUE;
 BOOL grab_fullscreen = FALSE;
 
@@ -504,13 +503,12 @@ static WORD kbd_tables_wchar_to_vkey( const KBDTABLES *tables, WCHAR wch )
     return wch >= 0x0080 ? -1 : 0;
 }
 
-static WCHAR kbd_tables_vkey_to_wchar( const KBDTABLES *tables, UINT vkey, const BYTE *state, BOOL *is_dead )
+static WCHAR kbd_tables_vkey_to_wchar( const KBDTABLES *tables, UINT vkey, const BYTE *state )
 {
     UINT mod, caps_mod, alt, ctrl, caps;
     const VK_TO_WCHAR_TABLE *table;
     const VK_TO_WCHARS1 *entry;
 
-    *is_dead = FALSE;
     alt = state[VK_MENU] & 0x80;
     ctrl = state[VK_CONTROL] & 0x80;
     caps = state[VK_CAPITAL] & 1;
@@ -537,9 +535,8 @@ static WCHAR kbd_tables_vkey_to_wchar( const KBDTABLES *tables, UINT vkey, const
              * The entry corresponds to the mapping when Caps Lock is on, and a second entry follows it
              * with the mapping when Caps Lock is off.
              */
-            if (!caps) while (entry->Attributes & SGCAPS) entry = NEXT_ENTRY(table, entry);
-            if ((entry->Attributes & CAPLOK) && table->nModifications > caps_mod) mod = caps_mod;
-            if ((*is_dead = entry->wch[mod] == WCH_DEAD)) entry = NEXT_ENTRY(table, entry);
+            if ((entry->Attributes & SGCAPS) && !caps) entry = NEXT_ENTRY(table, entry);
+            if ((entry->Attributes & CAPLOK) && table->nModifications > caps_mod) return entry->wch[caps_mod];
             return entry->wch[mod];
         }
     }
@@ -548,8 +545,6 @@ static WCHAR kbd_tables_vkey_to_wchar( const KBDTABLES *tables, UINT vkey, const
 }
 
 #undef NEXT_ENTRY
-
-BOOL enable_mouse_in_pointer = FALSE;
 
 /*******************************************************************
  *           NtUserGetForegroundWindow  (win32u.@)
@@ -598,25 +593,7 @@ HWND get_focus(void)
 BOOL WINAPI NtUserAttachThreadInput( DWORD from, DWORD to, BOOL attach )
 {
     BOOL ret;
-    static visited = 0;
-    static DWORD fromThreadForHack = 0;
-    static DWORD toThreadForHack = 0;
 
-    if (!visited) 
-    {
-	fromThreadForHack = from;
-	toThreadForHack = to;
-	visited = 1;
-	TRACE_(win)("fromThreadForHack: %lu toThreadForHack: %lu\n", fromThreadForHack, toThreadForHack);
-    }
-
-    if (from == 0 && to == 0 && visited)
-    {
-	from = fromThreadForHack;
-	to = toThreadForHack;
-    }
-
-    TRACE_(win)("from:%lu to:%lu attach:%d\n", from, to, attach);
     SERVER_START_REQ( attach_thread_input )
     {
         req->tid_from = from;
@@ -1254,11 +1231,7 @@ INT WINAPI NtUserGetKeyNameText( LONG lparam, WCHAR *buffer, INT size )
     INT code = ((lparam >> 16) & 0x1ff), vkey, len;
     HKL layout = NtUserGetKeyboardLayout( 0 );
     const KBDTABLES *kbd_tables;
-    BYTE state[0x100] = {0};
     VSC_LPWSTR *key_name;
-    USHORT vsc2vk[0x300];
-    BOOL is_dead;
-    WCHAR wch;
 
     TRACE_(keyboard)( "lparam %#x, buffer %p, size %d.\n", (int)lparam, buffer, size );
 
@@ -1267,10 +1240,10 @@ INT WINAPI NtUserGetKeyNameText( LONG lparam, WCHAR *buffer, INT size )
 
     if (!(kbd_tables = user_driver->pKbdLayerDescriptor( layout ))) kbd_tables = &kbdus_tables;
 
-    kbd_tables_init_vsc2vk( kbd_tables, vsc2vk );
-
     if (lparam & 0x2000000)
     {
+        USHORT vsc2vk[0x300];
+        kbd_tables_init_vsc2vk( kbd_tables, vsc2vk );
         switch ((vkey = vsc2vk[code] & 0xff))
         {
         case VK_RSHIFT:
@@ -1286,18 +1259,7 @@ INT WINAPI NtUserGetKeyNameText( LONG lparam, WCHAR *buffer, INT size )
     else key_name = kbd_tables->pKeyNamesExt;
     while (key_name->vsc && key_name->vsc != (BYTE)code) key_name++;
 
-    wch = kbd_tables_vkey_to_wchar( kbd_tables, vsc2vk[code], state, &is_dead );
-    if (wch != WCH_NONE && is_dead)
-    {
-        WCHAR **names = kbd_tables->pKeyNamesDead;
-        while (names[0] && *names[0] != wch) names += 2;
-        if (names[0])
-        {
-            len = min( size - 1, wcslen( names[1] ) );
-            memcpy( buffer, names[1], len * sizeof(WCHAR) );
-        }
-    }
-    else if (key_name->vsc == (BYTE)code && key_name->pwsz)
+    if (key_name->vsc == (BYTE)code && key_name->pwsz)
     {
         len = min( size - 1, wcslen( key_name->pwsz ) );
         memcpy( buffer, key_name->pwsz, len * sizeof(WCHAR) );
@@ -1323,10 +1285,7 @@ INT WINAPI NtUserGetKeyNameText( LONG lparam, WCHAR *buffer, INT size )
 INT WINAPI NtUserToUnicodeEx( UINT virt, UINT scan, const BYTE *state,
                               WCHAR *str, int size, UINT flags, HKL layout )
 {
-    struct user_thread_info *thread = get_user_thread_info();
-    WCHAR deadkey = thread->kbd_deadkey;
     const KBDTABLES *kbd_tables;
-    BOOL is_dead = FALSE;
     INT len;
 
     TRACE_(keyboard)( "virt %#x, scan %#x, state %p, str %p, size %d, flags %#x, layout %p.\n",
@@ -1337,35 +1296,16 @@ INT WINAPI NtUserToUnicodeEx( UINT virt, UINT scan, const BYTE *state,
 
     if (!(kbd_tables = user_driver->pKbdLayerDescriptor( layout ))) kbd_tables = &kbdus_tables;
     if (scan & 0x8000) str[0] = 0; /* key up */
-    else
-    {
-        str[0] = kbd_tables_vkey_to_wchar( kbd_tables, virt, state, &is_dead );
-        thread->kbd_deadkey = is_dead ? str[0] : 0;
-    }
+    else str[0] = kbd_tables_vkey_to_wchar( kbd_tables, virt, state );
     if (size > 1) str[1] = 0;
 
     if (str[0] != WCH_NONE) len = 1;
     else str[0] = len = 0;
 
-    if (deadkey && !is_dead && len && str[0])
-    {
-        DEADKEY *key = kbd_tables->pDeadKey;
-        while (key->dwBoth && key->dwBoth != MAKELONG(str[0], deadkey)) key++;
-
-        if (key->dwBoth) str[0] = key->wchComposed;
-        else
-        {
-            if (size > 2) str[2] = 0;
-            str[1] = str[0];
-            str[0] = deadkey;
-            len = 2;
-        }
-    }
-
     if (kbd_tables != &kbdus_tables) user_driver->pReleaseKbdTables( kbd_tables );
 
-    TRACE_(keyboard)( "ret %d, str %s.\n", is_dead ? -len : len, debugstr_wn(str, len) );
-    return is_dead ? -len : len;
+    TRACE_(keyboard)( "ret %d, str %s.\n", len, debugstr_wn(str, len) );
+    return len;
 }
 
 /**********************************************************************
@@ -1374,7 +1314,7 @@ INT WINAPI NtUserToUnicodeEx( UINT virt, UINT scan, const BYTE *state,
 HKL WINAPI NtUserActivateKeyboardLayout( HKL layout, UINT flags )
 {
     struct user_thread_info *info = get_user_thread_info();
-    HKL old_layout = NtUserGetKeyboardLayout( 0 );
+    HKL old_layout;
     LCID locale;
     HWND focus;
 
@@ -1392,14 +1332,16 @@ HKL WINAPI NtUserActivateKeyboardLayout( HKL layout, UINT flags )
     if (LOWORD(layout) != MAKELANGID(LANG_INVARIANT, SUBLANG_DEFAULT) &&
         (NtQueryDefaultLocale( TRUE, &locale ) || LOWORD(layout) != locale))
     {
+        RtlSetLastWin32Error( ERROR_CALL_NOT_IMPLEMENTED );
         FIXME_(keyboard)( "Changing user locale is not supported\n" );
-        layout = (HKL)(UINT_PTR)MAKELONG(locale,HIWORD(layout));
+        return 0;
     }
 
     if (!user_driver->pActivateKeyboardLayout( layout, flags ))
         return 0;
 
-    if (!info->kbd_layout || old_layout != layout)
+    old_layout = info->kbd_layout;
+    if (old_layout != layout)
     {
         HWND ime_hwnd = get_default_ime_window( 0 );
         const NLS_LOCALE_DATA *data;
@@ -1423,6 +1365,7 @@ HKL WINAPI NtUserActivateKeyboardLayout( HKL layout, UINT flags )
             send_message( focus, WM_INPUTLANGCHANGE, cs.ciCharset, (LPARAM)layout );
     }
 
+    if (!old_layout) return get_locale_kbd_layout();
     return old_layout;
 }
 
@@ -2522,8 +2465,6 @@ BOOL WINAPI NtUserSetCaretPos( INT x, INT y )
         set_ime_composition_rect( hwnd, r );
         NtUserSetSystemTimer( hwnd, SYSTEM_TIMER_CARET, caret.timeout );
     }
-
-    user_driver->pSetCaretPos( &r );
     return ret;
 }
 
@@ -2630,15 +2571,9 @@ void toggle_caret( HWND hwnd )
  */
 BOOL WINAPI NtUserEnableMouseInPointer( BOOL enable )
 {
-    FIXME( "enable %u semi-stub!\n", enable );
-
-    if (InterlockedCompareExchange( &enable_mouse_in_pointer, enable ? 1 : 0, -1 ) != -1)
-    {
-        RtlSetLastWin32Error( ERROR_ACCESS_DENIED );
-        return FALSE;
-    }
-
-    return TRUE;
+    FIXME( "enable %u stub!\n", enable );
+    RtlSetLastWin32Error( ERROR_CALL_NOT_IMPLEMENTED );
+    return FALSE;
 }
 
 /**********************************************************************
@@ -2656,8 +2591,9 @@ BOOL WINAPI NtUserEnableMouseInPointerForThread( void )
  */
 BOOL WINAPI NtUserIsMouseInPointerEnabled(void)
 {
-    TRACE( "\n" );
-    return enable_mouse_in_pointer == 1;
+    FIXME( "stub!\n" );
+    RtlSetLastWin32Error( ERROR_CALL_NOT_IMPLEMENTED );
+    return FALSE;
 }
 
 static BOOL is_captured_by_system(void)
@@ -2720,32 +2656,6 @@ BOOL clip_fullscreen_window( HWND hwnd, BOOL reset )
     SERVER_END_REQ;
 
     return ret;
-}
-
-/**********************************************************************
- *       NtUserIsTouchWindow    (win32u.@)
- */
-BOOL WINAPI NtUserIsTouchWindow( HWND hwnd, ULONG *flags )
-{
-    DWORD win_flags = win_set_flags( hwnd, 0, 0 );
-    TRACE( "hwnd %p, flags %p.\n", hwnd, flags );
-    return (win_flags & WIN_IS_TOUCH) != 0;
-}
-
-
-BOOL register_touch_window( HWND hwnd, UINT flags )
-{
-    DWORD win_flags = win_set_flags( hwnd, WIN_IS_TOUCH, 0 );
-    TRACE( "hwnd %p, flags %#x.\n", hwnd, flags );
-    return (win_flags & WIN_IS_TOUCH) == 0;
-}
-
-
-BOOL unregister_touch_window( HWND hwnd )
-{
-    DWORD win_flags = win_set_flags( hwnd, 0, WIN_IS_TOUCH );
-    TRACE( "hwnd %p.\n", hwnd );
-    return (win_flags & WIN_IS_TOUCH) != 0;
 }
 
 /**********************************************************************
@@ -2860,26 +2770,4 @@ BOOL WINAPI NtUserRegisterTouchPadCapable( BOOL capable )
     FIXME( "capable %u stub!\n", capable );
     RtlSetLastWin32Error( ERROR_CALL_NOT_IMPLEMENTED );
     return FALSE;
-}
-
-/*****************************************************************************
- * NtUserGetTouchInputInfo (WIN32U.@)
- */
-BOOL WINAPI NtUserGetTouchInputInfo( HTOUCHINPUT handle, UINT count, TOUCHINPUT *ptr, int size )
-{
-    struct user_thread_info *thread_info = get_user_thread_info();
-    struct touchinput_thread_data *thread_data;
-    UINT index = (ULONG_PTR)handle;
-
-    TRACE( "handle %p, count %u, ptr %p, size %u.\n", handle, count, ptr, size );
-
-    if (!thread_info || !(thread_data = thread_info->touchinput) || size != sizeof(TOUCHINPUT) ||
-        index >= ARRAY_SIZE(thread_data->history))
-    {
-        RtlSetLastWin32Error( ERROR_INVALID_PARAMETER );
-        return FALSE;
-    }
-
-    memcpy( ptr, thread_data->history + index, min( count, ARRAY_SIZE(thread_data->current) ) * size );
-    return TRUE;
 }

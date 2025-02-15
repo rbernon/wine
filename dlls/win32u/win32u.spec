@@ -1104,7 +1104,7 @@
 @ stdcall -syscall NtUserGetThreadState(long)
 @ stdcall -syscall NtUserGetTitleBarInfo(long ptr)
 @ stub NtUserGetTopLevelWindow
-@ stdcall -syscall NtUserGetTouchInputInfo(ptr long ptr long)
+@ stub NtUserGetTouchInputInfo
 @ stub NtUserGetTouchValidationStatus
 @ stub NtUserGetUniformSpaceMapping
 @ stub NtUserGetUnpredictedMessagePos
@@ -1173,7 +1173,7 @@
 @ stub NtUserIsQueueAttached
 @ stub NtUserIsResizeLayoutSynchronizationEnabled
 @ stub NtUserIsTopLevelWindow
-@ stdcall -syscall NtUserIsTouchWindow(long ptr)
+@ stub NtUserIsTouchWindow
 @ stub NtUserIsWindowBroadcastingDpiToChildren
 @ stub NtUserIsWindowDisplayChangeSuppressed
 @ stub NtUserIsWindowGDIScaledDpiMessageEnabled

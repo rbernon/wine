@@ -46,6 +46,7 @@ static const char *debugstr_imn( WPARAM wparam )
     case IMN_SETCOMPOSITIONWINDOW: return "IMN_SETCOMPOSITIONWINDOW";
     case IMN_GUIDELINE: return "IMN_GUIDELINE";
     case IMN_SETSTATUSWINDOWPOS: return "IMN_SETSTATUSWINDOWPOS";
+    case IMN_WINE_SET_OPEN_STATUS: return "IMN_WINE_SET_OPEN_STATUS";
     case IMN_WINE_SET_COMP_STRING: return "IMN_WINE_SET_COMP_STRING";
     default: return wine_dbg_sprintf( "%#Ix", wparam );
     }
@@ -197,7 +198,10 @@ static void ime_ui_paint( HIMC himc, HWND hwnd )
     PAINTSTRUCT ps;
     RECT rect, new_rect;
     HDC hdc;
+    HMONITOR monitor;
+    MONITORINFO mon_info;
     INPUTCONTEXT *ctx;
+    POINT offset;
     WCHAR *str;
     UINT len;
 
@@ -216,9 +220,13 @@ static void ime_ui_paint( HIMC himc, HWND hwnd )
     if ((str = input_context_get_comp_str( ctx, FALSE, &len )))
     {
         HFONT font = input_context_select_ui_font( ctx, hdc );
-        RECT target, rect = ctx->cfCompForm.rcArea;
-        POINT offset = {10, 10};
-        UINT flags = 0;
+        SIZE size;
+        POINT pt;
+
+        GetTextExtentPoint32W( hdc, str, len, &size );
+        pt.x = size.cx;
+        pt.y = size.cy;
+        LPtoDP( hdc, &pt, 1 );
 
         /*
          * How this works based on tests on windows:
@@ -232,35 +240,62 @@ static void ime_ui_paint( HIMC himc, HWND hwnd )
          * CFS_FORCE_POSITION: appears to behave just like CFS_POINT
          *    maybe because the default MSIME does not do any IME adjusting.
          */
-        OffsetRect( &rect, -rect.left, -rect.top );
-        if (ctx->cfCompForm.dwStyle == CFS_RECT) flags |= DT_WORDBREAK;
-        DrawTextW( hdc, str, len, &rect, flags | DT_CALCRECT );
-
         if (ctx->cfCompForm.dwStyle != CFS_DEFAULT)
         {
-            POINT pt = ctx->cfCompForm.ptCurrentPos;
-            ClientToScreen( ctx->hWnd, &pt );
-            OffsetRect( &rect, pt.x, pt.y );
+            POINT cpt = ctx->cfCompForm.ptCurrentPos;
+            ClientToScreen( ctx->hWnd, &cpt );
+            rect.left = cpt.x;
+            rect.top = cpt.y;
+            rect.right = rect.left + pt.x;
+            rect.bottom = rect.top + pt.y;
             offset.x = offset.y = 0;
-
+            monitor = MonitorFromPoint( cpt, MONITOR_DEFAULTTOPRIMARY );
         }
-        else
+        else /* CFS_DEFAULT */
         {
             /* Windows places the default IME window in the bottom left */
-            GetWindowRect( ctx->hWnd, &target );
-            InflateRect( &rect, offset.x, offset.y );
-            OffsetRect( &rect, target.left - rect.left, target.bottom - rect.top );
+            HWND target = ctx->hWnd;
+            if (!target) target = GetFocus();
+
+            GetWindowRect( target, &rect );
+            rect.top = rect.bottom;
+            rect.right = rect.left + pt.x + 20;
+            rect.bottom = rect.top + pt.y + 20;
+            offset.x = offset.y = 10;
+            monitor = MonitorFromWindow( target, MONITOR_DEFAULTTOPRIMARY );
+        }
+
+        if (ctx->cfCompForm.dwStyle == CFS_RECT)
+        {
+            RECT client = ctx->cfCompForm.rcArea;
+            MapWindowPoints( ctx->hWnd, 0, (POINT *)&client, 2 );
+            IntersectRect( &rect, &rect, &client );
+            DrawTextW( hdc, str, len, &rect, DT_WORDBREAK | DT_CALCRECT );
         }
 
         if (ctx->cfCompForm.dwStyle == CFS_DEFAULT)
         {
             /* make sure we are on the desktop */
-            HMONITOR monitor = MonitorFromWindow( ctx->hWnd, MONITOR_DEFAULTTOPRIMARY );
-            MONITORINFO info = {.cbSize = sizeof(info)};
-            GetMonitorInfoW( monitor, &info );
-            if (rect.bottom > info.rcWork.bottom) OffsetRect( &rect, 0, info.rcWork.bottom - rect.bottom );
-            if (rect.left < 0) OffsetRect( &rect, -rect.left, 0 );
-            if (rect.right > info.rcWork.right) OffsetRect( &rect, info.rcWork.right - rect.right, 0 );
+            mon_info.cbSize = sizeof(mon_info);
+            GetMonitorInfoW( monitor, &mon_info );
+
+            if (rect.bottom > mon_info.rcWork.bottom)
+            {
+                int shift = rect.bottom - mon_info.rcWork.bottom;
+                rect.top -= shift;
+                rect.bottom -= shift;
+            }
+            if (rect.left < 0)
+            {
+                rect.right -= rect.left;
+                rect.left = 0;
+            }
+            if (rect.right > mon_info.rcWork.right)
+            {
+                int shift = rect.right - mon_info.rcWork.right;
+                rect.left -= shift;
+                rect.right -= shift;
+            }
         }
 
         new_rect = rect;
@@ -279,34 +314,21 @@ static void ime_ui_paint( HIMC himc, HWND hwnd )
                       new_rect.bottom - new_rect.top, SWP_NOACTIVATE );
 }
 
-static void ime_set_open_status( INPUTCONTEXT *ctx, BOOL open )
-{
-    if (ctx->fOpen != open)
-    {
-        ctx->fOpen = open;
-        SendMessageW( ctx->hWnd, WM_IME_NOTIFY, IMN_SETOPENSTATUS, 0 );
-    }
-}
-
 static void ime_ui_update_window( INPUTCONTEXT *ctx, HWND hwnd )
 {
     WCHAR *str;
     UINT len;
 
     if (!(str = input_context_get_comp_str( ctx, FALSE, &len )) || !*str)
-    {
         ShowWindow( hwnd, SW_HIDE );
-        ime_set_open_status( ctx, FALSE );
-        ctx->hWnd = GetFocus();
-    }
     else
     {
-        ctx->hWnd = GetFocus();
         ShowWindow( hwnd, SW_SHOWNOACTIVATE );
         RedrawWindow( hwnd, NULL, NULL, RDW_ERASENOW | RDW_INVALIDATE );
-        ime_set_open_status( ctx, TRUE );
     }
     free( str );
+
+    ctx->hWnd = GetFocus();
 }
 
 static void ime_ui_composition( HIMC himc, HWND hwnd, LPARAM lparam )
@@ -374,53 +396,13 @@ static LRESULT ime_ui_notify( HIMC himc, HWND hwnd, WPARAM wparam, LPARAM lparam
 
     switch (wparam)
     {
-    case IMN_CLOSESTATUSWINDOW:
-        ShowWindow( hwnd, SW_HIDE );
-        return 0;
-    case IMN_OPENSTATUSWINDOW:
-        ShowWindow( hwnd, SW_SHOWNOACTIVATE );
-        return 0;
+    case IMN_WINE_SET_OPEN_STATUS:
+        return ImmSetOpenStatus( himc, lparam );
     case IMN_WINE_SET_COMP_STRING:
         return ime_set_comp_string( himc, lparam );
     default:
         return 0;
     }
-}
-
-static LRESULT ime_ui_control( HIMC himc, HWND hwnd, WPARAM wparam, LPARAM lparam )
-{
-    INPUTCONTEXT *ctx;
-
-    TRACE( "himc %p, hwnd %p, wparam %s, lparam %#Ix\n", hwnd, himc, debugstr_imn(wparam), lparam );
-
-    if (!(ctx = ImmLockIMC( himc ))) return 0;
-
-    switch (wparam)
-    {
-    case IMC_CLOSESTATUSWINDOW:
-        if (!IsWindowVisible( hwnd )) return 0;
-        return SendMessageW( ctx->hWnd, WM_IME_NOTIFY, IMN_CLOSESTATUSWINDOW, 0 );
-
-    case IMC_OPENSTATUSWINDOW:
-        if (IsWindowVisible( hwnd )) return 0;
-        return SendMessageW( ctx->hWnd, WM_IME_NOTIFY, IMN_OPENSTATUSWINDOW, 0 );
-
-    case IMC_GETCANDIDATEPOS:
-    case IMC_GETCOMPOSITIONFONT:
-    case IMC_GETCOMPOSITIONWINDOW:
-    case IMC_GETSTATUSWINDOWPOS:
-    case IMC_SETCANDIDATEPOS:
-    case IMC_SETCOMPOSITIONFONT:
-    case IMC_SETCOMPOSITIONWINDOW:
-    case IMC_SETSTATUSWINDOWPOS:
-    default:
-        FIXME( "hwnd %p, himc %p, wparam %s, lparam %#Ix stub!\n", hwnd, himc, debugstr_imc(wparam), lparam );
-        break;
-    }
-
-    ImmUnlockIMC( himc );
-
-    return 0;
 }
 
 static LRESULT WINAPI ime_ui_window_proc( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam )
@@ -453,7 +435,9 @@ static LRESULT WINAPI ime_ui_window_proc( HWND hwnd, UINT msg, WPARAM wparam, LP
     case WM_IME_NOTIFY:
         return ime_ui_notify( himc, hwnd, wparam, lparam );
     case WM_IME_CONTROL:
-        return ime_ui_control( himc, hwnd, wparam, lparam );
+        FIXME( "hwnd %p, himc %p, msg %s, wparam %s, lparam %#Ix stub!\n", hwnd, himc,
+               debugstr_wm_ime(msg), debugstr_imc(wparam), lparam );
+        return 1;
     }
 
     return DefWindowProcW( hwnd, msg, wparam, lparam );
@@ -575,22 +559,16 @@ UINT WINAPI ImeToAsciiEx( UINT vkey, UINT vsc, BYTE *state, TRANSMSGLIST *msgs, 
     if (status) WARN( "WINE_IME_TO_ASCII_EX returned status %#lx\n", status );
     else
     {
-        TRANSMSG status_msg = {0};
+        TRANSMSG status_msg = {.message = ime_set_composition_status( himc, !!compstr->dwCompStrOffset )};
+        if (status_msg.message) msgs->TransMsg[count++] = status_msg;
 
         if (compstr->dwResultStrOffset)
         {
             const WCHAR *result = (WCHAR *)((BYTE *)compstr + compstr->dwResultStrOffset);
             TRANSMSG msg = {.message = WM_IME_COMPOSITION, .wParam = result[0], .lParam = GCS_RESULTSTR};
-
-            if ((status_msg.message = ime_set_composition_status( himc, FALSE )))
-                msgs->TransMsg[count++] = status_msg;
-
             if (compstr->dwResultClauseOffset) msg.lParam |= GCS_RESULTCLAUSE;
             msgs->TransMsg[count++] = msg;
         }
-
-        if ((status_msg.message = ime_set_composition_status( himc, !!compstr->dwCompStrOffset )))
-            msgs->TransMsg[count++] = status_msg;
 
         if (compstr->dwCompStrOffset)
         {

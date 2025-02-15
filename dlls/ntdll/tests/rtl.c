@@ -2301,32 +2301,32 @@ static void test_LdrAddRefDll(void)
     NTSTATUS status;
     BOOL ret;
 
-    mod = LoadLibraryA("combase.dll");
+    mod = LoadLibraryA("comctl32.dll");
     ok(mod != NULL, "got %p\n", mod);
     ret = FreeLibrary(mod);
     ok(ret, "got %d\n", ret);
 
-    mod2 = GetModuleHandleA("combase.dll");
+    mod2 = GetModuleHandleA("comctl32.dll");
     ok(mod2 == NULL, "got %p\n", mod2);
 
     /* load, addref and release 2 times */
-    mod = LoadLibraryA("combase.dll");
+    mod = LoadLibraryA("comctl32.dll");
     ok(mod != NULL, "got %p\n", mod);
     status = LdrAddRefDll(0, mod);
     ok(status == STATUS_SUCCESS, "got 0x%08lx\n", status);
     ret = FreeLibrary(mod);
     ok(ret, "got %d\n", ret);
 
-    mod2 = GetModuleHandleA("combase.dll");
+    mod2 = GetModuleHandleA("comctl32.dll");
     ok(mod2 != NULL, "got %p\n", mod2);
     ret = FreeLibrary(mod);
     ok(ret, "got %d\n", ret);
 
-    mod2 = GetModuleHandleA("combase.dll");
+    mod2 = GetModuleHandleA("comctl32.dll");
     ok(mod2 == NULL, "got %p\n", mod2);
 
     /* pin refcount */
-    mod = LoadLibraryA("combase.dll");
+    mod = LoadLibraryA("comctl32.dll");
     ok(mod != NULL, "got %p\n", mod);
     status = LdrAddRefDll(LDR_ADDREF_DLL_PIN, mod);
     ok(status == STATUS_SUCCESS, "got 0x%08lx\n", status);
@@ -2340,7 +2340,7 @@ static void test_LdrAddRefDll(void)
     ret = FreeLibrary(mod);
     ok(ret, "got %d\n", ret);
 
-    mod2 = GetModuleHandleA("combase.dll");
+    mod2 = GetModuleHandleA("comctl32.dll");
     ok(mod2 != NULL, "got %p\n", mod2);
 }
 

@@ -45,21 +45,66 @@
  *
  */
 
-#include "user32_test.h"
+#include <stdarg.h>
+#include <assert.h>
 
+#include "windef.h"
+#include "winbase.h"
+#include "wingdi.h"
+#include "winuser.h"
+#include "wingdi.h"
+#include "winnls.h"
+#include "winreg.h"
 #include "ddk/hidsdi.h"
 #include "imm.h"
 #include "kbd.h"
+
+#include "wine/test.h"
 
 #define check_member_( file, line, val, exp, fmt, member )                                         \
     ok_(file, line)( (val).member == (exp).member, "got " #member " " fmt "\n", (val).member )
 #define check_member( val, exp, fmt, member )                                                      \
     check_member_( __FILE__, __LINE__, val, exp, fmt, member )
-#define check_member_rect_( file, line, val, exp, member )                                         \
-    ok_(file, line)( EqualRect( &(val).member, &(exp).member ), "got " #member " %s\n",            \
-                     wine_dbgstr_rect( &(val).member ) )
-#define check_member_rect( val, exp, member )                                                      \
-    check_member_rect_( __FILE__, __LINE__, val, exp, member )
+
+static const char *debugstr_ok( const char *cond )
+{
+    int c, n = 0;
+    /* skip possible casts */
+    while ((c = *cond++))
+    {
+        if (c == '(') n++;
+        if (!n) break;
+        if (c == ')') n--;
+    }
+    if (!strchr( cond - 1, '(' )) return wine_dbg_sprintf( "got %s", cond - 1 );
+    return wine_dbg_sprintf( "%.*s returned", (int)strcspn( cond - 1, "( " ), cond - 1 );
+}
+
+#define ok_eq( e, r, t, f, ... )                                                                   \
+    do                                                                                             \
+    {                                                                                              \
+        t v = (r);                                                                                 \
+        ok( v == (e), "%s " f "\n", debugstr_ok( #r ), v, ##__VA_ARGS__ );                         \
+    } while (0)
+#define ok_ne( e, r, t, f, ... )                                                                   \
+    do                                                                                             \
+    {                                                                                              \
+        t v = (r);                                                                                 \
+        ok( v != (e), "%s " f "\n", debugstr_ok( #r ), v, ##__VA_ARGS__ );                         \
+    } while (0)
+#define ok_rect( e, r )                                                                            \
+    do                                                                                             \
+    {                                                                                              \
+        RECT v = (r);                                                                              \
+        ok( EqualRect( &v, &(e) ), "%s %s\n", debugstr_ok(#r), wine_dbgstr_rect(&v) );             \
+    } while (0)
+#define ok_point( e, r )                                                                           \
+    do                                                                                             \
+    {                                                                                              \
+        POINT v = (r);                                                                             \
+        ok( !memcmp( &v, &(e), sizeof(v) ), "%s %s\n", debugstr_ok(#r), wine_dbgstr_point(&v) );   \
+    } while (0)
+#define ok_ret( e, r ) ok_eq( e, r, UINT_PTR, "%Iu, error %ld", GetLastError() )
 
 enum user_function
 {
@@ -375,18 +420,10 @@ static BOOL (WINAPI *pEnableMouseInPointer)( BOOL );
 static BOOL (WINAPI *pIsMouseInPointerEnabled)(void);
 static BOOL (WINAPI *pGetCurrentInputMessageSource)( INPUT_MESSAGE_SOURCE *source );
 static BOOL (WINAPI *pGetPointerType)(UINT32, POINTER_INPUT_TYPE*);
-static BOOL (WINAPI *pGetPointerPenInfo)(UINT32, POINTER_PEN_INFO*);
-static BOOL (WINAPI *pGetPointerPenInfoHistory)(UINT32, UINT32*, POINTER_PEN_INFO*);
-static BOOL (WINAPI *pGetPointerFramePenInfo)(UINT32, UINT32*, POINTER_PEN_INFO*);
-static BOOL (WINAPI *pGetPointerFramePenInfoHistory)(UINT32, UINT32*, UINT32*, POINTER_PEN_INFO*);
 static BOOL (WINAPI *pGetPointerInfo)(UINT32, POINTER_INFO*);
 static BOOL (WINAPI *pGetPointerInfoHistory)(UINT32, UINT32*, POINTER_INFO*);
 static BOOL (WINAPI *pGetPointerFrameInfo)(UINT32, UINT32*, POINTER_INFO*);
 static BOOL (WINAPI *pGetPointerFrameInfoHistory)(UINT32, UINT32*, UINT32*, POINTER_INFO*);
-static BOOL (WINAPI *pGetPointerTouchInfo)(UINT32, POINTER_TOUCH_INFO*);
-static BOOL (WINAPI *pGetPointerTouchInfoHistory)(UINT32, UINT32*, POINTER_TOUCH_INFO*);
-static BOOL (WINAPI *pGetPointerFrameTouchInfo)(UINT32, UINT32*, POINTER_TOUCH_INFO*);
-static BOOL (WINAPI *pGetPointerFrameTouchInfoHistory)(UINT32, UINT32*, UINT32*, POINTER_TOUCH_INFO*);
 static int (WINAPI *pGetMouseMovePointsEx) (UINT, LPMOUSEMOVEPOINT, LPMOUSEMOVEPOINT, int, DWORD);
 static UINT (WINAPI *pGetRawInputDeviceList) (PRAWINPUTDEVICELIST, PUINT, UINT);
 static UINT (WINAPI *pGetRawInputDeviceInfoW) (HANDLE, UINT, void *, UINT *);
@@ -414,14 +451,6 @@ static void init_function_pointers(void)
     GET_PROC(GetPointerInfoHistory);
     GET_PROC(GetPointerFrameInfo);
     GET_PROC(GetPointerFrameInfoHistory);
-    GET_PROC(GetPointerPenInfo);
-    GET_PROC(GetPointerPenInfoHistory);
-    GET_PROC(GetPointerFramePenInfo);
-    GET_PROC(GetPointerFramePenInfoHistory);
-    GET_PROC(GetPointerTouchInfo);
-    GET_PROC(GetPointerTouchInfoHistory);
-    GET_PROC(GetPointerFrameTouchInfo);
-    GET_PROC(GetPointerFrameTouchInfoHistory);
     GET_PROC(GetPointerType);
     GET_PROC(GetRawInputDeviceList);
     GET_PROC(GetRawInputDeviceInfoW);
@@ -437,7 +466,7 @@ static void init_function_pointers(void)
 }
 
 #define run_in_process( a, b ) run_in_process_( __FILE__, __LINE__, a, b )
-void run_in_process_( const char *file, int line, char **argv, const char *args )
+static void run_in_process_( const char *file, int line, char **argv, const char *args )
 {
     STARTUPINFOA startup = {.cb = sizeof(STARTUPINFOA)};
     PROCESS_INFORMATION info = {0};
@@ -1289,13 +1318,17 @@ static void test_SendInput_keyboard_messages( WORD vkey, WORD scan, WCHAR wch, W
 #undef KEY_MSG
 
     BOOL altgr = keyboard_layout_has_altgr(), skip_altgr = FALSE;
-    HWND hwnd = create_foreground_window( FALSE );
     LONG_PTR old_proc;
     HHOOK hook;
+    HWND hwnd;
 
     /* on 32-bit with ALTGR keyboard, the CONTROL key is sent to the hooks without the
      * LLKHF_INJECTED flag, skip the tests to keep it simple */
     if (altgr && sizeof(void *) == 4 && !is_wow64) skip_altgr = TRUE;
+
+    hwnd = CreateWindowW( L"static", NULL, WS_POPUP | WS_VISIBLE, 0, 0, 100, 100, NULL, NULL, NULL, NULL );
+    ok_ne( NULL, hwnd, HWND, "%p" );
+    wait_messages( 100, FALSE );
 
     /* If we have had a spurious layout change, wch(_shift) may be incorrect. */
     if (GetKeyboardLayout( 0 ) != hkl)
@@ -2255,7 +2288,6 @@ static LRESULT CALLBACK rawinputbuffer_wndproc(HWND hwnd, UINT msg, WPARAM wpara
         RAWINPUT rawinput = {{0}};
 
         winetest_push_context( "%u", iteration );
-        ok_ret( 0xdeadbeef, InSendMessageEx( 0 ) );
 
         if (is_wow64) rawinput_size = sizeof(RAWINPUTHEADER64) + sizeof(RAWKEYBOARD);
         else rawinput_size = sizeof(RAWINPUTHEADER) + sizeof(RAWKEYBOARD);
@@ -2667,9 +2699,6 @@ static LRESULT CALLBACK rawinput_wndproc(HWND hwnd, UINT msg, WPARAM wparam, LPA
 
     if (msg == WM_INPUT)
     {
-        DWORD flags = InSendMessageEx( 0 );
-        ok( flags == 0xdeadbeef, "got WM_INPUT flags %#lx\n", flags );
-
         todo_wine_if(rawinput_test_received_raw)
         ok(!rawinput_test_received_raw, "Unexpected spurious WM_INPUT message.\n");
         ok(wparam == RIM_INPUT || wparam == RIM_INPUTSINK, "Unexpected wparam: %Iu\n", wparam);
@@ -2778,7 +2807,8 @@ static void rawinput_test_process(void)
         case 16:
             GetCursorPos(&pt);
 
-            hwnd = create_foreground_window( FALSE );
+            hwnd = CreateWindowA("static", "static", WS_VISIBLE | WS_POPUP,
+                                 pt.x - 50, pt.y - 50, 100, 100, 0, NULL, NULL, NULL);
             SetWindowLongPtrA(hwnd, GWLP_WNDPROC, (LONG_PTR)rawinput_wndproc);
             ok(hwnd != 0, "CreateWindow failed\n");
             empty_message_queue();
@@ -2880,7 +2910,8 @@ static DWORD WINAPI rawinput_test_desk_thread(void *arg)
         case 16:
             GetCursorPos(&pt);
 
-            hwnd = create_foreground_window( FALSE );
+            hwnd = CreateWindowA("static", "static", WS_VISIBLE | WS_POPUP,
+                                 pt.x - 50, pt.y - 50, 100, 100, 0, NULL, NULL, NULL);
             ok(hwnd != 0, "CreateWindow failed\n");
             SetWindowLongPtrA(hwnd, GWLP_WNDPROC, (LONG_PTR)rawinput_wndproc);
             empty_message_queue();
@@ -2940,7 +2971,8 @@ static DWORD WINAPI rawinput_test_thread(void *arg)
         case 5:
             GetCursorPos(&pt);
 
-            hwnd = create_foreground_window( FALSE );
+            hwnd = CreateWindowA("static", "static", WS_VISIBLE | WS_POPUP,
+                                 pt.x - 50, pt.y - 50, 100, 100, 0, NULL, NULL, NULL);
             ok(hwnd != 0, "CreateWindow failed\n");
             empty_message_queue();
 
@@ -3026,7 +3058,8 @@ static void test_rawinput(const char* argv0)
     {
         GetCursorPos(&pt);
 
-        hwnd = create_foreground_window( FALSE );
+        hwnd = CreateWindowA("static", "static", WS_VISIBLE | WS_POPUP,
+                             pt.x - 50, pt.y - 50, 100, 100, 0, NULL, NULL, NULL);
         ok(hwnd != 0, "CreateWindow failed\n");
         if (i != 14 && i != 15 && i != 16)
             SetWindowLongPtrA(hwnd, GWLP_WNDPROC, (LONG_PTR)rawinput_wndproc);
@@ -3072,7 +3105,9 @@ static void test_rawinput(const char* argv0)
         case 14:
         case 15:
             DestroyWindow(hwnd);
-            hwnd = create_foreground_window( FALSE );
+            hwnd = CreateWindowA("static", "static", WS_VISIBLE | WS_POPUP,
+                                 pt.x - 50, pt.y - 50, 100, 100, 0, NULL, NULL, NULL);
+            ok(hwnd != 0, "CreateWindow failed\n");
             SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOSIZE|SWP_NOMOVE);
             SetForegroundWindow(hwnd);
             empty_message_queue();
@@ -3664,7 +3699,11 @@ static void test_ActivateKeyboardLayout( char **argv )
     count = GetKeyboardLayoutList( count, layouts );
     ok( count > 0, "GetKeyboardLayoutList returned %d\n", count );
 
-    hwnd1 = create_foreground_window( FALSE );
+    hwnd1 = CreateWindowA( "static", "static", WS_VISIBLE | WS_POPUP,
+                           100, 100, 100, 100, 0, NULL, NULL, NULL );
+    ok( !!hwnd1, "CreateWindow failed, error %lu\n", GetLastError() );
+    empty_message_queue();
+
     SetWindowLongPtrA( hwnd1, GWLP_WNDPROC, (LONG_PTR)test_ActivateKeyboardLayout_window_proc );
 
     for (i = 0; i < count; ++i)
@@ -3704,7 +3743,9 @@ static void test_ActivateKeyboardLayout( char **argv )
 
         /* but the change only takes effect after focus changes */
 
-        hwnd2 = create_foreground_window( FALSE );
+        hwnd2 = CreateWindowA( "static", "static", WS_VISIBLE | WS_POPUP,
+                               100, 100, 100, 100, 0, NULL, NULL, NULL );
+        ok( !!hwnd2, "CreateWindow failed, error %lu\n", GetLastError() );
 
         tmp_layout = GetKeyboardLayout( 0 );
         todo_wine_if(layout != other_layout)
@@ -4071,7 +4112,9 @@ static void test_SendInput_mouse_messages(void)
     ok_ret( 1, SetCursorPos( 50, 50 ) );
     ok_ret( 1, SetDoubleClickTime( 1 ) );
 
-    hwnd = create_foreground_window( TRUE );
+    hwnd = CreateWindowW( L"static", NULL, WS_POPUP | WS_VISIBLE, 0, 0, 100, 100, NULL, NULL, NULL, NULL );
+    ok_ne( NULL, hwnd, HWND, "%p" );
+    wait_messages( 100, FALSE );
     trace( "hwnd %p\n", hwnd );
 
     hook = SetWindowsHookExW( WH_MOUSE_LL, ll_hook_ms_proc, GetModuleHandleW( NULL ), 0 );
@@ -4146,7 +4189,9 @@ static void test_SendInput_mouse_messages(void)
 
     /* click through top-level window */
 
-    other = create_foreground_window( TRUE );
+    other = CreateWindowW( L"static", NULL, WS_VISIBLE | WS_POPUP, 0, 0, 100, 100, NULL, NULL, NULL, NULL );
+    ok_ne( NULL, hwnd, HWND, "%p" );
+    wait_messages( 100, FALSE );
     current_sequence_len = 0;
 
     old_other_proc = SetWindowLongPtrW( other, GWLP_WNDPROC, (LONG_PTR)append_message_wndproc );
@@ -4190,7 +4235,9 @@ static void test_SendInput_mouse_messages(void)
 
     /* click through HTTRANSPARENT top-level window */
 
-    other = create_foreground_window( TRUE );
+    other = CreateWindowW( L"static", NULL, WS_VISIBLE | WS_POPUP, 0, 0, 100, 100, NULL, NULL, NULL, NULL );
+    ok_ne( NULL, hwnd, HWND, "%p" );
+    wait_messages( 100, FALSE );
     current_sequence_len = 0;
 
     old_other_proc = SetWindowLongPtrW( other, GWLP_WNDPROC, (LONG_PTR)httransparent_wndproc );
@@ -4283,7 +4330,9 @@ static void test_SendInput_mouse_messages(void)
 
     /* click on top-level window with SetCapture called for the underlying window */
 
-    other = create_foreground_window( TRUE );
+    other = CreateWindowW( L"static", NULL, WS_VISIBLE | WS_POPUP, 0, 0, 100, 100, NULL, NULL, NULL, NULL );
+    ok_ne( NULL, hwnd, HWND, "%p" );
+    wait_messages( 100, FALSE );
     current_sequence_len = 0;
 
     old_other_proc = SetWindowLongPtrW( other, GWLP_WNDPROC, (LONG_PTR)append_message_wndproc );
@@ -4940,7 +4989,10 @@ static void test_GetKeyState(void)
     params.semaphores[1] = CreateSemaphoreA(NULL, 0, 1, NULL);
     ok(params.semaphores[1] != NULL, "CreateSemaphoreA failed %lu\n", GetLastError());
 
-    hwnd = create_foreground_window( FALSE );
+    hwnd = CreateWindowA("static", "Title", WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+                         10, 10, 200, 200, NULL, NULL, NULL, NULL);
+    ok(hwnd != NULL, "CreateWindowA failed %lu\n", GetLastError());
+    empty_message_queue();
 
     for (i = 0; i < ARRAY_SIZE(get_key_state_tests); ++i)
     {
@@ -5213,7 +5265,11 @@ static void test_SendInput( WORD vkey, WCHAR wch, HKL hkl )
 
     INPUT input[16];
     UINT res, i;
-    HWND hwnd = create_foreground_window( FALSE );
+    HWND hwnd;
+
+    hwnd = CreateWindowW( L"static", NULL, WS_POPUP | WS_VISIBLE, 0, 0, 100, 100, NULL, NULL, NULL, NULL );
+    ok_ne( NULL, hwnd, HWND, "%p" );
+    wait_messages( 100, FALSE );
 
     /* If we have had a spurious layout change, wch may be incorrect. */
     if (GetKeyboardLayout( 0 ) != hkl)
@@ -5347,37 +5403,14 @@ static void check_pointer_info_( int line, const POINTER_INFO *actual, const POI
     check_member( *actual, *expected, "%#x", ButtonChangeType );
 }
 
-#define check_pointer_pen_info( a, b ) check_pointer_pen_info_( __LINE__, a, b )
-static void check_pointer_pen_info_( int line, const POINTER_PEN_INFO *actual, const POINTER_PEN_INFO *expected )
-{
-    check_pointer_info_( line, &actual->pointerInfo, &expected->pointerInfo );
-    check_member( *actual, *expected, "%#x", penFlags );
-    check_member( *actual, *expected, "%#x", penMask );
-    check_member( *actual, *expected, "%u", pressure );
-    check_member( *actual, *expected, "%u", rotation );
-    check_member( *actual, *expected, "%+d", tiltX );
-    check_member( *actual, *expected, "%+d", tiltY );
-}
-
-#define check_pointer_touch_info( a, b ) check_pointer_touch_info_( __LINE__, a, b )
-static void check_pointer_touch_info_( int line, const POINTER_TOUCH_INFO *actual, const POINTER_TOUCH_INFO *expected )
-{
-    check_pointer_info_( line, &actual->pointerInfo, &expected->pointerInfo );
-    check_member( *actual, *expected, "%#x", touchFlags );
-    check_member( *actual, *expected, "%#x", touchMask );
-    check_member_rect( *actual, *expected, rcContact );
-    check_member_rect( *actual, *expected, rcContactRaw );
-    check_member( *actual, *expected, "%#x", orientation );
-    check_member( *actual, *expected, "%#x", pressure );
-}
-
 static DWORD CALLBACK test_GetPointerInfo_thread( void *arg )
 {
     POINTER_INFO pointer_info;
     HWND hwnd;
     BOOL ret;
 
-    hwnd = create_foreground_window( FALSE );
+    hwnd = CreateWindowW( L"test", L"test name", WS_OVERLAPPEDWINDOW | WS_VISIBLE, 100, 100, 200,
+                          200, 0, 0, NULL, 0 );
 
     memset( &pointer_info, 0xcd, sizeof(pointer_info) );
     ret = pGetPointerInfo( 1, &pointer_info );
@@ -5391,9 +5424,7 @@ static DWORD CALLBACK test_GetPointerInfo_thread( void *arg )
 
 static void test_GetPointerInfo( BOOL mouse_in_pointer_enabled )
 {
-    POINTER_TOUCH_INFO touch_info[4], expect_touch;
     POINTER_INFO pointer_info[4], expect_pointer;
-    POINTER_PEN_INFO pen_info[4], expect_pen;
     void *invalid_ptr = (void *)0xdeadbeef;
     UINT32 entry_count, pointer_count;
     POINTER_INPUT_TYPE type;
@@ -5454,7 +5485,9 @@ static void test_GetPointerInfo( BOOL mouse_in_pointer_enabled )
 
     SetCursorPos( 500, 500 );  /* avoid generating mouse message on window creation */
 
-    hwnd = create_foreground_window( TRUE );
+    hwnd = CreateWindowW( L"test", L"test name", WS_OVERLAPPEDWINDOW | WS_VISIBLE, 100, 100, 200,
+                          200, 0, 0, NULL, 0 );
+    empty_message_queue();
 
     memset( pointer_info, 0xcd, sizeof(pointer_info) );
     ret = pGetPointerInfo( 1, pointer_info );
@@ -5477,6 +5510,7 @@ static void test_GetPointerInfo( BOOL mouse_in_pointer_enabled )
 
     memset( pointer_info, 0xcd, sizeof(pointer_info) );
     ret = pGetPointerInfo( 1, pointer_info );
+    todo_wine_if(mouse_in_pointer_enabled)
     ok( ret == mouse_in_pointer_enabled, "GetPointerInfo failed, error %lu\n", GetLastError() );
     if (!mouse_in_pointer_enabled)
     {
@@ -5484,13 +5518,18 @@ static void test_GetPointerInfo( BOOL mouse_in_pointer_enabled )
         return;
     }
 
+    todo_wine
     ok( pointer_info[0].pointerType == PT_MOUSE, "got pointerType %lu\n", pointer_info[0].pointerType );
+    todo_wine
     ok( pointer_info[0].pointerId == 1, "got pointerId %u\n", pointer_info[0].pointerId );
     ok( !!pointer_info[0].frameId, "got frameId %u\n", pointer_info[0].frameId );
+    todo_wine
     ok( pointer_info[0].pointerFlags == (0x20000 | POINTER_MESSAGE_FLAG_INRANGE | POINTER_MESSAGE_FLAG_PRIMARY),
         "got pointerFlags %#x\n", pointer_info[0].pointerFlags );
+    todo_wine
     ok( pointer_info[0].sourceDevice == INVALID_HANDLE_VALUE || broken(!!pointer_info[0].sourceDevice) /* < w10 & 32bit */,
         "got sourceDevice %p\n", pointer_info[0].sourceDevice );
+    todo_wine
     ok( pointer_info[0].hwndTarget == hwnd, "got hwndTarget %p\n", pointer_info[0].hwndTarget );
     ok( !!pointer_info[0].ptPixelLocation.x, "got ptPixelLocation %s\n", wine_dbgstr_point( &pointer_info[0].ptPixelLocation ) );
     ok( !!pointer_info[0].ptPixelLocation.y, "got ptPixelLocation %s\n", wine_dbgstr_point( &pointer_info[0].ptPixelLocation ) );
@@ -5501,10 +5540,14 @@ static void test_GetPointerInfo( BOOL mouse_in_pointer_enabled )
     ok( !!pointer_info[0].ptHimetricLocationRaw.x, "got ptHimetricLocationRaw %s\n", wine_dbgstr_point( &pointer_info[0].ptHimetricLocationRaw ) );
     ok( !!pointer_info[0].ptHimetricLocationRaw.y, "got ptHimetricLocationRaw %s\n", wine_dbgstr_point( &pointer_info[0].ptHimetricLocationRaw ) );
     ok( !!pointer_info[0].dwTime, "got dwTime %lu\n", pointer_info[0].dwTime );
+    todo_wine
     ok( pointer_info[0].historyCount == 1, "got historyCount %u\n", pointer_info[0].historyCount );
+    todo_wine
     ok( pointer_info[0].InputData == 0, "got InputData %u\n", pointer_info[0].InputData );
+    todo_wine
     ok( pointer_info[0].dwKeyStates == 0, "got dwKeyStates %lu\n", pointer_info[0].dwKeyStates );
     ok( !!pointer_info[0].PerformanceCount, "got PerformanceCount %I64u\n", pointer_info[0].PerformanceCount );
+    todo_wine
     ok( pointer_info[0].ButtonChangeType == 0, "got ButtonChangeType %u\n", pointer_info[0].ButtonChangeType );
 
     thread = CreateThread( NULL, 0, test_GetPointerInfo_thread, NULL, 0, NULL );
@@ -5545,90 +5588,6 @@ static void test_GetPointerInfo( BOOL mouse_in_pointer_enabled )
     ok( pointer_count == 1, "got pointer_count %u\n", pointer_count );
     todo_wine_if(!pGetPointerFrameInfoHistory)
     check_pointer_info( &pointer_info[0], &expect_pointer );
-
-    memset( &expect_pen, 0xa5, sizeof(expect_pen) );
-    expect_pen.pointerInfo = expect_pointer;
-
-    memset( pen_info, 0xa5, sizeof(pen_info) );
-    if (!pGetPointerPenInfo) ret = FALSE;
-    else ret = pGetPointerPenInfo( 1, pen_info );
-    todo_wine_if(!pGetPointerPenInfo)
-    ok( ret, "GetPointerPenInfo failed, error %lu\n", GetLastError() );
-    todo_wine_if(!pGetPointerPenInfo)
-    check_pointer_pen_info( &pen_info[0], &expect_pen );
-    memset( pen_info, 0xa5, sizeof(pen_info) );
-    entry_count = pointer_count = 2;
-    if (!pGetPointerFramePenInfo) ret = FALSE;
-    else ret = pGetPointerFramePenInfo( 1, &pointer_count, pen_info );
-    todo_wine_if(!pGetPointerFramePenInfo)
-    ok( ret, "GetPointerFramePenInfo failed, error %lu\n", GetLastError() );
-    todo_wine_if(!pGetPointerFramePenInfo)
-    ok( pointer_count == 1, "got pointer_count %u\n", pointer_count );
-    todo_wine_if(!pGetPointerFramePenInfo)
-    check_pointer_pen_info( &pen_info[0], &expect_pen );
-    memset( pen_info, 0xa5, sizeof(pen_info) );
-    entry_count = pointer_count = 2;
-    if (!pGetPointerPenInfoHistory) ret = FALSE;
-    else ret = pGetPointerPenInfoHistory( 1, &entry_count, pen_info );
-    todo_wine_if(!pGetPointerPenInfoHistory)
-    ok( ret, "GetPointerPenInfoHistory failed, error %lu\n", GetLastError() );
-    todo_wine_if(!pGetPointerPenInfoHistory)
-    ok( entry_count == 1, "got entry_count %u\n", entry_count );
-    todo_wine_if(!pGetPointerPenInfoHistory)
-    check_pointer_pen_info( &pen_info[0], &expect_pen );
-    memset( pen_info, 0xa5, sizeof(pen_info) );
-    entry_count = pointer_count = 2;
-    if (!pGetPointerFramePenInfoHistory) ret = FALSE;
-    else ret = pGetPointerFramePenInfoHistory( 1, &entry_count, &pointer_count, pen_info );
-    todo_wine_if(!pGetPointerFramePenInfoHistory)
-    ok( ret, "GetPointerFramePenInfoHistory failed, error %lu\n", GetLastError() );
-    todo_wine_if(!pGetPointerFramePenInfoHistory)
-    ok( entry_count == 1, "got pointer_count %u\n", pointer_count );
-    todo_wine_if(!pGetPointerFramePenInfoHistory)
-    ok( pointer_count == 1, "got pointer_count %u\n", pointer_count );
-    todo_wine_if(!pGetPointerFramePenInfoHistory)
-    check_pointer_pen_info( &pen_info[0], &expect_pen );
-
-    memset( &expect_touch, 0xa5, sizeof(expect_touch) );
-    expect_touch.pointerInfo = expect_pointer;
-
-    memset( touch_info, 0xa5, sizeof(touch_info) );
-    ret = pGetPointerTouchInfo( 1, touch_info );
-    todo_wine
-    ok( ret, "GetPointerTouchInfo failed, error %lu\n", GetLastError() );
-    todo_wine
-    check_pointer_touch_info( &touch_info[0], &expect_touch );
-    memset( touch_info, 0xa5, sizeof(touch_info) );
-    entry_count = pointer_count = 2;
-    if (!pGetPointerFrameTouchInfo) ret = FALSE;
-    else ret = pGetPointerFrameTouchInfo( 1, &pointer_count, touch_info );
-    todo_wine_if(!pGetPointerFrameTouchInfo)
-    ok( ret, "GetPointerFrameTouchInfo failed, error %lu\n", GetLastError() );
-    todo_wine_if(!pGetPointerFrameTouchInfo)
-    ok( pointer_count == 1, "got pointer_count %u\n", pointer_count );
-    todo_wine_if(!pGetPointerFrameTouchInfo)
-    check_pointer_touch_info( &touch_info[0], &expect_touch );
-    memset( touch_info, 0xa5, sizeof(touch_info) );
-    entry_count = pointer_count = 2;
-    ret = pGetPointerTouchInfoHistory( 1, &entry_count, touch_info );
-    todo_wine
-    ok( ret, "GetPointerTouchInfoHistory failed, error %lu\n", GetLastError() );
-    todo_wine
-    ok( entry_count == 1, "got entry_count %u\n", entry_count );
-    todo_wine
-    check_pointer_touch_info( &touch_info[0], &expect_touch );
-    memset( touch_info, 0xa5, sizeof(touch_info) );
-    entry_count = pointer_count = 2;
-    if (!pGetPointerFrameTouchInfoHistory) ret = FALSE;
-    else ret = pGetPointerFrameTouchInfoHistory( 1, &entry_count, &pointer_count, touch_info );
-    todo_wine_if(!pGetPointerFrameTouchInfoHistory)
-    ok( ret, "GetPointerFrameTouchInfoHistory failed, error %lu\n", GetLastError() );
-    todo_wine_if(!pGetPointerFrameTouchInfoHistory)
-    ok( entry_count == 1, "got pointer_count %u\n", pointer_count );
-    todo_wine_if(!pGetPointerFrameTouchInfoHistory)
-    ok( pointer_count == 1, "got pointer_count %u\n", pointer_count );
-    todo_wine_if(!pGetPointerFrameTouchInfoHistory)
-    check_pointer_touch_info( &touch_info[0], &expect_touch );
 
     DestroyWindow( hwnd );
 

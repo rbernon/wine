@@ -179,7 +179,6 @@ static const struct object_ops completion_ops =
     no_open_file,              /* open_file */
     no_kernel_obj_list,        /* get_kernel_obj_list */
     completion_close_handle,   /* close_handle */
-    NULL,                      /* get_host_ops */
     completion_destroy         /* destroy */
 };
 

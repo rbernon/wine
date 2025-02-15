@@ -24,43 +24,6 @@
 #include "ntgdi.h"
 #include "unixlib.h"
 #include "wine/debug.h"
-#include "dbt.h"
-
-#include "initguid.h"
-#include "ddk/hidclass.h"
-
-#include "wine/debug.h"
-
-HMODULE x11drv_module = 0;
-
-WINE_DEFAULT_DEBUG_CHANNEL(rawinput);
-
-static DWORD CALLBACK rawinput_thread( void *arg )
-{
-    DEV_BROADCAST_DEVICEINTERFACE_W filter =
-    {
-        .dbcc_size = sizeof(DEV_BROADCAST_DEVICEINTERFACE_W),
-        .dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE,
-        .dbcc_classguid = GUID_DEVINTERFACE_HID,
-    };
-    HWND hwnd;
-
-    TRACE( "Starting rawinput thread\n" );
-
-    SetThreadDescription( GetCurrentThread(), L"wine_winex11_rawinput" );
-
-    /* wait for the desktop thread to fully initialize before creating our message queue */
-    SendMessageW( GetDesktopWindow(), WM_NULL, 0, 0 );
-
-    ImmDisableIME( 0 );
-    hwnd = CreateWindowW( L"Message", NULL, 0, 0, 0, 0, 0, HWND_MESSAGE, NULL, NULL, NULL );
-    NtUserDestroyInputContext( ImmGetContext( hwnd ) );
-
-    if (!RegisterDeviceNotificationW( hwnd, &filter, DEVICE_NOTIFY_WINDOW_HANDLE ))
-        WARN( "Failed to register for rawinput devices notifications\n" );
-
-    return NtUserCallHwndParam( hwnd, 0, NtUserCallHwndParam_RawInputThread );
-}
 
 BOOL WINAPI DllMain( HINSTANCE instance, DWORD reason, void *reserved )
 {
@@ -70,7 +33,6 @@ BOOL WINAPI DllMain( HINSTANCE instance, DWORD reason, void *reserved )
     if (__wine_init_unix_call()) return FALSE;
     if (X11DRV_CALL( init, NULL )) return FALSE;
 
-    CloseHandle( CreateThread( NULL, 0, rawinput_thread, NULL, 0, NULL ) );
     return TRUE;
 }
 
