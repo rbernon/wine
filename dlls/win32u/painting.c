@@ -637,28 +637,35 @@ BOOL WINAPI NtGdiExtFloodFill( HDC hdc, INT x, INT y, COLORREF color, UINT fill_
 /***********************************************************************
  *      NtGdiAngleArc (win32u.@)
  */
-BOOL WINAPI NtGdiAngleArc( HDC hdc, INT x, INT y, DWORD dwRadius, DWORD start_angle, DWORD sweep_angle )
+BOOL WINAPI NtGdiAngleArc( HDC hdc, INT x, INT y, DWORD radius, DWORD start_angle, DWORD sweep_angle )
 {
-    FLOAT eStartAngle = *(FLOAT *)&start_angle;
-    FLOAT eSweepAngle = *(FLOAT *)&sweep_angle;
-    PHYSDEV physdev;
+    FLOAT start = *(FLOAT *)&start_angle;
+    FLOAT sweep = *(FLOAT *)&sweep_angle;
+    INT x1, y1, x2, y2, arcdir;
     BOOL result;
     DC *dc;
 
-    if( (signed int)dwRadius < 0 )
+    if( (signed int)radius < 0 )
 	return FALSE;
 
     dc = get_dc_ptr( hdc );
     if(!dc) return FALSE;
-
     update_dc( dc );
-    physdev = GET_DC_PHYSDEV( dc, pAngleArc );
-    result = physdev->funcs->pAngleArc( physdev, x, y, dwRadius, eStartAngle, eSweepAngle );
+
+    x1 = GDI_ROUND( x + cos( start * M_PI / 180 ) * radius );
+    y1 = GDI_ROUND( y - sin( start * M_PI / 180 ) * radius );
+    x2 = GDI_ROUND( x + cos( (start + sweep) * M_PI / 180) * radius );
+    y2 = GDI_ROUND( y - sin( (start + sweep) * M_PI / 180) * radius );
+    arcdir = dc->attr->arc_direction;
+
+    dc->attr->arc_direction = sweep >= 0 ? AD_COUNTERCLOCKWISE : AD_CLOCKWISE;
+    result = NtGdiArcInternal( NtGdiArcTo, hdc, x - radius, y - radius, x + radius, y + radius, x1, y1, x2, y2 );
+    dc->attr->arc_direction = arcdir;
 
     if (result)
     {
-        dc->attr->cur_pos.x = GDI_ROUND( x + cos( (eStartAngle + eSweepAngle) * M_PI / 180 ) * dwRadius );
-        dc->attr->cur_pos.y = GDI_ROUND( y - sin( (eStartAngle + eSweepAngle) * M_PI / 180 ) * dwRadius );
+        dc->attr->cur_pos.x = GDI_ROUND( x + cos( (start + sweep) * M_PI / 180 ) * radius );
+        dc->attr->cur_pos.y = GDI_ROUND( y - sin( (start + sweep) * M_PI / 180 ) * radius );
     }
     release_dc_ptr( dc );
     return result;

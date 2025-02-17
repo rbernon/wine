@@ -22,6 +22,7 @@
 
 #include <assert.h>
 #include <stdlib.h>
+#include <math.h>
 
 #include "gdi_private.h"
 #include "winnls.h"
@@ -935,21 +936,38 @@ BOOL EMFDC_MoveTo( DC_ATTR *dc_attr, INT x, INT y )
 
 BOOL EMFDC_LineTo( DC_ATTR *dc_attr, INT x, INT y )
 {
+    struct emf *emf = get_dc_emf( dc_attr );
     EMRLINETO emr;
+    RECTL bounds;
+    POINT pt;
+    BOOL ret;
 
     emr.emr.iType = EMR_LINETO;
     emr.emr.nSize = sizeof(emr);
     emr.ptl.x = x;
     emr.ptl.y = y;
-    return emfdc_record( get_dc_emf( dc_attr ), &emr.emr );
+
+    pt = dc_attr->cur_pos;
+    bounds.left   = min( x, pt.x );
+    bounds.top    = min( y, pt.y );
+    bounds.right  = max( x, pt.x );
+    bounds.bottom = max( y, pt.y );
+
+    ret = emfdc_record( get_dc_emf( dc_attr ), &emr.emr );
+    if (ret && !emf->path) emfdc_update_bounds( emf, &bounds );
+    return ret;
 }
 
 BOOL EMFDC_ArcChordPie( DC_ATTR *dc_attr, INT left, INT top, INT right, INT bottom,
                         INT xstart, INT ystart, INT xend, INT yend, DWORD type )
 {
     struct emf *emf = get_dc_emf( dc_attr );
+    INT temp, x_centre, y_centre, i;
+    double angle_start, angle_end;
+    double xinter_start, yinter_start, xinter_end, yinter_end;
     EMRARC emr;
-    INT temp;
+    RECTL bounds;
+    BOOL ret;
 
     if (left == right || top == bottom) return FALSE;
 
@@ -972,7 +990,82 @@ BOOL EMFDC_ArcChordPie( DC_ATTR *dc_attr, INT left, INT top, INT right, INT bott
     emr.ptlStart.y    = ystart;
     emr.ptlEnd.x      = xend;
     emr.ptlEnd.y      = yend;
-    return emfdc_record( emf, &emr.emr );
+
+    /* Now calculate the BBox */
+    x_centre = (left + right + 1) / 2;
+    y_centre = (top + bottom + 1) / 2;
+
+    xstart -= x_centre;
+    ystart -= y_centre;
+    xend   -= x_centre;
+    yend   -= y_centre;
+
+    /* invert y co-ords to get angle anti-clockwise from x-axis */
+    angle_start = atan2( -(double)ystart, (double)xstart );
+    angle_end   = atan2( -(double)yend, (double)xend );
+
+    /* These are the intercepts of the start/end lines with the arc */
+    xinter_start = (right - left + 1)/2 * cos(angle_start) + x_centre;
+    yinter_start = -(bottom - top + 1)/2 * sin(angle_start) + y_centre;
+    xinter_end   = (right - left + 1)/2 * cos(angle_end) + x_centre;
+    yinter_end   = -(bottom - top + 1)/2 * sin(angle_end) + y_centre;
+
+    if (angle_start < 0) angle_start += 2 * M_PI;
+    if (angle_end < 0) angle_end += 2 * M_PI;
+    if (angle_end < angle_start) angle_end += 2 * M_PI;
+
+    bounds.left   = min( xinter_start, xinter_end );
+    bounds.top    = min( yinter_start, yinter_end );
+    bounds.right  = max( xinter_start, xinter_end );
+    bounds.bottom = max( yinter_start, yinter_end );
+
+    for (i = 0; i <= 8; i++)
+    {
+        if(i * M_PI / 2 < angle_start) /* loop until we're past start */
+        continue;
+    if(i * M_PI / 2 > angle_end)   /* if we're past end we're finished */
+        break;
+
+    /* the arc touches the rectangle at the start of quadrant i, so adjust
+       BBox to reflect this. */
+
+    switch(i % 4) {
+    case 0:
+        bounds.right = right;
+        break;
+    case 1:
+        bounds.top = top;
+        break;
+    case 2:
+        bounds.left = left;
+        break;
+    case 3:
+        bounds.bottom = bottom;
+        break;
+    }
+    }
+
+    /* If we're drawing a pie then make sure we include the centre */
+    if (type == EMR_PIE)
+    {
+        if (bounds.left > x_centre) bounds.left = x_centre;
+    else if (bounds.right < x_centre) bounds.right = x_centre;
+    if (bounds.top > y_centre) bounds.top = y_centre;
+    else if (bounds.bottom < y_centre) bounds.bottom = y_centre;
+    }
+    else if (type == EMR_ARCTO)
+    {
+        POINT pt;
+        pt = dc_attr->cur_pos;
+        bounds.left   = min( bounds.left, pt.x );
+        bounds.top    = min( bounds.top, pt.y );
+        bounds.right  = max( bounds.right, pt.x );
+        bounds.bottom = max( bounds.bottom, pt.y );
+    }
+
+    ret = emfdc_record( emf, &emr.emr );
+    if (ret && !emf->path) emfdc_update_bounds( emf, &bounds );
+    return ret;
 }
 
 BOOL EMFDC_AngleArc( DC_ATTR *dc_attr, INT x, INT y, DWORD radius, FLOAT start, FLOAT sweep )
@@ -993,6 +1086,7 @@ BOOL EMFDC_Ellipse( DC_ATTR *dc_attr, INT left, INT top, INT right, INT bottom )
 {
     struct emf *emf = get_dc_emf( dc_attr );
     EMRELLIPSE emr;
+    BOOL ret;
 
     if (left == right || top == bottom) return FALSE;
 
@@ -1007,13 +1101,16 @@ BOOL EMFDC_Ellipse( DC_ATTR *dc_attr, INT left, INT top, INT right, INT bottom )
         emr.rclBox.right--;
         emr.rclBox.bottom--;
     }
-    return emfdc_record( emf, &emr.emr );
+    ret = emfdc_record( emf, &emr.emr );
+    if (ret && !emf->path) emfdc_update_bounds( emf, &emr.rclBox );
+    return ret;
 }
 
 BOOL EMFDC_Rectangle( DC_ATTR *dc_attr, INT left, INT top, INT right, INT bottom )
 {
     struct emf *emf = get_dc_emf( dc_attr );
     EMRRECTANGLE emr;
+    BOOL ret;
 
     if(left == right || top == bottom) return FALSE;
 
@@ -1028,7 +1125,9 @@ BOOL EMFDC_Rectangle( DC_ATTR *dc_attr, INT left, INT top, INT right, INT bottom
         emr.rclBox.right--;
         emr.rclBox.bottom--;
     }
-    return emfdc_record( emf, &emr.emr );
+    ret = emfdc_record( emf, &emr.emr );
+    if (ret && !emf->path) emfdc_update_bounds( emf, &emr.rclBox );
+    return ret;
 }
 
 BOOL EMFDC_RoundRect( DC_ATTR *dc_attr, INT left, INT top, INT right,
@@ -1036,6 +1135,7 @@ BOOL EMFDC_RoundRect( DC_ATTR *dc_attr, INT left, INT top, INT right,
 {
     struct emf *emf = get_dc_emf( dc_attr );
     EMRROUNDRECT emr;
+    BOOL ret;
 
     if (left == right || top == bottom) return FALSE;
 
@@ -1052,19 +1152,30 @@ BOOL EMFDC_RoundRect( DC_ATTR *dc_attr, INT left, INT top, INT right,
         emr.rclBox.right--;
         emr.rclBox.bottom--;
     }
-    return emfdc_record( emf, &emr.emr );
+    ret = emfdc_record( emf, &emr.emr );
+    if (ret && !emf->path) emfdc_update_bounds( emf, &emr.rclBox );
+    return ret;
 }
 
 BOOL EMFDC_SetPixel( DC_ATTR *dc_attr, INT x, INT y, COLORREF color )
 {
+    struct emf *emf = get_dc_emf( dc_attr );
     EMRSETPIXELV emr;
+    RECTL bounds;
+    BOOL ret;
 
     emr.emr.iType  = EMR_SETPIXELV;
     emr.emr.nSize  = sizeof(emr);
     emr.ptlPixel.x = x;
     emr.ptlPixel.y = y;
     emr.crColor = color;
-    return emfdc_record( get_dc_emf( dc_attr ), &emr.emr );
+
+    bounds.left = bounds.right = x;
+    bounds.top = bounds.bottom = y;
+
+    ret = emfdc_record( get_dc_emf( dc_attr ), &emr.emr );
+    if (ret && !emf->path)  emfdc_update_bounds( emf, &bounds );
+    return CLR_INVALID;
 }
 
 static BOOL emfdc_polylinegon( DC_ATTR *dc_attr, const POINT *points, INT count, DWORD type )
