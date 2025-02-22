@@ -74,106 +74,6 @@ double current_time(void)
     return timeGetTime() / 1000.0;
 }
 
-static DEVMODEW modes[16] = {0};
-static BOOL modes_count;
-
-static void set_display_settings(void)
-{
-    DEVMODEW mode = {.dmSize = sizeof(DEVMODEW)};
-    DISPLAY_DEVICEW adapter = {sizeof(adapter)};
-    BOOL vertical;
-    UINT i;
-
-    for (i = 0; EnumDisplayDevicesW( NULL, i, &adapter, 0 ) && i < 1; ++i)
-    {
-        EnumDisplaySettingsExW( adapter.DeviceName, ENUM_CURRENT_SETTINGS, &mode, 0 );
-        if (!modes_count) modes[i] = mode;
-
-        vertical = mode.dmDisplayOrientation & 1;
-        mode.dmFields = DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION;
-        mode.dmBitsPerPel = 32;
-        mode.dmPelsWidth = vertical ? 600 : 800;
-        mode.dmPelsHeight = vertical ? 800 : 600;
-
-        ChangeDisplaySettingsExW( adapter.DeviceName, &mode, 0, CDS_UPDATEREGISTRY | CDS_NORESET, NULL );
-    }
-
-    ChangeDisplaySettingsExW( NULL, NULL, NULL, 0, NULL );
-    modes_count = i;
-}
-
-static void restore_display_settings(void)
-{
-    DISPLAY_DEVICEW adapter = {sizeof(adapter)};
-    UINT i;
-
-    if (!modes_count) return;
-
-    for (i = 0; i < modes_count; ++i) ChangeDisplaySettingsExW( adapter.DeviceName, modes + i, 0, CDS_UPDATEREGISTRY | CDS_NORESET, NULL );
-    ChangeDisplaySettingsExW( NULL, NULL, NULL, 0, NULL );
-}
-
-static BOOL fullscreen;
-
-LRESULT CALLBACK default_window_proc( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam )
-{
-    if (msg == WM_CHAR)
-    {
-        switch (wparam)
-        {
-        case 'q':
-            PostQuitMessage( 0 );
-            return 0;
-        case 'l':
-            SetWindowLongW( hwnd, GWL_EXSTYLE, GetWindowLongW( hwnd, GWL_EXSTYLE ) & ~WS_EX_LAYERED );
-            break;
-        case 'L':
-            SetWindowLongW( hwnd, GWL_EXSTYLE, GetWindowLongW( hwnd, GWL_EXSTYLE ) | WS_EX_LAYERED );
-            break;
-        case 'h':
-            ShowWindow( hwnd, SW_SHOW );
-            break;
-        case 'H':
-            ShowWindow( hwnd, SW_HIDE );
-            break;
-        case 'e':
-            SetWindowPos( hwnd, 0, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_FRAMECHANGED );
-            break;
-        case 'E':
-            SetWindowPos( hwnd, 0, 0, 0, 110, 110, SWP_SHOWWINDOW | SWP_FRAMECHANGED );
-            break;
-        case 'm':
-            set_display_settings();
-            break;
-        case 'M':
-            restore_display_settings();
-            break;
-        case 'f':
-        {
-            if (fullscreen) break;
-            fullscreen = TRUE;
-
-            SetWindowLongW( hwnd, GWL_STYLE, (GetWindowLongW( hwnd, GWL_STYLE ) & ~WS_OVERLAPPEDWINDOW) | WS_POPUP );
-            SetWindowPos( hwnd, 0, 0, 0, 800, 600, SWP_FRAMECHANGED );
-            set_display_settings();
-            break;
-        }
-        case 'g':
-        {
-            if (!fullscreen) break;
-            fullscreen = FALSE;
-
-            restore_display_settings();
-            SetWindowLongW( hwnd, GWL_STYLE, (GetWindowLongW( hwnd, GWL_STYLE ) & ~WS_POPUP) | WS_OVERLAPPEDWINDOW );
-            SetWindowPos( hwnd, 0, 0, 0, 640, 480, SWP_FRAMECHANGED );
-            break;
-        }
-        }
-    }
-
-    return DefWindowProcW( hwnd, msg, wparam, lparam );
-}
-
 static void event_loop(void)
 {
     TIMECAPS tc;
@@ -343,7 +243,7 @@ if (0)
     OffsetRect( &parent_geometry, 0, parent_geometry.bottom - parent_geometry.top );
 }
 
-if (0)
+if (1)
 {
     gdi_parent = gdi_create_window( L"GDI (parent)", &parent_geometry, fullscreen, FALSE );
     ShowWindow( gdi_parent, SW_SHOW );
@@ -361,7 +261,7 @@ if (1)
     OffsetRect( &geometry, geometry.right - geometry.left, 0 );
 }
 
-if (0)
+if (1)
 {
     gdi_child = gdi_create_window( L"GDI (child)", &geometry, fullscreen, FALSE );
     SetWindowLongW( gdi_child, GWL_STYLE, GetWindowLongW( gdi_child, GWL_STYLE ) | WS_CHILD );

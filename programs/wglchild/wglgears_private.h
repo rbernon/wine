@@ -25,7 +25,6 @@
 extern BOOL verbose;
 
 extern double current_time(void);
-extern LRESULT CALLBACK default_window_proc( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam );
 
 extern void gdi_draw_layered( HWND hwnd );
 extern HWND gdi_create_window( const WCHAR *name, RECT *geometry, BOOL fullscreen, BOOL layered );

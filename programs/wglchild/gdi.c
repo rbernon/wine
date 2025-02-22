@@ -150,7 +150,7 @@ static LRESULT CALLBACK gdi_window_proc( HWND hwnd, UINT msg, WPARAM wparam, LPA
 #endif
     }
 
-    return default_window_proc( hwnd, msg, wparam, lparam );
+    return DefWindowProcW( hwnd, msg, wparam, lparam );
 }
 
 static WNDCLASSW wc =
