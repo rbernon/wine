@@ -3735,8 +3735,6 @@ done:
     return after;
 }
 
-static void update_children_window_state( HWND hwnd );
-
 /* NtUserSetWindowPos implementation */
 BOOL set_window_pos( WINDOWPOS *winpos, int parent_x, int parent_y )
 {
@@ -3874,8 +3872,6 @@ BOOL set_window_pos( WINDOWPOS *winpos, int parent_x, int parent_y )
 
     if ((winpos->flags & (SWP_NOSIZE|SWP_NOMOVE|SWP_FRAMECHANGED)) != (SWP_NOSIZE|SWP_NOMOVE))
         NtUserNotifyWinEvent( EVENT_OBJECT_LOCATIONCHANGE, winpos->hwnd, OBJID_WINDOW, 0 );
-
-    update_children_window_state( winpos->hwnd );
 
     ret = TRUE;
 done:
@@ -4604,23 +4600,6 @@ void update_window_state( HWND hwnd )
     if (surface) window_surface_release( surface );
 
     set_thread_dpi_awareness_context( context );
-
-    update_children_window_state( hwnd );
-}
-
-static void update_children_window_state( HWND hwnd )
-{
-    HWND *children;
-    int i;
-
-    if (!(children = list_window_children( 0, hwnd, NULL, 0 ))) return;
-
-    for (i = 0; children[i]; i++)
-    {
-        if (is_window( children[i] )) update_window_state( children[i] );
-    }
-
-    free( children );
 }
 
 /***********************************************************************
