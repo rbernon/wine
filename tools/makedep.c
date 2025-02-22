@@ -1461,7 +1461,6 @@ static struct file *open_include_file( const struct makefile *make, struct incl_
     /* check for generated files */
     if ((file = open_local_generated_file( make, pFile, ".tab.h", ".y" ))) return file;
     if ((file = open_local_generated_file( make, pFile, ".h", ".idl" ))) return file;
-    if ((file = open_local_generated_file( make, pFile, "_impl.h", ".idl" ))) return file;
     if (fontforge && (file = open_local_generated_file( make, pFile, ".ttf", ".sfd" ))) return file;
     if (convert && rsvg && icotool)
     {
@@ -1491,7 +1490,6 @@ static struct file *open_include_file( const struct makefile *make, struct incl_
 
     /* check for generated files in global includes */
     if ((file = open_global_generated_file( make, pFile, ".h", ".idl" ))) return file;
-    if ((file = open_global_generated_file( make, pFile, "_impl.h", ".idl" ))) return file;
     if ((file = open_global_generated_file( make, pFile, ".h", ".h.in" ))) return file;
     if (strendswith( pFile->name, "tmpl.h" ) &&
         (file = open_global_generated_file( make, pFile, ".h", ".x" ))) return file;
@@ -1533,7 +1531,6 @@ static struct file *open_include_file( const struct makefile *make, struct incl_
     /* try in src file directory */
     if ((file = open_same_dir_generated_file( make, pFile->included_by, pFile, ".tab.h", ".y" )) ||
         (file = open_same_dir_generated_file( make, pFile->included_by, pFile, ".h", ".idl" )) ||
-        (file = open_same_dir_generated_file( make, pFile->included_by, pFile, "_impl.h", ".idl" )) ||
         (file = open_file_same_dir( pFile->included_by, pFile->name, &pFile->filename )))
     {
         pFile->is_external = pFile->included_by->is_external;
@@ -1917,14 +1914,12 @@ static void add_generated_sources( struct makefile *make )
         if (source->file->flags & FLAG_IDL_HEADER)
         {
             add_generated_source( make, replace_extension( source->name, ".idl", ".h" ), NULL, 0 );
-            add_generated_source( make, replace_extension( source->name, ".idl", "_impl.h" ), NULL, 0 );
         }
         if (!source->file->flags && strendswith( source->name, ".idl" ))
         {
             if (!strncmp( source->name, "wine/", 5 )) continue;
             source->file->flags = FLAG_IDL_HEADER | FLAG_INSTALL;
             add_generated_source( make, replace_extension( source->name, ".idl", ".h" ), NULL, 0 );
-            add_generated_source( make, replace_extension( source->name, ".idl", "_impl.h" ), NULL, 0 );
         }
         if (strendswith( source->name, ".x" ))
         {
@@ -2847,7 +2842,7 @@ static void output_source_idl( struct makefile *make, struct incl_file *source, 
     struct strarray headers = empty_strarray;
     struct strarray deps = empty_strarray;
     struct strarray multiarch_targets[MAX_ARCHS] = { empty_strarray };
-    const char *dest, *impl;
+    const char *dest;
     unsigned int i, arch;
 
     if (find_include_file( make, strmake( "%s.h", obj ))) source->file->flags |= FLAG_IDL_HEADER;
@@ -2867,13 +2862,6 @@ static void output_source_idl( struct makefile *make, struct incl_file *source, 
         dest = strmake( "%s.h", obj );
         strarray_add( &headers, dest );
         if (!find_src_file( make, dest )) strarray_add( &make->clean_files, dest );
-
-        impl = strmake( "%s_impl.h", obj );
-        if (!find_src_file( make, impl )) strarray_add( &make->clean_files, impl );
-        output_filename( obj_dir_path( make, impl ) );
-        output( ":" );
-        output_filename( obj_dir_path( make, dest ) );
-        output( "\n" );
     }
 
     for (i = 0; i < ARRAY_SIZE(idl_outputs); i++)

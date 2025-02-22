@@ -371,7 +371,6 @@ input: gbl_statements m_acf			{ $1 = append_parameterized_type_stmts($1);
 						  check_statements($1, FALSE);
 						  check_all_user_types($1);
 						  write_header($1);
-						  write_header_impl($1);
 						  write_id_data($1);
 						  write_proxies($1);
 						  write_client($1);

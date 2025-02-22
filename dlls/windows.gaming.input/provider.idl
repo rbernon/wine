@@ -188,7 +188,7 @@ namespace Windows.Gaming.Input.Custom {
     [
         uuid(27833469-7760-417e-adbe-e011a66e16ee)
     ]
-    interface IWineForceFeedbackEffectImpl : IInspectable
+    interface IWineForceFeedbackEffectImpl : IUnknown
         requires Windows.Gaming.Input.ForceFeedback.IForceFeedbackEffect
     {
         [propput] HRESULT Parameters([in] WineForceFeedbackEffectParameters parameters,
@@ -198,7 +198,7 @@ namespace Windows.Gaming.Input.Custom {
     [
         uuid(83f377ee-c799-11ec-9d64-0242ac120002)
     ]
-    interface IWineAsyncInfoImpl : IInspectable
+    interface IWineAsyncInfoImpl : IUnknown
     {
         [propput] HRESULT Completed([in] WineAsyncOperationCompletedHandler *handler);
         [propget] HRESULT Completed([out, retval] WineAsyncOperationCompletedHandler **handler);
