@@ -19,6 +19,8 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
+#include "config.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -97,7 +99,7 @@ static unsigned short builtin_vt(const type_t *t)
       switch (type_basic_get_type(elem_type))
       {
       case TYPE_BASIC_CHAR: return VT_LPSTR;
-      case TYPE_BASIC_INT16: return VT_LPWSTR;
+      case TYPE_BASIC_WCHAR: return VT_LPWSTR;
       default: break;
       }
     }
@@ -115,6 +117,7 @@ unsigned short get_type_vt(type_t *t)
 {
   unsigned short vt;
 
+  chat("get_type_vt: %p type->name %s\n", t, t->name);
   if (t->name) {
     vt = builtin_vt(t);
     if (vt) return vt;
@@ -135,6 +138,8 @@ unsigned short get_type_vt(type_t *t)
         return VT_UI1;
       else
         return VT_I1;
+    case TYPE_BASIC_WCHAR:
+      return VT_I2; /* mktyplib seems to parse wchar_t as short */
     case TYPE_BASIC_INT16:
       if (type_basic_get_sign(t) > 0)
         return VT_UI2;
@@ -383,6 +388,8 @@ void add_importlib(const char *name, typelib_t *typelib)
     LIST_FOR_EACH_ENTRY( importlib, &typelib->importlibs, importlib_t, entry )
         if(!strcmp(name, importlib->name))
             return;
+
+    chat("add_importlib: %s\n", name);
 
     importlib = xmalloc(sizeof(*importlib));
     memset( importlib, 0, sizeof(*importlib) );

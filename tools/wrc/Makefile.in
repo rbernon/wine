@@ -1,5 +1,4 @@
 PROGRAMS = wrc
-PARENTSRC = ../widl
 UNIX_LIBS = $(GETTEXTPO_LIBS)
 
 SOURCES = \

@@ -133,7 +133,7 @@ struct allowed_attr allowed_attr[] =
     /* ATTR_ACTIVATABLE */         { 0, 0, 1,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, "activatable" },
     /* ATTR_AGGREGATABLE */        { 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, "aggregatable" },
     /* ATTR_ALLOCATE */            { 0, 1, 0,  0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, "allocate" },
-    /* ATTR_ANNOTATION */          { 0, 0, 0,  0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, "annotation" },
+    /* ATTR_ANNOTATION */          { 0, 0, 0,  0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, "annotation" },
     /* ATTR_APPOBJECT */           { 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, "appobject" },
     /* ATTR_ASYNC */               { 0, 1, 0,  0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, "async" },
     /* ATTR_ASYNCUUID */           { 1, 0, 0,  1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, "async_uuid" },
@@ -527,15 +527,14 @@ attr_list_t *check_union_attrs( attr_list_t *attrs )
     return attrs;
 }
 
-attr_list_t *check_arg_attrs( attr_list_t *attrs, const char *name )
+void check_arg_attrs( const var_t *arg )
 {
     const attr_t *attr;
-    if (!attrs) return attrs;
-    LIST_FOR_EACH_ENTRY( attr, attrs, const attr_t, entry )
+    if (!arg->attrs) return;
+    LIST_FOR_EACH_ENTRY( attr, arg->attrs, const attr_t, entry )
     {
         if (!allowed_attr[attr->type].on_arg)
             error_at( &attr->where, "inapplicable attribute %s for argument %s\n",
-                      allowed_attr[attr->type].display_name, name );
+                      allowed_attr[attr->type].display_name, arg->name );
     }
-    return attrs;
 }

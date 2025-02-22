@@ -36,6 +36,8 @@ uuid  {hd}{8}-{hd}{4}-{hd}{4}-{hd}{4}-{hd}{12}
 
 %{
 
+#include "config.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -52,7 +54,7 @@ uuid  {hd}{8}-{hd}{4}-{hd}{4}-{hd}{4}-{hd}{12}
 
 #define YYerror PARSER_error
 #define YYSTYPE PARSER_STYPE
-#define struct location PARSER_LTYPE
+#define YYLTYPE PARSER_LTYPE
 #define YYUNDEF PARSER_UNDEF
 #define yyerror parser_error
 
@@ -65,7 +67,6 @@ static void end_of_line( struct location *where );
 #define YY_USER_INIT    reset_location( yylloc, input_name )
 #define YY_USER_ACTION  update_location( yylloc, yytext );
 
-static char *acf_name;
 static void switch_to_acf(void);
 
 static warning_list_t *disabled_warnings = NULL;
@@ -78,7 +79,6 @@ struct import_state
     struct list entry;
 };
 static struct list import_stack = LIST_INIT( import_stack );
-char *input_name = NULL;
 int parse_only = 0;
 
 struct import
@@ -441,7 +441,6 @@ SAFEARRAY{ws}*/\(	return tSAFEARRAY;
     \"(\\.|[^"\\])*\"                           { return token_str( aSTRING, yytext, yylval ); }
     \'(\\.|[^'\\])*\'                           { return token_str( aSQSTRING, yytext, yylval ); }
 
-    \/\/[^\n]*\n                                { end_of_line( yylloc ); }
     \n                                          { end_of_line( yylloc ); }
     {ws}                                        {}
     \<\<                                        { return SHL; }
@@ -506,16 +505,11 @@ struct location pop_import(void)
     return where;
 }
 
-void push_import( const char *import_name, struct location *yylloc )
+void push_import( const char *import_name, struct location *where )
 {
     struct import_state *state;
     struct import *import;
     FILE *file;
-
-    char *buf = strdup( import_name ), *tmp = strrchr( buf, '/' );
-    if (!tmp) tmp = buf;
-    while (*(tmp++)) tmp[-1] = tolower( tmp[-1] );
-    import_name = buf;
 
     state = xmalloc( sizeof(struct import_state ));
     list_add_head( &import_stack, &state->entry );
@@ -551,7 +545,7 @@ static void switch_to_acf(void)
     if (yyin) fclose( yyin );
     yy_delete_buffer( YY_CURRENT_BUFFER );
 
-    input_name = acf_name;
+    input_name = xstrdup( acf_name );
     file = open_input_file( input_name );
     acf_name = NULL;
 
@@ -562,28 +556,6 @@ void close_all_inputs(void)
 {
     while (!list_empty( &import_stack )) pop_import();
     if (yyin) fclose( yyin );
-}
-
-int idl_compile( struct idl_ctx *ctx, const char *input, const char *acf )
-{
-    FILE *file;
-    int ret;
-
-    input_name = xstrdup( input );
-    if (acf) acf_name = xstrdup( acf );
-
-    init_types();
-
-    file = open_input_file( input, &temp_name );
-    yy_switch_to_buffer( yy_create_buffer( file, YY_BUF_SIZE ) );
-
-    ret = parser_parse( ctx );
-    abort_import();
-
-    if (yyin) close_input_file( yyin, temp_name );
-    yy_delete_buffer( YY_CURRENT_BUFFER );
-
-    return ret;
 }
 
 static void reset_location( struct location *where, const char *input_name )
@@ -654,12 +626,12 @@ static void diagnostic( const struct location *where, const char *type, const ch
     fprintf( stderr, "%s\n", buffer );
 }
 
-void parser_error_( const struct location *yylloc, struct idl_ctx *ctx, const char *message, int error_count )
+void parser_error_( const struct location *where, const char *message, int error_count )
 {
     diagnostic( where, "error", message );
 }
 
-void parser_warning( const struct location *yylloc, struct idl_ctx *ctx, const char *message )
+void parser_warning( const struct location *where, const char *message )
 {
     diagnostic( where, "warning", message );
 }

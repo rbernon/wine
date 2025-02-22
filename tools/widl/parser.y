@@ -20,6 +20,8 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
+#include "config.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -33,6 +35,7 @@
 #include "header.h"
 #include "typelib.h"
 #include "typegen.h"
+#include "expr.h"
 #include "typetree.h"
 
 struct _import_t
@@ -40,18 +43,6 @@ struct _import_t
   char *name;
   int import_performed;
 };
-
-static char *make_str( char *str, const char *data )
-{
-    if (!str) return xstrdup( data );
-    str = xrealloc( str, strlen( str ) + strlen( data ) + 1 );
-    strcat( str, data );
-    return str;
-}
-
-static void push( struct list *stack, void *data );
-static void *pop( struct list *stack );
-static void *peek( struct list *stack );
 
 static str_list_t *append_str(str_list_t *list, char *str);
 static decl_spec_t *make_decl_spec(type_t *type, decl_spec_t *left, decl_spec_t *right,
@@ -113,21 +104,6 @@ static statement_list_t *parameterized_type_stmts = NULL;
 
 static typelib_t *current_typelib;
 
-static struct list declaration_stack = LIST_INIT(declaration_stack);
-static inline void push_declaration_type( decl_spec_t *declspec, attr_list_t *attrs )
-{
-    declspec->attrs = append_attribs( declspec->attrs, attrs );
-    push( &declaration_stack, declspec );
-}
-static inline decl_spec_t *pop_declaration_type(void)
-{
-    return pop( &declaration_stack );
-}
-static inline decl_spec_t *peek_declaration_type(void)
-{
-    return peek( &declaration_stack );
-}
-
 %}
 
 %code requires
@@ -140,8 +116,6 @@ static inline decl_spec_t *peek_declaration_type(void)
 %code provides
 {
 
-void parser_warning( const PARSER_LTYPE *yylloc, struct idl_ctx *ctx, const char *message );
-void parser_error( const PARSER_LTYPE *yylloc, struct idl_ctx *ctx, const char *error );
 int parser_lex( PARSER_STYPE *yylval, PARSER_LTYPE *yylloc );
 void push_import( const char *fname, PARSER_LTYPE *yylloc );
 PARSER_LTYPE pop_import(void);
@@ -156,7 +130,6 @@ PARSER_LTYPE pop_import(void);
 %define api.pure full
 %define parse.error detailed
 %locations
-%parse-param {struct idl_ctx *ctx}
 
 %union {
 	attr_t *attr;
@@ -189,249 +162,140 @@ PARSER_LTYPE pop_import(void);
 	struct namespace *namespace;
 }
 
-/* pseudo-token */
-%token aEOF "end of file"
-%token aACF "acf file"
-
-/* meta */
-%token <str> aPRAGMA "pragma"
-%token tPRAGMA_WARNING "pragma_warning"
-%token tCPPQUOTE "cppquote"
-%token tIMPORT "import"
-
-/* literals */
-%token <dbl> aDOUBLE "floating point literal"
-%token <num> aHEXNUM "hexadecimal integer literal"
-%token <num> aNUM "integer literal"
-%token <str> aSQSTRING "character literal"
-%token <str> aSTRING "string literal"
-%token <str> aWSTRING "wide string literal"
-%token <uuid> aUUID "uuid literal"
-%token tFALSE "FALSE"
-%token tNULL "NULL"
-%token tTRUE "TRUE"
-
-/* identifiers */
-%token <str> aIDENTIFIER "identifier"
-%token <str> aKNOWNTYPE "typename"
-
-/* operators */
-%token ELLIPSIS "..."
-%token EQUALITY "=="
-%token GREATEREQUAL ">="
-%token INEQUALITY "!="
-%token LESSEQUAL "<="
-%token LOGICALAND "&&"
-%token LOGICALOR "||"
-%token MEMBERPTR "->"
-%token SHL "<<"
-%token SHR ">>"
-%token tSIZEOF "sizeof"
-
-/* storage qualifiers */
-%token tEXTERN "extern"
-%token tREGISTER "register"
-%token tSTATIC "static" /* also an attribute */
-
-/* type qualifiers */
-%token tCONST "const"
-%token tINLINE "inline"
-
-/* control flow */
-%token tCASE "case" /* also an attribute */
-%token tDEFAULT "default" /* also an attribute */
-%token tSWITCH "switch"
-
-/* calling conventions */
-%token <str> tCDECL "cdecl"
-%token <str> tFASTCALL "fastcall"
-%token <str> tPASCAL "pascal"
-%token <str> tSTDCALL "stdcall"
-
-/* basic types */
-%token tBOOLEAN "boolean"
-%token tBYTE "byte"
-%token tCHAR "char"
-%token tDOUBLE "double"
-%token tERRORSTATUST "error_status_t"
-%token tFLOAT "float"
-%token tHANDLET "handle_t"
-%token tHYPER "hyper"
-%token tINT "int"
-%token tINT32 "__int32"
-%token tINT3264 "__int3264"
-%token tINT64 "__int64"
-%token tLONG "long"
-%token tSHORT "short"
-%token tSMALL "small"
-%token tVOID "void"
-%token tWCHAR "wchar"
-
-/* sign specifiers */
-%token tSIGNED "signed"
-%token tUNSIGNED "unsigned"
-
-/* keywords */
-%token tAPICONTRACT "apicontract"
-%token tCALLBACK "callback" /* FIXME: unused */
-%token tCOCLASS "coclass"
-%token tDECLARE "declare"
-%token tDELEGATE "delegate"
-%token tDISPINTERFACE "dispinterface"
-%token tENUM "enum"
-%token tIMPORTLIB "importlib"
-%token tIN_LINE "in_line" /* FIXME: unused */
-%token tINTERFACE "interface"
-%token tLIBRARY "library"
-%token tMETHODS "methods"
-%token tMODULE "module"
-%token tNAMESPACE "namespace"
-%token tPROPERTIES "properties"
-%token tREQUIRES "requires"
-%token tRUNTIMECLASS "runtimeclass"
-%token tSAFEARRAY "safearray"
-%token tSTRUCT "struct"
-%token tTYPEDEF "typedef"
-%token tUNION "union"
-
-/* attributes */
-%token tACTIVATABLE "activatable"
-%token tAGGREGATABLE "aggregatable"
-%token tANNOTATION "annotation"
-%token tAPPOBJECT "appobject"
-%token tASYNC "async"
-%token tASYNCUUID "asyncuuid"
-%token tAUTOHANDLE "autohandle"
-%token tBINDABLE "bindable"
-%token tBROADCAST "broadcast"
-%token tCALLAS "callas"
-%token tCODE "code"
-%token tCOMMSTATUS "commstatus"
-%token tCOMPOSABLE "composable"
-%token tCONTEXTHANDLE "contexthandle"
-%token tCONTEXTHANDLENOSERIALIZE "contexthandlenoserialize"
-%token tCONTEXTHANDLESERIALIZE "contexthandleserialize"
-%token tCONTRACT "contract"
-%token tCONTRACTVERSION "contractversion"
-%token tCONTROL "control"
-%token tCUSTOM "custom"
-%token tDECODE "decode"
-%token tDEFAULT_OVERLOAD "default_overload"
-%token tDEFAULTBIND "defaultbind"
-%token tDEFAULTCOLLELEM "defaultcollelem"
-%token tDEFAULTVALUE "defaultvalue"
-%token tDEFAULTVTABLE "defaultvtable"
-%token tDEPRECATED "deprecated"
-%token tDISABLECONSISTENCYCHECK "disableconsistencycheck"
-%token tDISPLAYBIND "displaybind"
-%token tDLLNAME "dllname"
-%token tDUAL "dual"
-%token tENABLEALLOCATE "enableallocate"
-%token tENCODE "encode"
-%token tENDPOINT "endpoint"
-%token tENTRY "entry"
-%token tEVENTADD "eventadd"
-%token tEVENTREMOVE "eventremove"
-%token tEXCLUSIVETO "exclusiveto"
-%token tEXPLICITHANDLE "explicithandle"
-%token tFAULTSTATUS "faultstatus"
-%token tFLAGS "flags"
-%token tFORCEALLOCATE "forceallocate"
-%token tHANDLE "handle"
-%token tHELPCONTEXT "helpcontext"
-%token tHELPFILE "helpfile"
-%token tHELPSTRING "helpstring"
-%token tHELPSTRINGCONTEXT "helpstringcontext"
-%token tHELPSTRINGDLL "helpstringdll"
-%token tHIDDEN "hidden"
-%token tID "id"
-%token tIDEMPOTENT "idempotent"
-%token tIGNORE "ignore"
-%token tIIDIS "iidis"
-%token tIMMEDIATEBIND "immediatebind"
-%token tIMPLICITHANDLE "implicithandle"
-%token tIN "in"
-%token tINPUTSYNC "inputsync"
-%token tLCID "lcid"
-%token tLENGTHIS "lengthis"
-%token tLICENSED "licensed"
-%token tLOCAL "local"
-%token tMARSHALINGBEHAVIOR "marshalingbehavior"
-%token tMAYBE "maybe"
-%token tMESSAGE "message"
-%token tNOCODE "nocode"
-%token tNONBROWSABLE "nonbrowsable"
-%token tNONCREATABLE "noncreatable"
-%token tNONEXTENSIBLE "nonextensible"
-%token tNOTIFY "notify"
-%token tNOTIFYFLAG "notifyflag"
-%token tOBJECT "object"
-%token tODL "odl"
-%token tOLEAUTOMATION "oleautomation"
-%token tOPTIMIZE "optimize"
-%token tOPTIONAL "optional"
-%token tOUT "out"
-%token tOVERLOAD "overload"
-%token tPARTIALIGNORE "partialignore"
-%token tPOINTERDEFAULT "pointerdefault"
-%token tPROGID "progid"
-%token tPROPGET "propget"
-%token tPROPPUT "propput"
-%token tPROPPUTREF "propputref"
-%token tPROXY "proxy"
-%token tPROTECTED "protected"
-%token tPUBLIC "public"
-%token tRANGE "range"
-%token tREADONLY "readonly"
-%token tREPRESENTAS "representas"
-%token tREQUESTEDIT "requestedit"
-%token tRESTRICTED "restricted"
-%token tRETVAL "retval"
-%token tSIZEIS "sizeis"
-%token tSOURCE "source"
-%token tSTRICTCONTEXTHANDLE "strictcontexthandle"
-%token tSTRING "string"
-%token tSWITCHIS "switchis"
-%token tSWITCHTYPE "switchtype"
-%token tTHREADING "threading"
-%token tTRANSMITAS "transmitas"
-%token tUIDEFAULT "uidefault"
-%token tUSERMARSHAL "usermarshal"
-%token tUSESGETLASTERROR "usesgetlasterror"
-%token tUUID "uuid"
-%token tV1ENUM "v1enum"
-%token tVARARG "vararg"
-%token tVERSION "version"
-%token tVIPROGID "viprogid"
-%token tWIREMARSHAL "wiremarshal"
-
-/* attribute arguments */
-%token tAGILE "agile"
-%token tALLNODES "allnodes"
-%token tALLOCATE "allocate"
-%token tAPARTMENT "apartment"
-%token tBOTH "both"
-%token tBYTECOUNT "bytecount"
-%token tDONTFREE "dontfree"
-%token tFREE "free"
-%token tMTA "mta"
-%token tNEUTRAL "neutral"
-%token tNONE "none"
-%token tPTR "ptr"
-%token tREF "ref"
-%token tSINGLE "single"
-%token tSINGLENODE "singlenode"
-%token tSTANDARD "standard"
-%token tUNIQUE "unique"
+%token <str> aIDENTIFIER aPRAGMA
+%token <str> aKNOWNTYPE
+%token <integer> aNUM aHEXNUM
+%token <dbl> aDOUBLE
+%token <str> aSTRING aWSTRING aSQSTRING
+%token <str> tCDECL
+%token <str> tFASTCALL
+%token <str> tPASCAL
+%token <str> tSTDCALL
+%token <uuid> aUUID
+%token aEOF aACF
+%token SHL SHR
+%token MEMBERPTR
+%token EQUALITY INEQUALITY
+%token GREATEREQUAL LESSEQUAL
+%token LOGICALOR LOGICALAND
+%token ELLIPSIS
+%token tACTIVATABLE
+%token tAGGREGATABLE
+%token tAGILE
+%token tALLNODES tALLOCATE tANNOTATION
+%token tAPICONTRACT
+%token tAPPOBJECT tASYNC tASYNCUUID
+%token tAUTOHANDLE tBINDABLE tBOOLEAN tBROADCAST tBYTE tBYTECOUNT
+%token tCALLAS tCALLBACK tCASE tCHAR tCOCLASS tCODE tCOMMSTATUS
+%token tCOMPOSABLE
+%token tCONST tCONTEXTHANDLE tCONTEXTHANDLENOSERIALIZE
+%token tCONTEXTHANDLESERIALIZE
+%token tCONTRACT
+%token tCONTRACTVERSION
+%token tCONTROL tCPPQUOTE
+%token tCUSTOM
+%token tDECLARE
+%token tDECODE tDEFAULT tDEFAULTBIND
+%token tDELEGATE
+%token tDEFAULT_OVERLOAD
+%token tDEFAULTCOLLELEM
+%token tDEFAULTVALUE
+%token tDEFAULTVTABLE
+%token tDEPRECATED
+%token tDISABLECONSISTENCYCHECK tDISPLAYBIND
+%token tDISPINTERFACE
+%token tDLLNAME tDONTFREE tDOUBLE tDUAL
+%token tENABLEALLOCATE tENCODE tENDPOINT
+%token tENTRY tENUM tERRORSTATUST
+%token tEVENTADD tEVENTREMOVE
+%token tEXCLUSIVETO
+%token tEXPLICITHANDLE tEXTERN
+%token tFALSE
+%token tFAULTSTATUS
+%token tFLAGS
+%token tFLOAT tFORCEALLOCATE
+%token tHANDLE
+%token tHANDLET
+%token tHELPCONTEXT tHELPFILE
+%token tHELPSTRING tHELPSTRINGCONTEXT tHELPSTRINGDLL
+%token tHIDDEN
+%token tHYPER tID tIDEMPOTENT
+%token tIGNORE tIIDIS
+%token tIMMEDIATEBIND
+%token tIMPLICITHANDLE
+%token tIMPORT tIMPORTLIB
+%token tIN tIN_LINE tINLINE
+%token tINPUTSYNC
+%token tINT tINT32 tINT3264 tINT64
+%token tINTERFACE
+%token tLCID
+%token tLENGTHIS tLIBRARY
+%token tLICENSED tLOCAL
+%token tLONG
+%token tMARSHALINGBEHAVIOR
+%token tMAYBE tMESSAGE
+%token tMETHODS
+%token tMODULE
+%token tMTA
+%token tNAMESPACE
+%token tNOCODE tNONBROWSABLE
+%token tNONCREATABLE
+%token tNONE
+%token tNONEXTENSIBLE
+%token tNOTIFY tNOTIFYFLAG
+%token tNULL
+%token tOBJECT tODL tOLEAUTOMATION
+%token tOPTIMIZE tOPTIONAL
+%token tOUT
+%token tOVERLOAD
+%token tPARTIALIGNORE
+%token tPOINTERDEFAULT
+%token tPRAGMA_WARNING
+%token tPROGID tPROPERTIES
+%token tPROPGET tPROPPUT tPROPPUTREF
+%token tPROTECTED
+%token tPROXY tPTR
+%token tPUBLIC
+%token tRANGE
+%token tREADONLY tREF
+%token tREGISTER tREPRESENTAS
+%token tREQUESTEDIT
+%token tREQUIRES
+%token tRESTRICTED
+%token tRETVAL
+%token tRUNTIMECLASS
+%token tSAFEARRAY
+%token tSHORT
+%token tSIGNED tSINGLENODE
+%token tSIZEIS tSIZEOF
+%token tSMALL
+%token tSOURCE
+%token tSTANDARD
+%token tSTATIC
+%token tSTRICTCONTEXTHANDLE
+%token tSTRING tSTRUCT
+%token tSWITCH tSWITCHIS tSWITCHTYPE
+%token tTHREADING tTRANSMITAS
+%token tTRUE
+%token tTYPEDEF
+%token tUIDEFAULT tUNION
+%token tUNIQUE
+%token tUNSIGNED
+%token tUSESGETLASTERROR tUSERMARSHAL tUUID
+%token tV1ENUM
+%token tVARARG
+%token tVERSION tVIPROGID
+%token tVOID
+%token tWCHAR tWIREMARSHAL
+%token tAPARTMENT tNEUTRAL tSINGLE tFREE tBOTH
 
 %type <attr> access_attr
 %type <attr> attribute acf_attribute
 %type <attr_list> m_attributes attributes attrib_list
 %type <attr_list> acf_attributes acf_attribute_list
 %type <attr_list> dispattributes
-%type <str> str
 %type <str_list> str_list
-%type <expr> m_expr expr expr_const expr_int_const array
+%type <expr> m_expr expr expr_const expr_int_const array m_bitfield
 %type <expr_list> m_exprs /* exprs expr_list */ expr_list_int_const
 %type <expr> contract_req
 %type <expr> static_attr
@@ -443,7 +307,6 @@ PARSER_LTYPE pop_import(void);
 %type <type_qualifier> type_qualifier m_type_qual_list
 %type <function_specifier> function_specifier
 %type <declspec> decl_spec unqualified_decl_spec decl_spec_no_type m_decl_spec_no_type
-%type <declspec> cast_decl_spec
 %type <type> inherit interface interfacedef
 %type <type> interfaceref
 %type <type> dispinterfaceref
@@ -451,9 +314,7 @@ PARSER_LTYPE pop_import(void);
 %type <type> module moduledef
 %type <str_list> namespacedef
 %type <type> base_type int_std
-%type <type> enumdef structdef
-%type <type> union_definition
-%type <type> typedecl
+%type <type> enumdef structdef uniondef typedecl
 %type <type> type unqualified_type qualified_type
 %type <type> type_parameter
 %type <typeref_list> type_parameters
@@ -470,7 +331,7 @@ PARSER_LTYPE pop_import(void);
 %type <var> m_ident ident
 %type <declarator> declarator direct_declarator init_declarator struct_declarator
 %type <declarator> m_any_declarator any_declarator any_declarator_no_direct any_direct_declarator
-%type <declarator> m_abstract_declarator abstract_declarator abstract_direct_declarator
+%type <declarator> m_abstract_declarator abstract_declarator abstract_declarator_no_direct abstract_direct_declarator
 %type <declarator_list> declarator_list struct_declarator_list
 %type <type> coclass coclassdef
 %type <type> runtimeclass runtimeclass_def
@@ -481,18 +342,10 @@ PARSER_LTYPE pop_import(void);
 %type <str> typename m_typename
 %type <str> import_start
 %type <typelib> library_start librarydef
-%type <statement> type_definition
-%type <statement> pragma_warning
-
-%type <stmt_list> global_statements
-%type <statement> global_statement
-%type <stmt_list> namespace_block
-%type <stmt_list> declare_block
-%type <stmt_list> declare_statements
-%type <statement> declare_statement
-%type <stmt_list> statements
-%type <statement> statement
-
+%type <statement> statement typedef pragma_warning
+%type <stmt_list> gbl_statements imp_statements int_statements
+%type <stmt_list> decl_block decl_statements
+%type <stmt_list> imp_decl_block imp_decl_statements
 %type <warning_list> warnings
 %type <num> allocate_option_list allocate_option
 %type <namespace> namespace_pfx
@@ -514,7 +367,7 @@ PARSER_LTYPE pop_import(void);
 
 %%
 
-input: global_statements acf_input		{ $1 = append_parameterized_type_stmts( $1 );
+input: gbl_statements m_acf			{ $1 = append_parameterized_type_stmts($1);
 						  check_statements($1, FALSE);
 						  check_all_user_types($1);
 						  write_header($1);
@@ -527,75 +380,102 @@ input: global_statements acf_input		{ $1 = append_parameterized_type_stmts( $1 )
 						  write_dlldata($1);
 						  write_local_stubs($1);
                                                   (void)parser_nerrs;  /* avoid unused variable warning */
-						  ctx->statements = $1;
 						}
 	;
 
-global_statements
-        : %empty                                { $$ = NULL; }
-        | global_statements[list] global_statement
-                                                { $$ = append_statement( $list, $global_statement ); }
-        | global_statements[list] namespace_block
-                                                { $$ = append_statements( $list, $namespace_block ); }
-        | global_statements[list] declare_block
-                                                { $$ = append_statements( $list, $declare_block ); }
-        ;
+m_acf
+	: %empty
+	| aACF acf_statements
+	;
 
-global_statement
-        : interface ';'                         { $$ = make_statement_reference( $interface ); }
-        | dispinterface ';'                     { $$ = make_statement_reference( $dispinterface ); }
-        | interfacedef m_semicolon              { $$ = make_statement_type_decl( $interfacedef ); }
-        | delegatedef m_semicolon               { $$ = make_statement_type_decl( $delegatedef ); }
-        | coclass ';'                           { $$ = make_statement_reference( $coclass ); }
-        | coclassdef m_semicolon                { $$ = make_statement_type_decl( $coclassdef ); }
-        | apicontract ';'                       { $$ = make_statement_reference( $apicontract ); }
-        | apicontract_def m_semicolon           { $$ = make_statement_type_decl( $apicontract_def ); }
-        | runtimeclass ';'                      { $$ = make_statement_reference( $runtimeclass ); }
-        | runtimeclass_def m_semicolon          { $$ = make_statement_type_decl( $runtimeclass_def ); }
-        | moduledef m_semicolon                 { $$ = make_statement_module( $moduledef ); }
-        | librarydef m_semicolon                { $$ = make_statement_library( $librarydef ); }
-        | importlib m_semicolon                 { $$ = make_statement_importlib( $importlib ); }
-        | statement                             { $$ = $statement; }
-        ;
+decl_statements
+	: %empty				{ $$ = NULL; }
+	| decl_statements tINTERFACE qualified_type '<' parameterized_type_args '>' ';'
+						{ parameterized_type_stmts = append_statement(parameterized_type_stmts, make_statement_parameterized_type($3, $5));
+						  $$ = append_statement($1, make_statement_reference(type_parameterized_type_specialize_declare($3, $5)));
+						}
+	;
 
-m_semicolon
-        : %empty
-        | ';'
-        ;
+decl_block: tDECLARE '{' decl_statements '}' { $$ = $3; }
+	;
 
-namespace_block
-        : namespacedef                          { push_namespaces( $namespacedef ); }
-          '{' global_statements '}'             { pop_namespaces( $namespacedef ); $$ = $global_statements; }
-        ;
+imp_decl_statements
+	: %empty				{ $$ = NULL; }
+	| imp_decl_statements tINTERFACE qualified_type '<' parameterized_type_args '>' ';'
+						{ $$ = append_statement($1, make_statement_reference(type_parameterized_type_specialize_declare($3, $5))); }
+	;
 
-declare_block
-        : tDECLARE '{' declare_statements '}'   { $$ = $declare_statements; }
-        ;
+imp_decl_block
+	: tDECLARE '{' imp_decl_statements '}'	{ $$ = $3; }
+	;
 
-declare_statements
-        : %empty                                { $$ = NULL; }
-        | declare_statements[list] declare_statement
-                                                { $$ = append_statement( $list, $declare_statement ); }
-        ;
+gbl_statements
+	: %empty				{ $$ = NULL; }
+	| gbl_statements namespacedef '{' { push_namespaces($2); } gbl_statements '}'
+						{ pop_namespaces($2); $$ = append_statements($1, $5); }
+	| gbl_statements interface ';'		{ $$ = append_statement($1, make_statement_reference($2)); }
+	| gbl_statements dispinterface ';'	{ $$ = append_statement($1, make_statement_reference($2)); }
+	| gbl_statements interfacedef		{ $$ = append_statement($1, make_statement_type_decl($2)); }
+	| gbl_statements delegatedef		{ $$ = append_statement($1, make_statement_type_decl($2)); }
+	| gbl_statements coclass ';'		{ $$ = $1;
+						  reg_type($2, $2->name, current_namespace, 0);
+						}
+	| gbl_statements coclassdef		{ $$ = append_statement($1, make_statement_type_decl($2));
+						  reg_type($2, $2->name, current_namespace, 0);
+						}
+	| gbl_statements apicontract ';'	{ $$ = $1; reg_type($2, $2->name, current_namespace, 0); }
+	| gbl_statements apicontract_def	{ $$ = append_statement($1, make_statement_type_decl($2));
+						  reg_type($2, $2->name, current_namespace, 0); }
+	| gbl_statements runtimeclass ';'       { $$ = $1; reg_type($2, $2->name, current_namespace, 0); }
+	| gbl_statements runtimeclass_def       { $$ = append_statement($1, make_statement_type_decl($2));
+	                                          reg_type($2, $2->name, current_namespace, 0); }
+	| gbl_statements moduledef		{ $$ = append_statement($1, make_statement_module($2)); }
+	| gbl_statements librarydef		{ $$ = append_statement($1, make_statement_library($2)); }
+	| gbl_statements statement		{ $$ = append_statement($1, $2); }
+	| gbl_statements decl_block		{ $$ = append_statements($1, $2); }
+	;
 
-declare_statement
-        : tINTERFACE qualified_type '<' parameterized_type_args '>' ';'
-                                                { $$ = make_statement_parameterized_type( $qualified_type, $parameterized_type_args ); }
-        | tDELEGATE qualified_type '<' parameterized_type_args '>' ';'
-                                                { $$ = make_statement_parameterized_type( $qualified_type, $parameterized_type_args ); }
-        ;
+imp_statements
+	: %empty				{ $$ = NULL; }
+	| imp_statements interface ';'		{ $$ = append_statement($1, make_statement_reference($2)); }
+	| imp_statements dispinterface ';'	{ $$ = append_statement($1, make_statement_reference($2)); }
+	| imp_statements namespacedef '{' { push_namespaces($2); } imp_statements '}'
+						{ pop_namespaces($2); $$ = append_statements($1, $5); }
+	| imp_statements interfacedef		{ $$ = append_statement($1, make_statement_type_decl($2)); }
+	| imp_statements delegatedef		{ $$ = append_statement($1, make_statement_type_decl($2)); }
+	| imp_statements coclass ';'		{ $$ = $1; reg_type($2, $2->name, current_namespace, 0); }
+	| imp_statements coclassdef		{ $$ = append_statement($1, make_statement_type_decl($2));
+						  reg_type($2, $2->name, current_namespace, 0);
+						}
+	| imp_statements apicontract ';'	{ $$ = $1; reg_type($2, $2->name, current_namespace, 0); }
+	| imp_statements apicontract_def	{ $$ = append_statement($1, make_statement_type_decl($2));
+						  reg_type($2, $2->name, current_namespace, 0); }
+	| imp_statements runtimeclass ';'       { $$ = $1; reg_type($2, $2->name, current_namespace, 0); }
+	| imp_statements runtimeclass_def       { $$ = append_statement($1, make_statement_type_decl($2));
+	                                          reg_type($2, $2->name, current_namespace, 0); }
+	| imp_statements moduledef		{ $$ = append_statement($1, make_statement_module($2)); }
+	| imp_statements statement		{ $$ = append_statement($1, $2); }
+	| imp_statements importlib		{ $$ = append_statement($1, make_statement_importlib($2)); }
+	| imp_statements librarydef		{ $$ = append_statement($1, make_statement_library($2)); }
+	| imp_statements imp_decl_block		{ $$ = append_statements($1, $2); }
+	;
 
-statements
-        : %empty                                { $$ = NULL; }
-        | statements[list] statement            { $$ = append_statement( $list, $statement ); }
-        ;
+int_statements
+	: %empty				{ $$ = NULL; }
+	| int_statements statement		{ $$ = append_statement($1, $2); }
+	;
+
+semicolon_opt
+	: %empty
+	| ';'
+	;
 
 statement:
 	  cppquote				{ $$ = make_statement_cppquote($1); }
 	| typedecl ';'				{ $$ = make_statement_type_decl($1); }
 	| declaration ';'			{ $$ = make_statement_declaration($1); }
 	| import				{ $$ = make_statement_import($1); }
-	| type_definition ';'			{ $$ = $1; }
+	| typedef ';'				{ $$ = $1; }
 	| aPRAGMA				{ $$ = make_statement_pragma($1); }
 	| pragma_warning { $$ = NULL; }
 	;
@@ -625,23 +505,24 @@ typedecl:
 	| tENUM typename                        { $$ = type_new_enum($2, current_namespace, FALSE, NULL, &@$); }
 	| structdef
 	| tSTRUCT typename                      { $$ = type_new_struct($2, current_namespace, FALSE, NULL, &@$); }
-	| union_definition
+	| uniondef
 	| tUNION typename                       { $$ = type_new_nonencapsulated_union($2, current_namespace, FALSE, NULL, &@$); }
 	| attributes enumdef                    { $$ = $2; $$->attrs = check_enum_attrs($1); }
 	| attributes structdef                  { $$ = $2; $$->attrs = check_struct_attrs($1); }
-	| attributes union_definition           { $$ = $2; $$->attrs = check_union_attrs($1); }
+	| attributes uniondef                   { $$ = $2; $$->attrs = check_union_attrs($1); }
 	;
 
-cppquote: tCPPQUOTE '(' str ')'                 { $$ = $str; }
-        ;
+cppquote: tCPPQUOTE '(' aSTRING ')'		{ $$ = $3; }
+	;
 
-import_start: tIMPORT str ';'                   { $$ = $str; push_import( $str, &yylloc ); }
-        ;
-import: import_start global_statements aEOF     { yylloc = pop_import(); }
-        ;
+import_start: tIMPORT aSTRING ';'		{ $$ = $2; push_import( $2, &yylloc ); }
+	;
+import: import_start imp_statements aEOF	{ yylloc = pop_import(); }
+	;
 
-importlib: tIMPORTLIB '(' str ')'               { $$ = $str; if (!parse_only) add_importlib( $str, current_typelib ); }
-        ;
+importlib: tIMPORTLIB '(' aSTRING ')'
+	   semicolon_opt			{ $$ = $3; if(!parse_only) add_importlib($3, current_typelib); }
+	;
 
 libraryhdr: tLIBRARY typename			{ $$ = $2; }
 	;
@@ -649,16 +530,17 @@ library_start: attributes libraryhdr '{'	{ $$ = make_library($2, check_library_a
 						  if (!parse_only && do_typelib) current_typelib = $$;
 						}
 	;
-librarydef: library_start global_statements '}' { $$ = $1; $$->stmts = $2; }
-        ;
+librarydef: library_start imp_statements '}'
+	    semicolon_opt			{ $$ = $1; $$->stmts = $2; }
+	;
 
 m_args
 	: %empty				{ $$ = NULL; }
 	| args
 	;
 
-arg_list: arg					{ $$ = append_var( NULL, $1 ); }
-	| arg_list ',' arg			{ $$ = append_var( $1, $3 ); }
+arg_list: arg					{ check_arg_attrs($1); $$ = append_var( NULL, $1 ); }
+	| arg_list ',' arg			{ check_arg_attrs($3); $$ = append_var( $1, $3 ); }
 	;
 
 args:	  arg_list
@@ -668,7 +550,7 @@ args:	  arg_list
 /* split into two rules to get bison to resolve a tVOID conflict */
 arg:	  attributes decl_spec m_any_declarator	{ if ($2->stgclass != STG_NONE && $2->stgclass != STG_REGISTER)
 						    error_loc("invalid storage class for function parameter\n");
-						  $$ = declare_var( check_arg_attrs( $1, $3->var->name ), $2, $3, TRUE );
+						  $$ = declare_var($1, $2, $3, TRUE);
 						  free($2); free($3);
 						}
 	| decl_spec m_any_declarator		{ if ($1->stgclass != STG_NONE && $1->stgclass != STG_REGISTER)
@@ -678,13 +560,13 @@ arg:	  attributes decl_spec m_any_declarator	{ if ($2->stgclass != STG_NONE && $
 						}
 	;
 
-array:    '[' expr ']'                          { if (!$expr->is_const) error_loc( "array dimension is not constant\n" );
-                                                  if ($expr->cval <= 0) error_loc( "array dimension is not positive\n" );
-                                                  $$ = $expr;
-                                                }
-        | '[' '*' ']'                           { $$ = expr_void(); }
-        | '[' ']'                               { $$ = expr_void(); }
-        ;
+array:	  '[' expr ']'				{ $$ = $2;
+						  if (!$$->is_const || $$->cval <= 0)
+						      error_loc("array dimension is not a positive integer constant\n");
+						}
+	| '[' '*' ']'				{ $$ = make_expr(EXPR_VOID); }
+	| '[' ']'				{ $$ = make_expr(EXPR_VOID); }
+	;
 
 m_attributes
 	: %empty				{ $$ = NULL; }
@@ -700,12 +582,9 @@ attrib_list: attribute                          { $$ = append_attr( NULL, $1 ); 
 	| attrib_list ']' '[' attribute         { $$ = append_attr( $1, $4 ); }
 	;
 
-str: aSTRING                                    { $$ = make_str( NULL, $aSTRING ); }
-        | str[prev] aSTRING                     { $$ = make_str( $prev, $aSTRING ); }
-        ;
-str_list: str                                   { $$ = append_str( NULL, $str ); }
-        | str_list[list] ',' str                { $$ = append_str( $list, $str ); }
-        ;
+str_list: aSTRING                               { $$ = append_str( NULL, $1 ); }
+	| str_list ',' aSTRING                  { $$ = append_str( $1, $3 ); }
+	;
 
 marshaling_behavior:
 	  tAGILE				{ $$ = MARSHALING_AGILE; }
@@ -720,32 +599,28 @@ contract_ver:
 
 contract_req
         : decl_spec ',' contract_ver            {
-                                                  expr_t *contract = expr_int( $3, strmake( "%u", $3 ) );
-                                                  expr_t *decl = expr_decl( $decl_spec );
-                                                  if ($decl_spec->type->type_type != TYPE_APICONTRACT)
-                                                      error_loc( "type %s is not an apicontract\n", $decl_spec->type->name );
-                                                  $$ = expr_op( EXPR_GTREQL, decl, contract, NULL );
+                                                  struct integer integer = {.value = $3};
+                                                  if ($1->type->type_type != TYPE_APICONTRACT)
+                                                    error_loc("type %s is not an apicontract\n", $1->type->name);
+                                                  $$ = make_exprl(EXPR_NUM, &integer);
+                                                  $$ = make_exprt(EXPR_GTREQL, declare_var(NULL, $1, make_declarator(NULL), 0), $$);
                                                 }
         ;
 
 static_attr
-        : decl_spec ',' contract_req            {
-                                                  expr_t *decl = expr_decl( $decl_spec );
-                                                  if ($decl_spec->type->type_type != TYPE_INTERFACE)
-                                                      error_loc( "type %s is not an interface\n", $decl_spec->type->name );
-                                                  $$ = expr_op( EXPR_MEMBER, decl, $contract_req, NULL );
-                                                }
-        ;
+	: decl_spec ',' contract_req		{ if ($1->type->type_type != TYPE_INTERFACE)
+						      error_loc("type %s is not an interface\n", $1->type->name);
+						  $$ = make_exprt(EXPR_MEMBER, declare_var(NULL, $1, make_declarator(NULL), 0), $3);
+						}
+	;
 
 activatable_attr:
-          decl_spec ',' contract_req            {
-                                                  expr_t *decl = expr_decl( $decl_spec );
-                                                  if ($decl_spec->type->type_type != TYPE_INTERFACE)
-                                                      error_loc( "type %s is not an interface\n", $decl_spec->type->name );
-                                                  $$ = expr_op( EXPR_MEMBER, decl, $contract_req, NULL );
-                                                }
-        | contract_req                          { $$ = $contract_req; } /* activatable on the default activation factory */
-        ;
+	  decl_spec ',' contract_req		{ if ($1->type->type_type != TYPE_INTERFACE)
+						      error_loc("type %s is not an interface\n", $1->type->name);
+						  $$ = make_exprt(EXPR_MEMBER, declare_var(NULL, $1, make_declarator(NULL), 0), $3);
+						}
+	| contract_req				{ $$ = $1; } /* activatable on the default activation factory */
+	;
 
 access_attr
         : tPUBLIC                               { $$ = attr_int( @$, ATTR_PUBLIC, 0 ); }
@@ -754,28 +629,22 @@ access_attr
 
 composable_attr
         : decl_spec ',' access_attr ',' contract_req
-                                                {
-                                                  expr_t *decl = expr_decl( $decl_spec );
-                                                  if ($decl_spec->type->type_type != TYPE_INTERFACE)
-                                                      error_loc( "type %s is not an interface\n", $decl_spec->type->name );
-                                                  $$ = expr_op( EXPR_MEMBER, decl, $contract_req, NULL );
+                                                { if ($1->type->type_type != TYPE_INTERFACE)
+                                                      error_loc( "type %s is not an interface\n", $1->type->name );
+                                                  $$ = make_exprt( EXPR_MEMBER, declare_var( append_attr( NULL, $3 ), $1, make_declarator( NULL ), 0 ), $5 );
                                                 }
         ;
 
 deprecated_attr
         : aSTRING ',' aIDENTIFIER ',' contract_req
-                                                {
-                                                  expr_t *message = expr_str( EXPR_STRLIT, $aSTRING );
-                                                  expr_t *action = expr_str( EXPR_IDENTIFIER, $aIDENTIFIER );
-                                                  $$ = expr_op( EXPR_MEMBER, message, action, $contract_req );
-                                                }
+                                                { $$ = make_expr3( EXPR_MEMBER, make_exprs( EXPR_STRLIT, $1 ), make_exprs( EXPR_IDENTIFIER, $3 ), $5 ); }
         ;
 
 attribute
         : %empty                                { $$ = NULL; }
         | tACTIVATABLE '(' activatable_attr ')' { $$ = attr_ptr( @$, ATTR_ACTIVATABLE, $3 ); }
         | tAGGREGATABLE                         { $$ = attr_int( @$, ATTR_AGGREGATABLE, 0 ); }
-        | tANNOTATION '(' str ')'               { $$ = attr_ptr( @$, ATTR_ANNOTATION, $str ); }
+        | tANNOTATION '(' aSTRING ')'           { $$ = attr_ptr( @$, ATTR_ANNOTATION, $3 ); }
         | tAPPOBJECT                            { $$ = attr_int( @$, ATTR_APPOBJECT, 0 ); }
         | tASYNC                                { $$ = attr_int( @$, ATTR_ASYNC, 0 ); }
         | tAUTOHANDLE                           { $$ = attr_int( @$, ATTR_AUTO_HANDLE, 0 ); }
@@ -806,7 +675,7 @@ attribute
         | tDEPRECATED '(' deprecated_attr ')'   { $$ = attr_ptr( @$, ATTR_DEPRECATED, $3 ); }
         | tDISABLECONSISTENCYCHECK              { $$ = attr_int( @$, ATTR_DISABLECONSISTENCYCHECK, 0 ); }
         | tDISPLAYBIND                          { $$ = attr_int( @$, ATTR_DISPLAYBIND, 0 ); }
-        | tDLLNAME '(' str ')'                  { $$ = attr_ptr( @$, ATTR_DLLNAME, $str ); }
+        | tDLLNAME '(' aSTRING ')'              { $$ = attr_ptr( @$, ATTR_DLLNAME, $3 ); }
         | tDUAL                                 { $$ = attr_int( @$, ATTR_DUAL, 0 ); }
         | tENABLEALLOCATE                       { $$ = attr_int( @$, ATTR_ENABLEALLOCATE, 0 ); }
         | tENCODE                               { $$ = attr_int( @$, ATTR_ENCODE, 0 ); }
@@ -824,11 +693,11 @@ attribute
         | tFORCEALLOCATE                        { $$ = attr_int( @$, ATTR_FORCEALLOCATE, 0 ); }
         | tHANDLE                               { $$ = attr_int( @$, ATTR_HANDLE, 0 ); }
         | tHELPCONTEXT '(' expr_int_const ')'   { $$ = attr_ptr( @$, ATTR_HELPCONTEXT, $3 ); }
-        | tHELPFILE '(' str ')'                 { $$ = attr_ptr( @$, ATTR_HELPFILE, $str ); }
-        | tHELPSTRING '(' str ')'               { $$ = attr_ptr( @$, ATTR_HELPSTRING, $str ); }
+        | tHELPFILE '(' aSTRING ')'             { $$ = attr_ptr( @$, ATTR_HELPFILE, $3 ); }
+        | tHELPSTRING '(' aSTRING ')'           { $$ = attr_ptr( @$, ATTR_HELPSTRING, $3 ); }
         | tHELPSTRINGCONTEXT '(' expr_int_const ')'
                                                 { $$ = attr_ptr( @$, ATTR_HELPSTRINGCONTEXT, $3 ); }
-        | tHELPSTRINGDLL '(' str ')'            { $$ = attr_ptr( @$, ATTR_HELPSTRINGDLL, $str ); }
+        | tHELPSTRINGDLL '(' aSTRING ')'        { $$ = attr_ptr( @$, ATTR_HELPSTRINGDLL, $3 ); }
         | tHIDDEN                               { $$ = attr_int( @$, ATTR_HIDDEN, 0 ); }
         | tID '(' expr_int_const ')'            { $$ = attr_ptr( @$, ATTR_ID, $3 ); }
         | tIDEMPOTENT                           { $$ = attr_int( @$, ATTR_IDEMPOTENT, 0 ); }
@@ -856,13 +725,13 @@ attribute
         | tOBJECT                               { $$ = attr_int( @$, ATTR_OBJECT, 0 ); }
         | tODL                                  { $$ = attr_int( @$, ATTR_ODL, 0 ); }
         | tOLEAUTOMATION                        { $$ = attr_int( @$, ATTR_OLEAUTOMATION, 0 ); }
-        | tOPTIMIZE '(' str ')'                 { $$ = attr_ptr( @$, ATTR_OPTIMIZE, $str ); }
+        | tOPTIMIZE '(' aSTRING ')'             { $$ = attr_ptr( @$, ATTR_OPTIMIZE, $3 ); }
         | tOPTIONAL                             { $$ = attr_int( @$, ATTR_OPTIONAL, 0 ); }
         | tOUT                                  { $$ = attr_int( @$, ATTR_OUT, 0 ); }
-        | tOVERLOAD '(' str ')'                 { $$ = attr_ptr( @$, ATTR_OVERLOAD, $str ); }
+        | tOVERLOAD '(' aSTRING ')'             { $$ = attr_ptr( @$, ATTR_OVERLOAD, $3 ); }
         | tPARTIALIGNORE                        { $$ = attr_int( @$, ATTR_PARTIALIGNORE, 0 ); }
         | tPOINTERDEFAULT '(' pointer_type ')'  { $$ = attr_int( @$, ATTR_POINTERDEFAULT, $3 ); }
-        | tPROGID '(' str ')'                   { $$ = attr_ptr( @$, ATTR_PROGID, $str ); }
+        | tPROGID '(' aSTRING ')'               { $$ = attr_ptr( @$, ATTR_PROGID, $3 ); }
         | tPROPGET                              { $$ = attr_int( @$, ATTR_PROPGET, 0 ); }
         | tPROPPUT                              { $$ = attr_int( @$, ATTR_PROPPUT, 0 ); }
         | tPROPPUTREF                           { $$ = attr_int( @$, ATTR_PROPPUTREF, 0 ); }
@@ -896,7 +765,7 @@ attribute
         | tV1ENUM                               { $$ = attr_int( @$, ATTR_V1ENUM, 0 ); }
         | tVARARG                               { $$ = attr_int( @$, ATTR_VARARG, 0 ); }
         | tVERSION '(' version ')'              { $$ = attr_int( @$, ATTR_VERSION, $3 ); }
-        | tVIPROGID '(' str ')'                 { $$ = attr_ptr( @$, ATTR_VIPROGID, $str ); }
+        | tVIPROGID '(' aSTRING ')'             { $$ = attr_ptr( @$, ATTR_VIPROGID, $3 ); }
         | tWIREMARSHAL '(' type ')'             { $$ = attr_ptr( @$, ATTR_WIREMARSHAL, $3 ); }
         | pointer_type                          { $$ = attr_int( @$, ATTR_POINTERTYPE, $1 ); }
         ;
@@ -929,18 +798,25 @@ enums
 	;
 
 enum_list: enum                                 {
-                                                  if (!$enum->eval) $enum->eval = expr_int( 0, "0" );
-                                                  $$ = append_var( NULL, $enum );
+                                                  struct integer integer = {.value = 0};
+                                                  if (!$1->eval)
+                                                    $1->eval = make_exprl(EXPR_NUM, &integer);
+                                                  $$ = append_var( NULL, $1 );
                                                 }
-        | enum_list[list] ',' enum                    {
-                                                  if (!$enum->eval)
+        | enum_list ',' enum                    {
+                                                  if (!$3->eval)
                                                   {
-                                                      expr_t *last = LIST_ENTRY( list_tail( $list ), var_t, entry )->eval;
-                                                      const char *fmt = last->cval + 1 < 0 ? "0x%x" : "%u";
-                                                      if (last->text && last->text[1] == 'x') fmt = "0x%x";
-                                                      $enum->eval = expr_int( last->cval + 1, strmake( fmt, last->cval + 1 ) );
+                                                    var_t *last = LIST_ENTRY( list_tail($$), var_t, entry );
+                                                    struct integer integer;
+
+                                                    if (last->eval->type == EXPR_NUM)
+                                                      integer.is_hex = last->eval->u.integer.is_hex;
+                                                    integer.value = last->eval->cval + 1;
+                                                    if (integer.value < 0)
+                                                      integer.is_hex = TRUE;
+                                                    $3->eval = make_exprl(EXPR_NUM, &integer);
                                                   }
-                                                  $$ = append_var( $list, $enum );
+                                                  $$ = append_var( $1, $3 );
                                                 }
         ;
 
@@ -966,67 +842,57 @@ m_exprs:  m_expr                                { $$ = append_expr( NULL, $1 ); 
 	;
 
 m_expr
-        : %empty                                { $$ = expr_void(); }
-        | expr
-        ;
+	: %empty				{ $$ = make_expr(EXPR_VOID); }
+	| expr
+	;
 
-expr:     aNUM                                  { $$ = expr_int( $aNUM, strmake( "%u", $aNUM ) ); }
-        | aHEXNUM                               { $$ = expr_int( $aHEXNUM, strmake( "0x%x", $aHEXNUM ) ); }
-        | aDOUBLE                               { $$ = expr_double( $aDOUBLE ); }
-        | tFALSE                                { $$ = expr_int( 0, "FALSE" ); }
-        | tNULL                                 { $$ = expr_int( 0, "NULL" ); }
-        | tTRUE                                 { $$ = expr_int( 1, "TRUE" ); }
-        | str                                   { $$ = expr_str( EXPR_STRLIT, $str ); }
-        | aWSTRING                              { $$ = expr_str( EXPR_WSTRLIT, $aWSTRING ); }
-        | aSQSTRING                             { $$ = expr_str( EXPR_CHARCONST, $aSQSTRING ); }
-        | aIDENTIFIER                           { $$ = expr_str( EXPR_IDENTIFIER, $aIDENTIFIER ); }
-        | expr[cond] '?' expr[true] ':' expr[false]
-                                                { $$ = expr_op( EXPR_COND, $cond, $true, $false ); }
-        | expr[op1] LOGICALOR expr[op2]         { $$ = expr_op( EXPR_LOGOR, $op1, $op2, NULL ); }
-        | expr[op1] LOGICALAND expr[op2]        { $$ = expr_op( EXPR_LOGAND, $op1, $op2, NULL ); }
-        | expr[op1] '|' expr[op2]               { $$ = expr_op( EXPR_OR , $op1, $op2, NULL ); }
-        | expr[op1] '^' expr[op2]               { $$ = expr_op( EXPR_XOR, $op1, $op2, NULL ); }
-        | expr[op1] '&' expr[op2]               { $$ = expr_op( EXPR_AND, $op1, $op2, NULL ); }
-        | expr[op1] EQUALITY expr[op2]          { $$ = expr_op( EXPR_EQUALITY, $op1, $op2, NULL ); }
-        | expr[op1] INEQUALITY expr[op2]        { $$ = expr_op( EXPR_INEQUALITY, $op1, $op2, NULL ); }
-        | expr[op1] '>' expr[op2]               { $$ = expr_op( EXPR_GTR, $op1, $op2, NULL ); }
-        | expr[op1] '<' expr[op2]               { $$ = expr_op( EXPR_LESS, $op1, $op2, NULL ); }
-        | expr[op1] GREATEREQUAL expr[op2]      { $$ = expr_op( EXPR_GTREQL, $op1, $op2, NULL ); }
-        | expr[op1] LESSEQUAL expr[op2]         { $$ = expr_op( EXPR_LESSEQL, $op1, $op2, NULL ); }
-        | expr[op1] SHL expr[op2]               { $$ = expr_op( EXPR_SHL, $op1, $op2, NULL ); }
-        | expr[op1] SHR expr[op2]               { $$ = expr_op( EXPR_SHR, $op1, $op2, NULL ); }
-        | expr[op1] '+' expr[op2]               { $$ = expr_op( EXPR_ADD, $op1, $op2, NULL ); }
-        | expr[op1] '-' expr[op2]               { $$ = expr_op( EXPR_SUB, $op1, $op2, NULL ); }
-        | expr[op1] '%' expr[op2]               { $$ = expr_op( EXPR_MOD, $op1, $op2, NULL ); }
-        | expr[op1] '*' expr[op2]               { $$ = expr_op( EXPR_MUL, $op1, $op2, NULL ); }
-        | expr[op1] '/' expr[op2]               { $$ = expr_op( EXPR_DIV, $op1, $op2, NULL ); }
-        | '!' expr[op]                          { $$ = expr_op( EXPR_LOGNOT, $op, NULL, NULL ); }
-        | '~' expr[op]                          { $$ = expr_op( EXPR_NOT, $op, NULL, NULL ); }
-        | '+' expr[op] %prec POS                { $$ = expr_op( EXPR_POS, $op, NULL, NULL ); }
-        | '-' expr[op] %prec NEG                { $$ = expr_op( EXPR_NEG, $op, NULL, NULL ); }
-        | '&' expr[op] %prec ADDRESSOF          { $$ = expr_op( EXPR_ADDRESSOF, $op, NULL, NULL ); }
-        | '*' expr[op] %prec PPTR               { $$ = expr_op( EXPR_PPTR, $op, NULL, NULL ); }
-        | expr[obj] MEMBERPTR aIDENTIFIER       {
-                                                  expr_t *member = expr_str( EXPR_IDENTIFIER, $aIDENTIFIER );
-                                                  expr_t *deref = expr_op( EXPR_PPTR, $obj, NULL, NULL );
-                                                  $$ = expr_op( EXPR_MEMBER, deref, member, NULL );
-                                                }
-        | expr[obj] '.' aIDENTIFIER             {
-                                                  expr_t *member = expr_str( EXPR_IDENTIFIER, $aIDENTIFIER );
-                                                  $$ = expr_op( EXPR_MEMBER, $obj, member, NULL );
-                                                }
-        | '(' cast_decl_spec ')' expr[value] %prec CAST
-                                                {
-                                                  expr_t *decl = expr_decl( $cast_decl_spec );
-                                                  $$ = expr_op( EXPR_CAST, decl, $value, NULL );
-                                                }
-        | tSIZEOF '(' cast_decl_spec ')'        {
-                                                  expr_t *decl = expr_decl( $cast_decl_spec );
-                                                  $$ = expr_op( EXPR_SIZEOF, decl, NULL, NULL );
-                                                }
-        | expr[array] '[' expr[index] ']'       { $$ = expr_op( EXPR_ARRAY, $array, $index, NULL ); }
-        | '(' expr ')'                          { $$ = $2; }
-        ;
+expr:     aNUM                                  { $$ = make_exprl(EXPR_NUM, &$1); }
+        | aHEXNUM                               { $$ = make_exprl(EXPR_NUM, &$1); }
+	| aDOUBLE				{ $$ = make_exprd(EXPR_DOUBLE, $1); }
+        | tFALSE                                { struct integer integer = {.value = 0};
+                                                  $$ = make_exprl(EXPR_TRUEFALSE, &integer); }
+        | tNULL                                 { struct integer integer = {.value = 0};
+                                                  $$ = make_exprl(EXPR_NUM, &integer); }
+        | tTRUE                                 { struct integer integer = {.value = 1};
+                                                  $$ = make_exprl(EXPR_TRUEFALSE, &integer); }
+	| aSTRING				{ $$ = make_exprs(EXPR_STRLIT, $1); }
+	| aWSTRING				{ $$ = make_exprs(EXPR_WSTRLIT, $1); }
+	| aSQSTRING				{ $$ = make_exprs(EXPR_CHARCONST, $1); }
+	| aIDENTIFIER				{ $$ = make_exprs(EXPR_IDENTIFIER, $1); }
+	| expr '?' expr ':' expr		{ $$ = make_expr3(EXPR_COND, $1, $3, $5); }
+	| expr LOGICALOR expr			{ $$ = make_expr2(EXPR_LOGOR, $1, $3); }
+	| expr LOGICALAND expr			{ $$ = make_expr2(EXPR_LOGAND, $1, $3); }
+	| expr '|' expr				{ $$ = make_expr2(EXPR_OR , $1, $3); }
+	| expr '^' expr				{ $$ = make_expr2(EXPR_XOR, $1, $3); }
+	| expr '&' expr				{ $$ = make_expr2(EXPR_AND, $1, $3); }
+	| expr EQUALITY expr			{ $$ = make_expr2(EXPR_EQUALITY, $1, $3); }
+	| expr INEQUALITY expr			{ $$ = make_expr2(EXPR_INEQUALITY, $1, $3); }
+	| expr '>' expr				{ $$ = make_expr2(EXPR_GTR, $1, $3); }
+	| expr '<' expr				{ $$ = make_expr2(EXPR_LESS, $1, $3); }
+	| expr GREATEREQUAL expr		{ $$ = make_expr2(EXPR_GTREQL, $1, $3); }
+	| expr LESSEQUAL expr			{ $$ = make_expr2(EXPR_LESSEQL, $1, $3); }
+	| expr SHL expr				{ $$ = make_expr2(EXPR_SHL, $1, $3); }
+	| expr SHR expr				{ $$ = make_expr2(EXPR_SHR, $1, $3); }
+	| expr '+' expr				{ $$ = make_expr2(EXPR_ADD, $1, $3); }
+	| expr '-' expr				{ $$ = make_expr2(EXPR_SUB, $1, $3); }
+	| expr '%' expr				{ $$ = make_expr2(EXPR_MOD, $1, $3); }
+	| expr '*' expr				{ $$ = make_expr2(EXPR_MUL, $1, $3); }
+	| expr '/' expr				{ $$ = make_expr2(EXPR_DIV, $1, $3); }
+	| '!' expr				{ $$ = make_expr1(EXPR_LOGNOT, $2); }
+	| '~' expr				{ $$ = make_expr1(EXPR_NOT, $2); }
+	| '+' expr %prec POS			{ $$ = make_expr1(EXPR_POS, $2); }
+	| '-' expr %prec NEG			{ $$ = make_expr1(EXPR_NEG, $2); }
+	| '&' expr %prec ADDRESSOF		{ $$ = make_expr1(EXPR_ADDRESSOF, $2); }
+	| '*' expr %prec PPTR			{ $$ = make_expr1(EXPR_PPTR, $2); }
+	| expr MEMBERPTR aIDENTIFIER		{ $$ = make_expr2(EXPR_MEMBER, make_expr1(EXPR_PPTR, $1), make_exprs(EXPR_IDENTIFIER, $3)); }
+	| expr '.' aIDENTIFIER			{ $$ = make_expr2(EXPR_MEMBER, $1, make_exprs(EXPR_IDENTIFIER, $3)); }
+	| '(' unqualified_decl_spec m_abstract_declarator ')' expr %prec CAST
+						{ $$ = make_exprt(EXPR_CAST, declare_var(NULL, $2, $3, 0), $5); free($2); free($3); }
+	| tSIZEOF '(' unqualified_decl_spec m_abstract_declarator ')'
+						{ $$ = make_exprt(EXPR_SIZEOF, declare_var(NULL, $3, $4, 0), NULL); free($3); free($4); }
+	| expr '[' expr ']'			{ $$ = make_expr2(EXPR_ARRAY, $1, $3); }
+	| '(' expr ')'				{ $$ = $2; }
+	;
 
 expr_list_int_const: expr_int_const		{ $$ = append_expr( NULL, $1 ); }
 	| expr_list_int_const ',' expr_int_const	{ $$ = append_expr( $1, $3 ); }
@@ -1049,16 +915,14 @@ fields
 	| fields field				{ $$ = append_var_list($1, $2); }
 	;
 
-field
-	: m_attributes decl_spec		{ push_declaration_type( $2, check_field_attrs( NULL, $1 ) ); }
-		struct_declarator_list ';'	{ pop_declaration_type();
-						  $$ = set_var_types($1, $2, $4); }
-	| m_attributes union_definition		{ push_declaration_type( make_decl_spec( $2, NULL, NULL, STG_NONE, 0, 0 ),
-						                         check_field_attrs( NULL, $1 ) ); }
-		 ';'				{ var_t *v = make_var(NULL);
+field:	  m_attributes decl_spec struct_declarator_list ';'
+						{ const char *first = LIST_ENTRY(list_head($3), declarator_t, entry)->var->name;
+						  check_field_attrs(first, $1);
+						  $$ = set_var_types($1, $2, $3);
+						}
+	| m_attributes uniondef ';'		{ var_t *v = make_var(NULL);
 						  v->declspec.type = $2; v->attrs = $1;
 						  $$ = append_var(NULL, v);
-						  pop_declaration_type();
 						}
 	;
 
@@ -1181,14 +1045,14 @@ parameterized_type_args:
 coclass:  tCOCLASS typename			{ $$ = type_coclass_declare($2); }
 	;
 
-coclassdef: attributes coclass '{' class_interfaces '}'
+coclassdef: attributes coclass '{' class_interfaces '}' semicolon_opt
 						{ $$ = type_coclass_define($2, $1, $4, &@2); }
 	;
 
 runtimeclass: tRUNTIMECLASS typename		{ $$ = type_runtimeclass_declare($2, current_namespace); }
 	;
 
-runtimeclass_def: attributes runtimeclass inherit '{' class_interfaces '}'
+runtimeclass_def: attributes runtimeclass inherit '{' class_interfaces '}' semicolon_opt
 						{ if ($3 && type_get_type($3) != TYPE_RUNTIMECLASS) error_loc("%s is not a runtimeclass\n", $3->name);
 						  $$ = type_runtimeclass_define($2, $1, $5, &@2); }
 	;
@@ -1196,7 +1060,7 @@ runtimeclass_def: attributes runtimeclass inherit '{' class_interfaces '}'
 apicontract: tAPICONTRACT typename		{ $$ = type_apicontract_declare($2, current_namespace); }
 	;
 
-apicontract_def: attributes apicontract '{' '}'
+apicontract_def: attributes apicontract '{' '}' semicolon_opt
 						{ $$ = type_apicontract_define($2, $1, &@2); }
 	;
 
@@ -1255,13 +1119,13 @@ interface:
 						{ $$ = type_parameterized_interface_declare($2, current_namespace, $5); }
 	;
 
-delegatedef: m_attributes tDELEGATE type ident '(' m_args ')'
+delegatedef: m_attributes tDELEGATE type ident '(' m_args ')' semicolon_opt
 						{ $$ = type_delegate_declare($4->name, current_namespace);
 						  $$ = type_delegate_define($$, $1, append_statement(NULL, make_statement_delegate($3, $6)), &@4);
 						}
 	| m_attributes tDELEGATE type ident
 	  '<' { push_parameters_namespace($4->name); } type_parameters '>'
-	  '(' m_args ')' { pop_parameters_namespace($4->name); }
+	  '(' m_args ')' { pop_parameters_namespace($4->name); } semicolon_opt
 						{ $$ = type_parameterized_delegate_declare($4->name, current_namespace, $7);
 						  $$ = type_parameterized_delegate_define($$, $1, append_statement(NULL, make_statement_delegate($3, $10)), &@4);
 						}
@@ -1280,7 +1144,7 @@ requires
 	;
 
 interfacedef: attributes interface		{ if ($2->type_type == TYPE_PARAMETERIZED_TYPE) push_parameters_namespace($2->name); }
-	  inherit requires '{' statements '}'
+	  inherit requires '{' int_statements '}' semicolon_opt
 						{ if ($2->type_type == TYPE_PARAMETERIZED_TYPE)
 						  {
 						      $$ = type_parameterized_interface_define($2, $1, $4, $7, $5, &@2);
@@ -1292,7 +1156,7 @@ interfacedef: attributes interface		{ if ($2->type_type == TYPE_PARAMETERIZED_TY
 						      check_async_uuid($$);
 						  }
 						}
-	| dispinterfacedef			{ $$ = $1; }
+	| dispinterfacedef semicolon_opt	{ $$ = $1; }
 	;
 
 interfaceref:
@@ -1308,7 +1172,7 @@ dispinterfaceref:
 module:   tMODULE typename			{ $$ = type_module_declare($2); }
 	;
 
-moduledef: m_attributes module '{' statements '}'
+moduledef: m_attributes module '{' int_statements '}' semicolon_opt
 						{ $$ = type_module_define($2, $1, $4, &@2); }
 	;
 
@@ -1341,13 +1205,6 @@ unqualified_decl_spec: unqualified_type m_decl_spec_no_type
 	| decl_spec_no_type unqualified_type m_decl_spec_no_type
 						{ $$ = make_decl_spec($2, $1, $3, STG_NONE, 0, 0); }
 	;
-
-cast_decl_spec: unqualified_decl_spec m_abstract_declarator
-                                                {
-                                                  append_chain_type( $m_abstract_declarator, $unqualified_decl_spec->type, $unqualified_decl_spec->qualifier );
-                                                  $$ = make_decl_spec( $m_abstract_declarator->type, $unqualified_decl_spec, NULL, STG_NONE, 0, 0 );
-                                                }
-        ;
 
 m_decl_spec_no_type
 	: %empty				{ $$ = NULL; }
@@ -1382,6 +1239,13 @@ abstract_declarator:
 	| abstract_direct_declarator
 	;
 
+/* abstract declarator without accepting direct declarator */
+abstract_declarator_no_direct:
+	  '*' m_type_qual_list m_any_declarator %prec PPTR
+						{ $$ = $3; append_chain_type($$, type_new_pointer(NULL), $2); }
+	| callconv m_any_declarator		{ $$ = $2; append_chain_callconv( @$, $$->type, $1 ); }
+	;
+
 /* abstract declarator or empty */
 m_abstract_declarator
 	: %empty 				{ $$ = make_declarator(NULL); }
@@ -1390,7 +1254,7 @@ m_abstract_declarator
 
 /* abstract direct declarator */
 abstract_direct_declarator:
-	  '(' any_declarator_no_direct ')'	{ $$ = $2; }
+	  '(' abstract_declarator_no_direct ')'	{ $$ = $2; }
 	| abstract_direct_declarator array	{ $$ = $1; append_array($$, $2); }
 	| array					{ $$ = make_declarator(NULL); append_array($$, $1); }
 	| '(' m_args ')'
@@ -1404,8 +1268,10 @@ abstract_direct_declarator:
 	;
 
 /* abstract or non-abstract declarator */
-any_declarator
-	: any_declarator_no_direct
+any_declarator:
+	  '*' m_type_qual_list m_any_declarator %prec PPTR
+						{ $$ = $3; append_chain_type($$, type_new_pointer(NULL), $2); }
+	| callconv m_any_declarator		{ $$ = $2; append_chain_callconv( @$, $$->type, $1 ); }
 	| any_direct_declarator
 	;
 
@@ -1445,9 +1311,12 @@ declarator_list:
 	| declarator_list ',' declarator	{ $$ = append_declarator( $1, $3 ); }
 	;
 
-struct_declarator
-	: any_declarator
-	| ident ':' expr_const			{ $$ = make_declarator($1); $$->bits = $3;
+m_bitfield
+	: %empty				{ $$ = NULL; }
+	| ':' expr_const			{ $$ = $2; }
+	;
+
+struct_declarator: any_declarator m_bitfield	{ $$ = $1; $$->bits = $2;
 						  if (!$$->bits && !$$->var->name)
 						    error_loc("unnamed fields are not allowed\n");
 						}
@@ -1489,7 +1358,7 @@ unqualified_type:
         | tENUM typename                        { $$ = type_new_enum($2, current_namespace, FALSE, NULL, &@$); }
         | structdef                             { $$ = $1; }
         | tSTRUCT typename                      { $$ = type_new_struct($2, current_namespace, FALSE, NULL, &@$); }
-	| union_definition			{ $$ = $1; }
+        | uniondef                              { $$ = $1; }
         | tUNION typename                       { $$ = type_new_nonencapsulated_union($2, current_namespace, FALSE, NULL, &@$); }
         | tSAFEARRAY '(' type ')'               { $$ = make_safearray($3); }
         | aKNOWNTYPE                            { $$ = find_type_or_error(current_namespace, $1); }
@@ -1501,25 +1370,19 @@ type:
 	| parameterized_type			{ $$ = $1; }
 	;
 
-type_definition
-	: m_attributes[attrs] tTYPEDEF
-	  m_attributes[attrs_decl] 		{ $attrs = check_typedef_attrs( append_attribs( $attrs, $attrs_decl ) ); }
-	  decl_spec[decl] 			{ push_declaration_type( $decl, $attrs ); }
-	  declarator_list[types] 		{ pop_declaration_type(); }
-						{ reg_typedefs( @$, $decl, $types, $attrs );
-						  $$ = make_statement_typedef( $types, $decl->type->defined && !$decl->type->defined_in_import );
+typedef: m_attributes tTYPEDEF m_attributes decl_spec declarator_list
+						{ $1 = append_attribs($1, $3);
+						  reg_typedefs( @$, $4, $5, check_typedef_attrs( $1 ) );
+						  $$ = make_statement_typedef($5, $4->type->defined && !$4->type->defined_in_import);
 						}
 	;
 
-union_definition
-        : tUNION m_typename[name]
-          '{' ne_union_fields[fields] '}'       { $$ = type_new_nonencapsulated_union( $name, current_namespace, TRUE, $fields, &@name ); }
-
-        | tUNION m_typename[name]
-          tSWITCH '(' s_field[switch] ')'
-          m_ident[field] '{' cases '}'          { $$ = type_new_encapsulated_union( $name, $switch, $field, $cases, &@name ); }
-
-        ;
+uniondef: tUNION m_typename '{' ne_union_fields '}'
+						{ $$ = type_new_nonencapsulated_union($2, current_namespace, TRUE, $4, &@2); }
+	| tUNION m_typename
+	  tSWITCH '(' s_field ')'
+	  m_ident '{' cases '}'			{ $$ = type_new_encapsulated_union($2, $5, $7, $9, &@2); }
+	;
 
 version:
 	  aNUM					{ $$ = MAKEVERSION($1.value, 0); }
@@ -1527,58 +1390,54 @@ version:
 	| aHEXNUM				{ $$ = $1.value; }
 	;
 
-acf_input
-	: %empty
-	| aACF acf_global_statements
-	;
-acf_global_statements
-	: %empty
-	| acf_global_statements acf_interface
-	;
 acf_statements
-	: %empty
-	| acf_statements acf_statement
+        : %empty
+        | acf_interface acf_statements
 	;
 
-acf_statement
+acf_int_statements
+        : %empty
+        | acf_int_statement acf_int_statements
+	;
+
+acf_int_statement
         : tTYPEDEF acf_attributes aKNOWNTYPE ';'
-                                                { type_t *type = find_type_or_error( current_namespace, $aKNOWNTYPE );
-                                                  type->attrs = append_attr_list( type->attrs, $acf_attributes );
+                                                { type_t *type = find_type_or_error(current_namespace, $3);
+                                                  type->attrs = append_attr_list(type->attrs, $2);
                                                 }
 	;
 
 acf_interface
-        : acf_attributes tINTERFACE aKNOWNTYPE '{' acf_statements '}'
-                                                {  type_t *iface = find_type_or_error( current_namespace, $aKNOWNTYPE );
+        : acf_attributes tINTERFACE aKNOWNTYPE '{' acf_int_statements '}'
+                                                {  type_t *iface = find_type_or_error(current_namespace, $3);
                                                    if (type_get_type(iface) != TYPE_INTERFACE)
                                                        error_loc("%s is not an interface\n", iface->name);
-                                                   iface->attrs = append_attr_list( iface->attrs, $acf_attributes );
+                                                   iface->attrs = append_attr_list(iface->attrs, $1);
                                                 }
 	;
 
 acf_attributes
         : %empty                                { $$ = NULL; }
-        | '[' acf_attribute_list ']'            { $$ = $acf_attribute_list; }
+        | '[' acf_attribute_list ']'            { $$ = $2; }
 	;
 
 acf_attribute_list
-        : acf_attribute                         { $$ = append_attr( NULL, $acf_attribute ); }
-        | acf_attribute_list[list] ',' acf_attribute
-                                                { $$ = append_attr( $list, $acf_attribute ); }
+        : acf_attribute                         { $$ = append_attr(NULL, $1); }
+        | acf_attribute_list ',' acf_attribute  { $$ = append_attr($1, $3); }
 	;
 
 acf_attribute
         : tALLOCATE '(' allocate_option_list ')'
-                                                { $$ = attr_int( @$, ATTR_ALLOCATE, $allocate_option_list ); }
+                                                { $$ = attr_int( @$, ATTR_ALLOCATE, $3 ); }
         | tENCODE                               { $$ = attr_int( @$, ATTR_ENCODE, 0 ); }
         | tDECODE                               { $$ = attr_int( @$, ATTR_DECODE, 0 ); }
         | tEXPLICITHANDLE                       { $$ = attr_int( @$, ATTR_EXPLICIT_HANDLE, 0 ); }
         ;
 
 allocate_option_list
-        : allocate_option                       { $$ = $allocate_option; }
-        | allocate_option_list[list] ',' allocate_option
-                                                { $$ = $list | $allocate_option; }
+	: allocate_option			{ $$ = $1; }
+	| allocate_option_list ',' allocate_option
+						{ $$ = $1 | $3; }
 	;
 
 allocate_option
@@ -1589,42 +1448,6 @@ allocate_option
 	;
 
 %%
-
-struct entry
-{
-    struct list entry;
-    void *data;
-};
-
-static void push( struct list *stack, void *data )
-{
-    struct entry *entry;
-    entry = xmalloc( sizeof(*entry) );
-    entry->data = data;
-    list_add_tail( stack, &entry->entry );
-}
-
-static void *pop( struct list *stack )
-{
-    struct list *ptr = list_tail( stack );
-    struct entry *entry;
-    void *data;
-
-    assert( !!ptr );
-    entry = LIST_ENTRY( ptr, struct entry, entry );
-    data = entry->data;
-    list_remove( &entry->entry );
-
-    free( entry );
-    return data;
-}
-
-static void *peek( struct list *stack )
-{
-    struct list *ptr = list_tail( stack );
-    assert( !!ptr );
-    return LIST_ENTRY( ptr, struct entry, entry )->data;
-}
 
 static void decl_builtin_basic(const char *name, enum type_basic_type type)
 {
@@ -1769,12 +1592,12 @@ void clear_all_offsets(void)
 
 static void type_function_add_head_arg(type_t *type, var_t *arg)
 {
-    if (!type->details.function.args)
+    if (!type->details.function->args)
     {
-        type->details.function.args = xmalloc( sizeof(*type->details.function.args) );
-        list_init( type->details.function.args );
+        type->details.function->args = xmalloc( sizeof(*type->details.function->args) );
+        list_init( type->details.function->args );
     }
-    list_add_head( type->details.function.args, &arg->entry );
+    list_add_head( type->details.function->args, &arg->entry );
 }
 
 static int is_allowed_range_type(const type_t *type)
@@ -1795,6 +1618,7 @@ static int is_allowed_range_type(const type_t *type)
         case TYPE_BASIC_LONG:
         case TYPE_BASIC_BYTE:
         case TYPE_BASIC_CHAR:
+        case TYPE_BASIC_WCHAR:
         case TYPE_BASIC_HYPER:
             return TRUE;
         case TYPE_BASIC_FLOAT:
@@ -1852,8 +1676,8 @@ static void append_chain_type(declarator_t *decl, type_t *type, enum type_qualif
     }
     else if (is_func(chain_type))
     {
-        chain_type->details.function.retval->declspec.type = type;
-        chain_type->details.function.retval->declspec.qualifier = qual;
+        chain_type->details.function->retval->declspec.type = type;
+        chain_type->details.function->retval->declspec.qualifier = qual;
     }
     else
         assert(0);
@@ -2456,7 +2280,18 @@ var_t *find_const(const char *name, int f)
 char *gen_name(void)
 {
   static unsigned long n = 0;
-  return strmake("__WIDL_%s_generated_name_%08lX", typename_base, n++);
+  static const char *file_id;
+
+  if (! file_id)
+  {
+    char *dst = replace_extension( idl_name, ".idl", "" );
+    file_id = dst;
+
+    for (; *dst; ++dst)
+      if (! isalnum((unsigned char) *dst))
+        *dst = '_';
+  }
+  return strmake("__WIDL_%s_generated_name_%08lX", file_id, n++);
 }
 
 static int is_allowed_conf_type(const type_t *type)
@@ -2477,6 +2312,7 @@ static int is_allowed_conf_type(const type_t *type)
         case TYPE_BASIC_CHAR:
         case TYPE_BASIC_HYPER:
         case TYPE_BASIC_BYTE:
+        case TYPE_BASIC_WCHAR:
             return TRUE;
         default:
             return FALSE;
@@ -2682,7 +2518,8 @@ static void check_field_common(const type_t *container_type,
             break;
         case TGT_ENUM:
             type = type_get_real_type(type);
-            if (!type_is_defined( type )) error_at( &arg->loc_info, "undefined type declaration \"enum %s\"\n", type->name );
+            if (!type_is_complete(type))
+                error_at( &arg->where, "undefined type declaration \"enum %s\"\n", type->name );
         case TGT_USER_TYPE:
         case TGT_IFACE_POINTER:
         case TGT_BASIC:
@@ -2707,13 +2544,17 @@ static void check_remoting_fields(const var_t *var, type_t *type)
 
     if (type_get_type(type) == TYPE_STRUCT)
     {
-        if (!type_is_defined(type)) error_at( &var->loc_info, "undefined type declaration \"struct %s\"\n", type->name );
-        fields = type_struct_get_fields(type);
+        if (type_is_complete(type))
+            fields = type_struct_get_fields(type);
+        else
+            error_at( &var->where, "undefined type declaration \"struct %s\"\n", type->name );
     }
     else if (type_get_type(type) == TYPE_UNION || type_get_type(type) == TYPE_ENCAPSULATED_UNION)
     {
-        if (!type_is_defined(type)) error_at( &var->loc_info, "undefined type declaration \"union %s\"\n", type->name );
-        fields = type_union_get_cases(type);
+        if (type_is_complete(type))
+            fields = type_union_get_cases(type);
+        else
+            error_at( &var->where, "undefined type declaration \"union %s\"\n", type->name );
     }
 
     if (fields) LIST_FOR_EACH_ENTRY( field, fields, const var_t, entry )
@@ -2905,18 +2746,18 @@ static void check_async_uuid(type_t *iface)
         begin_func = copy_var(func, strmake("Begin_%s", func->name), NULL);
         begin_func->declspec.type = type_new_function(begin_args);
         begin_func->declspec.type->attrs = func->attrs;
-        begin_func->declspec.type->details.function.retval = func->declspec.type->details.function.retval;
+        begin_func->declspec.type->details.function->retval = func->declspec.type->details.function->retval;
         stmts = append_statement(stmts, make_statement_declaration(begin_func));
 
         finish_func = copy_var(func, strmake("Finish_%s", func->name), NULL);
         finish_func->declspec.type = type_new_function(finish_args);
         finish_func->declspec.type->attrs = func->attrs;
-        finish_func->declspec.type->details.function.retval = func->declspec.type->details.function.retval;
+        finish_func->declspec.type->details.function->retval = func->declspec.type->details.function->retval;
         stmts = append_statement(stmts, make_statement_declaration(finish_func));
     }
 
     type_interface_define(async_iface, map_attrs(iface->attrs, async_iface_attrs), inherit, stmts, NULL, &iface->where);
-    iface->details.iface.async_iface = async_iface->details.iface.async_iface = async_iface;
+    iface->details.iface->async_iface = async_iface->details.iface->async_iface = async_iface;
 }
 
 static statement_list_t *append_parameterized_type_stmts(statement_list_t *stmts)
@@ -3102,14 +2943,9 @@ static statement_t *make_statement_typedef(declarator_list_t *decls, bool is_def
 
 static statement_t *make_statement_parameterized_type(type_t *type, typeref_list_t *params)
 {
-    if (!parse_only)
-    {
-        statement_t *stmt = make_statement( STMT_TYPE );
-        stmt->u.type = type_parameterized_type_specialize_partial( type, params );
-        parameterized_type_stmts = append_statement( parameterized_type_stmts, stmt );
-    }
-
-    return make_statement_reference( type_parameterized_type_specialize_declare( type, params ) );
+    statement_t *stmt = make_statement(STMT_TYPE);
+    stmt->u.type = type_parameterized_type_specialize_partial(type, params);
+    return stmt;
 }
 
 static statement_t *make_statement_delegate(type_t *ret, var_list_t *args)
