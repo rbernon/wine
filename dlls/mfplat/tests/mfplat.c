@@ -1066,11 +1066,11 @@ static void test_compressed_media_types(IMFSourceResolver *resolver)
             L"video/mp4",
             {
                 ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video),
-                ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_H264),
+                ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_H264, .todo_value = TRUE),
                 ATTR_GUID(MF_MT_AM_FORMAT_TYPE, FORMAT_MPEG2Video, .todo = TRUE),
                 ATTR_RATIO(MF_MT_FRAME_SIZE, 320, 240),
                 ATTR_RATIO(MF_MT_FRAME_RATE, 30, 1),
-                ATTR_RATIO(MF_MT_PIXEL_ASPECT_RATIO, 1, 1),
+                ATTR_RATIO(MF_MT_PIXEL_ASPECT_RATIO, 1, 1, .todo = TRUE),
                 ATTR_UINT32(MF_MT_MPEG2_PROFILE, eAVEncH264VProfile_High, .todo = TRUE),
                 ATTR_UINT32(MF_MT_MPEG2_LEVEL, eAVEncH264VLevel2, .todo = TRUE),
             },
@@ -1080,19 +1080,19 @@ static void test_compressed_media_types(IMFSourceResolver *resolver)
             L"video/mp4",
             {
                 ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio),
-                ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_AAC),
+                ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_AAC, .todo_value = TRUE),
                 ATTR_GUID(MF_MT_AM_FORMAT_TYPE, FORMAT_WaveFormatEx, .todo = TRUE),
                 ATTR_UINT32(MF_MT_AUDIO_NUM_CHANNELS, 1),
-                ATTR_UINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16),
+                ATTR_UINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16, .todo_value = TRUE),
                 ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100),
-                ATTR_UINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 9180),
-                ATTR_UINT32(MF_MT_AUDIO_PREFER_WAVEFORMATEX, 1),
+                ATTR_UINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 9180, .todo_value = TRUE),
+                ATTR_UINT32(MF_MT_AUDIO_PREFER_WAVEFORMATEX, 1, .todo = TRUE),
                 ATTR_UINT32(MF_MT_AVG_BITRATE, 73440, .todo = TRUE),
-                ATTR_UINT32(MF_MT_AAC_AUDIO_PROFILE_LEVEL_INDICATION, 0),
-                ATTR_UINT32(MF_MT_AAC_PAYLOAD_TYPE, 0),
+                ATTR_UINT32(MF_MT_AAC_AUDIO_PROFILE_LEVEL_INDICATION, 0, .todo = TRUE),
+                ATTR_UINT32(MF_MT_AAC_PAYLOAD_TYPE, 0, .todo = TRUE),
                 ATTR_UINT32(MF_MT_FIXED_SIZE_SAMPLES, 1, .todo = TRUE),
-                ATTR_UINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, 1, .todo = TRUE),
-                ATTR_BLOB(MF_MT_USER_DATA, aac_data, sizeof(aac_data)),
+                ATTR_UINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, 1),
+                ATTR_BLOB(MF_MT_USER_DATA, aac_data, sizeof(aac_data), .todo = TRUE),
             },
         },
         {
@@ -1100,9 +1100,9 @@ static void test_compressed_media_types(IMFSourceResolver *resolver)
             L"video/x-ms-wmv",
             {
                 ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video),
-                ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_WMV1),
+                ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_WMV1, .todo_value = TRUE),
                 ATTR_RATIO(MF_MT_FRAME_SIZE, 320, 240),
-                ATTR_RATIO(MF_MT_PIXEL_ASPECT_RATIO, 1, 1),
+                ATTR_RATIO(MF_MT_PIXEL_ASPECT_RATIO, 1, 1, .todo = TRUE),
             },
         },
         {
@@ -1110,13 +1110,13 @@ static void test_compressed_media_types(IMFSourceResolver *resolver)
             L"video/x-ms-wmv",
             {
                 ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio),
-                ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_WMAudioV8),
+                ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_WMAudioV8, .todo_value = TRUE),
                 ATTR_UINT32(MF_MT_AUDIO_NUM_CHANNELS, 1),
                 ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100),
-                ATTR_UINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 16000),
-                ATTR_UINT32(MF_MT_AUDIO_PREFER_WAVEFORMATEX, 1),
-                ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, 743),
-                ATTR_BLOB(MF_MT_USER_DATA, wma2_data, sizeof(wma2_data)),
+                ATTR_UINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 16000, .todo_value = TRUE),
+                ATTR_UINT32(MF_MT_AUDIO_PREFER_WAVEFORMATEX, 1, .todo = TRUE),
+                ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, 743, .todo_value = TRUE),
+                ATTR_BLOB(MF_MT_USER_DATA, wma2_data, sizeof(wma2_data), .todo = TRUE),
             },
         },
         {
@@ -1124,13 +1124,13 @@ static void test_compressed_media_types(IMFSourceResolver *resolver)
             L"video/mp4",
             {
                 ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio),
-                ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_MP3),
+                ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_MP3, .todo_value = TRUE),
                 ATTR_GUID(MF_MT_AM_FORMAT_TYPE, FORMAT_WaveFormatEx, .todo = TRUE),
                 ATTR_UINT32(MF_MT_AUDIO_NUM_CHANNELS, 1),
                 ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100),
-                ATTR_UINT32(MF_MT_AUDIO_PREFER_WAVEFORMATEX, 1),
+                ATTR_UINT32(MF_MT_AUDIO_PREFER_WAVEFORMATEX, 1, .todo = TRUE),
                 ATTR_UINT32(MF_MT_FIXED_SIZE_SAMPLES, 1, .todo = TRUE),
-                ATTR_UINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, 1, .todo = TRUE),
+                ATTR_UINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, 1),
             },
         },
         {
@@ -1141,10 +1141,10 @@ static void test_compressed_media_types(IMFSourceResolver *resolver)
                 ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_I420),
                 ATTR_RATIO(MF_MT_FRAME_SIZE, 32, 24),
                 ATTR_RATIO(MF_MT_FRAME_RATE, 30, 1),
-                ATTR_RATIO(MF_MT_PIXEL_ASPECT_RATIO, 1, 1),
+                ATTR_RATIO(MF_MT_PIXEL_ASPECT_RATIO, 1, 1, .todo = TRUE),
                 ATTR_UINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, 1),
                 ATTR_UINT32(MF_MT_DEFAULT_STRIDE, 32),
-                ATTR_UINT32(MF_MT_FIXED_SIZE_SAMPLES, 1),
+                ATTR_UINT32(MF_MT_FIXED_SIZE_SAMPLES, 1, .todo = TRUE),
             },
         },
     };
@@ -1205,7 +1205,7 @@ static void test_compressed_media_types(IMFSourceResolver *resolver)
 
         hr = IMFMediaTypeHandler_GetMediaTypeCount(handler, &count);
         ok(hr == S_OK, "Got hr %#lx.\n", hr);
-        ok(count == 1, "Got type count %lu.\n", count);
+        todo_wine ok(count == 1, "Got type count %lu.\n", count);
 
         IMFMediaTypeHandler_Release(handler);
         IMFStreamDescriptor_Release(sd);

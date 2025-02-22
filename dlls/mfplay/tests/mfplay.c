@@ -362,7 +362,7 @@ static void test_media_item(void)
     PropVariantClear(&propvar);
 
     hr = IMFPMediaItem_GetStreamAttribute(item, 0, &MF_SD_STREAM_NAME, &propvar);
-    todo_wine ok(hr == S_OK || broken(hr == MF_E_ATTRIBUTENOTFOUND) /* Before Win10 1607. */, "Unexpected hr %#lx.\n", hr);
+    ok(hr == S_OK || broken(hr == MF_E_ATTRIBUTENOTFOUND) /* Before Win10 1607. */, "Unexpected hr %#lx.\n", hr);
     if (hr == S_OK)
     {
         ok(propvar.vt == VT_LPWSTR, "Unexpected vt %u.\n", propvar.vt);
@@ -497,10 +497,10 @@ static void test_media_language(void)
     check_media_language(player, L"test-und.mp4", NULL);
     check_media_language(player, L"test-en-US.mp4", L"en");
 
-    todo_check_media_language(player, L"test-en.wma", L"en");
+    check_media_language(player, L"test-en.wma", L"en");
     check_media_language(player, L"test-eng.wma", L"eng");
-    todo_check_media_language(player, L"test-ang.wma", L"ang");
-    todo_check_media_language(player, L"test-und.wma", L"und");
+    check_media_language(player, L"test-ang.wma", L"ang");
+    check_media_language(player, L"test-und.wma", L"und");
     todo_check_media_language(player, L"test-en-US.wma", L"en-US");
 
     IMFPMediaPlayer_Release(player);

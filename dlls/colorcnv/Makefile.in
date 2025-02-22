@@ -1,5 +1,5 @@
 MODULE    = colorcnv.dll
-IMPORTS   = winedmo combase mfplat msdmo mfuuid dmoguids strmiids wmcodecdspuuid uuid
+IMPORTS   = combase mfplat msdmo mfuuid dmoguids strmiids wmcodecdspuuid uuid
 
 SOURCES = \
 	colorcnv.c \

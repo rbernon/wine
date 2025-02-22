@@ -33,8 +33,8 @@ WINE_DEFAULT_DEBUG_CHANNEL(quartz);
 
 #include "initguid.h"
 
-extern GUID CLSID_MPEGLayer3Decoder;
-extern GUID MEDIASUBTYPE_MP3;
+DEFINE_GUID(CLSID_MPEGLayer3Decoder,0x38be3000,0xdbf4,0x11d0,0x86,0x0e,0x00,0xa0,0x24,0xcf,0xef,0x6d);
+DEFINE_GUID(MEDIASUBTYPE_MP3,WAVE_FORMAT_MPEGLAYER3,0x0000,0x0010,0x80,0x00,0x00,0xaa,0x00,0x38,0x9b,0x71);
 
 static inline HRESULT WINAPI class_factory_QueryInterface(IClassFactory *iface, REFIID riid, void **out)
 {

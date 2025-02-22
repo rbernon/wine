@@ -38,7 +38,6 @@ struct winedmo_stream
 {
     NTSTATUS (CDECL *p_seek)( struct winedmo_stream *stream, UINT64 *pos );
     NTSTATUS (CDECL *p_read)( struct winedmo_stream *stream, BYTE *buffer, ULONG *size );
-    NTSTATUS (CDECL *p_write)( struct winedmo_stream *stream, const BYTE *buffer, ULONG *size );
 };
 
 struct winedmo_demuxer { UINT64 handle; };
@@ -53,25 +52,5 @@ NTSTATUS CDECL winedmo_demuxer_stream_lang( struct winedmo_demuxer demuxer, UINT
 NTSTATUS CDECL winedmo_demuxer_stream_name( struct winedmo_demuxer demuxer, UINT stream, WCHAR *buffer, UINT len );
 NTSTATUS CDECL winedmo_demuxer_stream_type( struct winedmo_demuxer demuxer, UINT stream,
                                             GUID *major, union winedmo_format **format );
-
-struct winedmo_muxer { UINT64 handle; };
-
-NTSTATUS CDECL winedmo_muxer_check( const char *mime_type );
-NTSTATUS CDECL winedmo_muxer_create( const WCHAR *url, const WCHAR *mime_type, struct winedmo_stream *stream, struct winedmo_muxer *muxer );
-NTSTATUS CDECL winedmo_muxer_destroy( struct winedmo_muxer *muxer );
-NTSTATUS CDECL winedmo_muxer_add_stream( struct winedmo_muxer muxer, UINT32 stream_id, GUID major, union winedmo_format *format );
-NTSTATUS CDECL winedmo_muxer_start( struct winedmo_muxer muxer );
-NTSTATUS CDECL winedmo_muxer_write( struct winedmo_muxer muxer, UINT stream, DMO_OUTPUT_DATA_BUFFER *buffer );
-
-struct winedmo_transform { UINT64 handle; };
-
-NTSTATUS CDECL winedmo_transform_check( GUID major, GUID input, GUID output );
-NTSTATUS CDECL winedmo_transform_create( GUID major, union winedmo_format *input, union winedmo_format *output, struct winedmo_transform *transform );
-NTSTATUS CDECL winedmo_transform_destroy( struct winedmo_transform *transform );
-NTSTATUS CDECL winedmo_transform_get_output_type( struct winedmo_transform transform, GUID *major, union winedmo_format **format );
-NTSTATUS CDECL winedmo_transform_set_output_type( struct winedmo_transform transform, GUID major, union winedmo_format *format );
-NTSTATUS CDECL winedmo_transform_process_input( struct winedmo_transform transform, DMO_OUTPUT_DATA_BUFFER *buffer );
-NTSTATUS CDECL winedmo_transform_process_output( struct winedmo_transform transform, DMO_OUTPUT_DATA_BUFFER *buffer );
-NTSTATUS CDECL winedmo_transform_drain( struct winedmo_transform transform, BOOL discard );
 
 #endif /* __WINE_WINEDMO_H */

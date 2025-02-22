@@ -739,7 +739,10 @@ NTSTATUS wg_transform_set_output_type(void *args)
     gst_caps_unref(stripped);
 
     if (!gst_pad_peer_query(transform->my_src, transform->drain_query))
+    {
         GST_ERROR("Failed to drain transform %p.", transform);
+        return STATUS_UNSUCCESSFUL;
+    }
 
     gst_caps_unref(transform->desired_caps);
     transform->desired_caps = caps;
@@ -831,8 +834,8 @@ NTSTATUS wg_transform_push_data(void *args)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS copy_video_buffer(GstBuffer *buffer, const GstVideoInfo *src_video_info,
-        const GstVideoInfo *dst_video_info, struct wg_sample *sample, gsize *total_size)
+static NTSTATUS copy_video_buffer(GstBuffer *buffer, GstVideoInfo *src_video_info,
+        GstVideoInfo *dst_video_info, struct wg_sample *sample, gsize *total_size)
 {
     NTSTATUS status = STATUS_UNSUCCESSFUL;
     GstVideoFrame src_frame, dst_frame;
@@ -943,7 +946,7 @@ static bool sample_needs_buffer_copy(struct wg_sample *sample, GstBuffer *buffer
 }
 
 static NTSTATUS read_transform_output_video(struct wg_sample *sample, GstBuffer *buffer,
-        const GstVideoInfo *src_video_info, const GstVideoInfo *dst_video_info)
+        GstVideoInfo *src_video_info, GstVideoInfo *dst_video_info)
 {
     gsize total_size;
     NTSTATUS status;

@@ -587,7 +587,6 @@ static inline void dump_attributes_(int line, IMFAttributes *attributes)
         case VT_CLSID: sprintf(buffer, "ATTR_GUID(%s, %s),", debugstr_mf_guid(&guid), debugstr_mf_guid(value.puuid)); break;
         case VT_UI4: sprintf(buffer, "ATTR_UINT32(%s, %lu),", debugstr_mf_guid(&guid), value.ulVal); break;
         case VT_UI8: sprintf(buffer, "ATTR_RATIO(%s, %lu, %lu),", debugstr_mf_guid(&guid), value.uhVal.HighPart, value.uhVal.LowPart); break;
-        case VT_UNKNOWN: sprintf(buffer, "ATTR_UNKNOWN(%s, %p),", debugstr_mf_guid(&guid), value.punkVal); break;
         case VT_VECTOR | VT_UI1:
         {
             char *buf = buffer;
