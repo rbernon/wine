@@ -662,12 +662,6 @@ NTSTATUS wg_transform_create(void *args)
             || !push_event(transform->my_src, event))
         goto out;
 
-{
-char buffer[256];
-sprintf(buffer, "wg_transform-%p", transform);
-GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS(GST_BIN(transform->container), GST_DEBUG_GRAPH_SHOW_VERBOSE, buffer);
-}
-
     GST_INFO("Created winegstreamer transform %p.", transform);
     params->transform = (wg_transform_t)(ULONG_PTR)transform;
     return STATUS_SUCCESS;
@@ -1106,12 +1100,6 @@ NTSTATUS wg_transform_read_data(void *args)
             memcpy(src_video_info.stride, meta->stride, sizeof(meta->stride));
         }
     }
-
-{
-char buffer[256];
-sprintf(buffer, "wg_transform-%p", transform);
-GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS(GST_BIN(transform->container), GST_DEBUG_GRAPH_SHOW_VERBOSE, buffer);
-}
 
     if (GST_MINI_OBJECT_FLAG_IS_SET(transform->output_sample, GST_SAMPLE_FLAG_WG_CAPS_CHANGED))
     {

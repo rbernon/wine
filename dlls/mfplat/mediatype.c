@@ -42,7 +42,6 @@ DEFINE_MEDIATYPE_GUID(MFVideoFormat_RGB4, MAKEFOURCC('4','P','x','x'));
 DEFINE_MEDIATYPE_GUID(MFVideoFormat_ABGR32, D3DFMT_A8B8G8R8);
 DEFINE_MEDIATYPE_GUID(MFVideoFormat_ARGB1555, D3DFMT_A1R5G5B5);
 DEFINE_MEDIATYPE_GUID(MFVideoFormat_ARGB4444, D3DFMT_A4R4G4B4);
-DEFINE_MEDIATYPE_GUID(MFVideoFormat_ABGR32, D3DFMT_A8B8G8R8);
 /* SDK MFVideoFormat_A2R10G10B10 uses D3DFMT_A2B10G10R10, let's name it the other way */
 DEFINE_MEDIATYPE_GUID(MFVideoFormat_A2B10G10R10, D3DFMT_A2R10G10B10);
 
@@ -2001,7 +2000,7 @@ static HRESULT WINAPI mediatype_handler_IsMediaTypeSupported(IMFMediaTypeHandler
     if (out_type)
         *out_type = NULL;
 
-    AcquireSRWLockExclusive(&stream_desc->attributes.lock);
+    EnterCriticalSection(&stream_desc->attributes.cs);
 
     supported = stream_desc->current_type && stream_descriptor_is_mediatype_supported(stream_desc->current_type, in_type);
     if (!supported)
@@ -2013,7 +2012,7 @@ static HRESULT WINAPI mediatype_handler_IsMediaTypeSupported(IMFMediaTypeHandler
         }
     }
 
-    ReleaseSRWLockExclusive(&stream_desc->attributes.lock);
+    LeaveCriticalSection(&stream_desc->attributes.cs);
 
     return supported ? S_OK : MF_E_INVALIDMEDIATYPE;
 }
@@ -2057,12 +2056,12 @@ static HRESULT WINAPI mediatype_handler_SetCurrentMediaType(IMFMediaTypeHandler 
     if (!type)
         return E_POINTER;
 
-    AcquireSRWLockExclusive(&stream_desc->attributes.lock);
+    EnterCriticalSection(&stream_desc->attributes.cs);
     if (stream_desc->current_type)
         IMFMediaType_Release(stream_desc->current_type);
     stream_desc->current_type = type;
     IMFMediaType_AddRef(stream_desc->current_type);
-    ReleaseSRWLockExclusive(&stream_desc->attributes.lock);
+    LeaveCriticalSection(&stream_desc->attributes.cs);
 
     return S_OK;
 }
@@ -2074,7 +2073,7 @@ static HRESULT WINAPI mediatype_handler_GetCurrentMediaType(IMFMediaTypeHandler 
 
     TRACE("%p, %p.\n", iface, type);
 
-    AcquireSRWLockShared(&stream_desc->attributes.lock);
+    EnterCriticalSection(&stream_desc->attributes.cs);
     if (stream_desc->current_type)
     {
         *type = stream_desc->current_type;
@@ -2082,7 +2081,7 @@ static HRESULT WINAPI mediatype_handler_GetCurrentMediaType(IMFMediaTypeHandler 
     }
     else
         hr = MF_E_NOT_INITIALIZED;
-    ReleaseSRWLockShared(&stream_desc->attributes.lock);
+    LeaveCriticalSection(&stream_desc->attributes.cs);
 
     return hr;
 }
@@ -2094,10 +2093,10 @@ static HRESULT WINAPI mediatype_handler_GetMajorType(IMFMediaTypeHandler *iface,
 
     TRACE("%p, %p.\n", iface, type);
 
-    AcquireSRWLockShared(&stream_desc->attributes.lock);
+    EnterCriticalSection(&stream_desc->attributes.cs);
     hr = IMFMediaType_GetGUID(stream_desc->current_type ? stream_desc->current_type :
             stream_desc->media_types[0], &MF_MT_MAJOR_TYPE, type);
-    ReleaseSRWLockShared(&stream_desc->attributes.lock);
+    LeaveCriticalSection(&stream_desc->attributes.cs);
 
     return hr;
 }
@@ -2517,9 +2516,9 @@ static HRESULT WINAPI presentation_descriptor_GetStreamDescriptorByIndex(IMFPres
     if (index >= presentation_desc->count)
         return E_INVALIDARG;
 
-    AcquireSRWLockShared(&presentation_desc->attributes.lock);
+    EnterCriticalSection(&presentation_desc->attributes.cs);
     *selected = presentation_desc->descriptors[index].selected;
-    ReleaseSRWLockShared(&presentation_desc->attributes.lock);
+    LeaveCriticalSection(&presentation_desc->attributes.cs);
 
     *descriptor = presentation_desc->descriptors[index].descriptor;
     IMFStreamDescriptor_AddRef(*descriptor);
@@ -2536,9 +2535,9 @@ static HRESULT WINAPI presentation_descriptor_SelectStream(IMFPresentationDescri
     if (index >= presentation_desc->count)
         return E_INVALIDARG;
 
-    AcquireSRWLockExclusive(&presentation_desc->attributes.lock);
+    EnterCriticalSection(&presentation_desc->attributes.cs);
     presentation_desc->descriptors[index].selected = TRUE;
-    ReleaseSRWLockExclusive(&presentation_desc->attributes.lock);
+    LeaveCriticalSection(&presentation_desc->attributes.cs);
 
     return S_OK;
 }
@@ -2552,9 +2551,9 @@ static HRESULT WINAPI presentation_descriptor_DeselectStream(IMFPresentationDesc
     if (index >= presentation_desc->count)
         return E_INVALIDARG;
 
-    AcquireSRWLockExclusive(&presentation_desc->attributes.lock);
+    EnterCriticalSection(&presentation_desc->attributes.cs);
     presentation_desc->descriptors[index].selected = FALSE;
-    ReleaseSRWLockExclusive(&presentation_desc->attributes.lock);
+    LeaveCriticalSection(&presentation_desc->attributes.cs);
 
     return S_OK;
 }
@@ -2573,7 +2572,7 @@ static HRESULT WINAPI presentation_descriptor_Clone(IMFPresentationDescriptor *i
 
     presentation_descriptor_init(object, presentation_desc->count);
 
-    IMFPresentationDescriptor_LockStore(iface);
+    EnterCriticalSection(&presentation_desc->attributes.cs);
 
     for (i = 0; i < presentation_desc->count; ++i)
     {
@@ -2583,7 +2582,7 @@ static HRESULT WINAPI presentation_descriptor_Clone(IMFPresentationDescriptor *i
 
     attributes_CopyAllItems(&presentation_desc->attributes, (IMFAttributes *)&object->IMFPresentationDescriptor_iface);
 
-    IMFPresentationDescriptor_UnlockStore(iface);
+    LeaveCriticalSection(&presentation_desc->attributes.cs);
 
     *descriptor = &object->IMFPresentationDescriptor_iface;
 
@@ -2712,7 +2711,6 @@ static struct uncompressed_video_format video_formats[] =
     { &MFVideoFormat_RGB4,          4, 0, 1, 0, BI_RGB },
     { &MFVideoFormat_RGB24,         24, 3, 1, 0, BI_RGB },
     { &MFVideoFormat_ARGB32,        32, 3, 1, 0, BI_RGB },
-    { &MFVideoFormat_ABGR32,        32, 3, 1, 0, BI_RGB },
     { &MFVideoFormat_RGB32,         32, 3, 1, 0, BI_RGB },
     { &MFVideoFormat_RGB565,        16, 3, 1, 0, BI_BITFIELDS },
     { &MFVideoFormat_RGB555,        16, 3, 1, 0, BI_RGB },

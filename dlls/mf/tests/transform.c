@@ -60,7 +60,6 @@ DEFINE_GUID(MFVideoFormat_WMV_Unknown,0x7ce12ca9,0xbfbf,0x43d9,0x9d,0x00,0x82,0x
 DEFINE_MEDIATYPE_GUID(MFVideoFormat_ABGR32,D3DFMT_A8B8G8R8);
 DEFINE_MEDIATYPE_GUID(MFVideoFormat_P208,MAKEFOURCC('P','2','0','8'));
 DEFINE_MEDIATYPE_GUID(MFVideoFormat_VC1S,MAKEFOURCC('V','C','1','S'));
-DEFINE_MEDIATYPE_GUID(MFAudioFormat_XMAudio2,0x0166);
 DEFINE_MEDIATYPE_GUID(MEDIASUBTYPE_IV50,MAKEFOURCC('I','V','5','0'));
 
 DEFINE_GUID(mft_output_sample_incomplete,0xffffff,0xffff,0xffff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff);
@@ -2653,13 +2652,8 @@ static void test_aac_decoder_subtype(const struct attribute_desc *input_type_des
     hr = IMFTransform_GetInputStatus(transform, 0, &flags);
     ok(hr == S_OK, "Got %#lx\n", hr);
     ok(!flags, "Got flags %#lx.\n", flags);
-    if (0)
-    {
-        /* This is fine on Windows but currently MFT_MESSAGE_COMMAND_DRAIN removes input sample from the queue
-         * and makes next _ProcessInput succeed on Wine breaking the tests below. */
-        hr = IMFTransform_ProcessInput(transform, 0, input_sample, 0);
-        ok(hr == MF_E_NOTACCEPTING, "ProcessInput returned %#lx\n", hr);
-    }
+    hr = IMFTransform_ProcessInput(transform, 0, input_sample, 0);
+    ok(hr == MF_E_NOTACCEPTING, "ProcessInput returned %#lx\n", hr);
 
     hr = MFCreateCollection(&output_samples);
     ok(hr == S_OK, "MFCreateCollection returned %#lx\n", hr);
@@ -2920,15 +2914,11 @@ static void test_aac_decoder(void)
     test_aac_decoder_channels(raw_aac_input_type_desc);
 }
 
-static const BYTE wma_codec_data[10] = {0x00,0x88,0x00,0x00,0x1f,0x00,0x00,0x00,0x00,0x00};
-static const BYTE wma3_codec_data[18] = {0x18,0x00,0x03,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xe0,0x00,0x00,0x00};
-static const BYTE wma_lossless_codec_data[18] = {0x18,0x00,0x03,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xa1,0x01,0x00,0x00};
-static const ULONG wma2_block_size = 1485;
-static const ULONG wma3_block_size = 5945;
-static const ULONG wma_lossless_block_size = 13375;
+static const BYTE wma_codec_data[10] = {0, 0x44, 0, 0, 0x17, 0, 0, 0, 0, 0};
+static const ULONG wmaenc_block_size = 1487;
 static const ULONG wmadec_block_size = 0x2000;
 
-static void test_wma_encoder(GUID subtype)
+static void test_wma_encoder(void)
 {
     const GUID *const class_id = &CLSID_CWMAEncMediaObject;
     const struct transform_info expect_mft_info =
@@ -2963,222 +2953,56 @@ static void test_wma_encoder(GUID subtype)
         },
     };
 
-    static const struct attribute_desc input_type_desc_wma2[] =
+    static const struct attribute_desc input_type_desc[] =
     {
         ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio, .required = TRUE),
-        ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_PCM, .required = TRUE),
+        ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_Float, .required = TRUE),
         ATTR_UINT32(MF_MT_AUDIO_NUM_CHANNELS, 2, .required = TRUE),
         ATTR_UINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 32, .required = TRUE),
-        ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100, .required = TRUE),
+        ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 22050, .required = TRUE),
         ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, 2 * (32 / 8), .required = TRUE),
-        ATTR_UINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 2 * (32 / 8) * 44100, .required = TRUE),
+        ATTR_UINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 2 * (32 / 8) * 22050, .required = TRUE),
         {0},
     };
-    static const struct attribute_desc input_type_desc_wma3[] =
-    {
-        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio, .required = TRUE),
-        ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_PCM, .required = TRUE),
-        ATTR_UINT32(MF_MT_AUDIO_NUM_CHANNELS, 2, .required = TRUE),
-        ATTR_UINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 32, .required = TRUE),
-        ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100, .required = TRUE),
-        ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, 2 * (32 / 8), .required = TRUE),
-        ATTR_UINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 2 * (32 / 8) * 44100, .required = TRUE),
-        {0},
-    };
-    static const struct attribute_desc input_type_desc_wma_lossless[] =
-    {
-        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio, .required = TRUE),
-        ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_PCM, .required = TRUE),
-        ATTR_UINT32(MF_MT_AUDIO_NUM_CHANNELS, 2, .required = TRUE),
-        ATTR_UINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 24, .required = TRUE),
-        ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100, .required = TRUE),
-        ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, 2 * (24 / 8), .required = TRUE),
-        ATTR_UINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 2 * (24 / 8) * 44100, .required = TRUE),
-        {0},
-    };
-    const struct attribute_desc output_type_desc_wma2[] =
+    const struct attribute_desc output_type_desc[] =
     {
         ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio, .required = TRUE),
         ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_WMAudioV8, .required = TRUE),
         ATTR_UINT32(MF_MT_AUDIO_NUM_CHANNELS, 2, .required = TRUE),
-        ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100, .required = TRUE),
-        ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, wma2_block_size, .required = TRUE),
+        ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 22050, .required = TRUE),
+        ATTR_UINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 4003, .required = TRUE),
+        ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, wmaenc_block_size, .required = TRUE),
         ATTR_BLOB(MF_MT_USER_DATA, wma_codec_data, sizeof(wma_codec_data), .required = TRUE),
         {0},
     };
-    const struct attribute_desc output_type_desc_wma3[] =
-    {
-        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio, .required = TRUE),
-        ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_WMAudioV9, .required = TRUE),
-        ATTR_UINT32(MF_MT_AUDIO_NUM_CHANNELS, 2, .required = TRUE),
-        ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100, .required = TRUE),
-        ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, wma3_block_size, .required = TRUE),
-        ATTR_BLOB(MF_MT_USER_DATA, wma3_codec_data, sizeof(wma3_codec_data), .required = TRUE),
-        {0},
-    };
-    const struct attribute_desc output_type_desc_wma_lossless[] =
-    {
-        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio, .required = TRUE),
-        ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_WMAudio_Lossless, .required = TRUE),
-        ATTR_UINT32(MF_MT_AUDIO_NUM_CHANNELS, 2, .required = TRUE),
-        ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100, .required = TRUE),
-        ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, wma_lossless_block_size, .required = TRUE),
-        ATTR_BLOB(MF_MT_USER_DATA, wma_lossless_codec_data, sizeof(wma_lossless_codec_data), .required = TRUE),
-        {0},
-    };
-    const struct attribute_desc output_type_desc_wmaspdif[] =
-    {
-        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio, .required = TRUE),
-        ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_XMAudio2, .required = TRUE),
-        ATTR_UINT32(MF_MT_AUDIO_NUM_CHANNELS, 2, .required = TRUE),
-        ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100, .required = TRUE),
-        ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, wma3_block_size, .required = TRUE),
-        ATTR_BLOB(MF_MT_USER_DATA, wma3_codec_data, sizeof(wma3_codec_data), .required = TRUE),
-        {0},
-    };
-    const struct attribute_desc output_type_desc_xma2[] =
-    {
-        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio, .required = TRUE),
-        ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_XMAudio2, .required = TRUE),
-        ATTR_UINT32(MF_MT_AUDIO_NUM_CHANNELS, 2, .required = TRUE),
-        ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100, .required = TRUE),
-        ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, wma3_block_size, .required = TRUE),
-        ATTR_BLOB(MF_MT_USER_DATA, wma3_codec_data, sizeof(wma3_codec_data), .required = TRUE),
-        {0},
-    };
-    static const struct attribute_desc expect_input_type_desc_wma2[] =
+    static const struct attribute_desc expect_input_type_desc[] =
     {
         ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio),
-        ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_PCM),
+        ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_Float),
         ATTR_UINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 32),
         ATTR_UINT32(MF_MT_AUDIO_NUM_CHANNELS, 2),
         ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, 8),
-        ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100),
-        ATTR_UINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 44100 * 8),
-        ATTR_UINT32(MF_MT_AUDIO_VALID_BITS_PER_SAMPLE, 16),
+        ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 22050),
+        ATTR_UINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 22050 * 8),
         ATTR_UINT32(MF_MT_AUDIO_CHANNEL_MASK, 3),
-        ATTR_UINT32(MF_MT_FIXED_SIZE_SAMPLES, 1),
         ATTR_UINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, 1),
         {0},
     };
-    static const struct attribute_desc expect_input_type_desc_wma3[] =
-    {
-        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio),
-        ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_PCM),
-        ATTR_UINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 32),
-        ATTR_UINT32(MF_MT_AUDIO_NUM_CHANNELS, 2),
-        ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, 8),
-        ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100),
-        ATTR_UINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 44100 * 8),
-        ATTR_UINT32(MF_MT_AUDIO_VALID_BITS_PER_SAMPLE, 24),
-        ATTR_UINT32(MF_MT_AUDIO_CHANNEL_MASK, 3),
-        ATTR_UINT32(MF_MT_FIXED_SIZE_SAMPLES, 1),
-        ATTR_UINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, 1),
-        {0},
-    };
-    static const struct attribute_desc expect_input_type_desc_wma_lossless[] =
-    {
-        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio),
-        ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_PCM),
-        ATTR_UINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 32),
-        ATTR_UINT32(MF_MT_AUDIO_NUM_CHANNELS, 2),
-        ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, 8),
-        ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100),
-        ATTR_UINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 44100 * 8),
-        ATTR_UINT32(MF_MT_AUDIO_VALID_BITS_PER_SAMPLE, 24),
-        ATTR_UINT32(MF_MT_AUDIO_CHANNEL_MASK, 3),
-        ATTR_UINT32(MF_MT_FIXED_SIZE_SAMPLES, 1),
-        ATTR_UINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, 1),
-        {0},
-    };
-    const struct attribute_desc expect_output_type_desc_wma2[] =
+    const struct attribute_desc expect_output_type_desc[] =
     {
         ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio),
         ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_WMAudioV8),
         ATTR_UINT32(MF_MT_AUDIO_NUM_CHANNELS, 2),
-        ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100),
-        ATTR_UINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 3998),
-        ATTR_UINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16),
-        ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, wma2_block_size),
+        ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 22050),
+        ATTR_UINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 4003),
+        ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, wmaenc_block_size),
         ATTR_BLOB(MF_MT_USER_DATA, wma_codec_data, sizeof(wma_codec_data)),
-        ATTR_UINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, 1),
         ATTR_UINT32(MF_MT_AUDIO_PREFER_WAVEFORMATEX, 1),
-        ATTR_UINT32(MF_MT_FIXED_SIZE_SAMPLES, 1),
         {0},
     };
-    const struct attribute_desc expect_output_type_desc_wma3[] =
+    const MFT_OUTPUT_STREAM_INFO output_info =
     {
-        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio),
-        ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_WMAudioV9),
-        ATTR_UINT32(MF_MT_AUDIO_NUM_CHANNELS, 2),
-        ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100),
-        ATTR_UINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 16002),
-        ATTR_UINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 24),
-        ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, wma3_block_size),
-        ATTR_BLOB(MF_MT_USER_DATA, wma3_codec_data, sizeof(wma3_codec_data)),
-        ATTR_UINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, 1),
-        ATTR_UINT32(MF_MT_AUDIO_PREFER_WAVEFORMATEX, 1),
-        ATTR_UINT32(MF_MT_FIXED_SIZE_SAMPLES, 1),
-        {0},
-    };
-    const struct attribute_desc expect_output_type_desc_wma_lossless[] =
-    {
-        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio),
-        ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_WMAudio_Lossless),
-        ATTR_UINT32(MF_MT_AUDIO_NUM_CHANNELS, 2),
-        ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100),
-        ATTR_UINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 144004),
-        ATTR_UINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 24),
-        ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, wma_lossless_block_size),
-        ATTR_BLOB(MF_MT_USER_DATA, wma_lossless_codec_data, sizeof(wma_lossless_codec_data)),
-        ATTR_UINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, 1),
-        ATTR_UINT32(MF_MT_AUDIO_PREFER_WAVEFORMATEX, 1),
-        ATTR_UINT32(MF_MT_FIXED_SIZE_SAMPLES, 1),
-        {0},
-    };
-    const struct attribute_desc expect_output_type_desc_wmaspdif[] =
-    {
-        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio),
-        ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_WMASPDIF),
-        ATTR_UINT32(MF_MT_AUDIO_NUM_CHANNELS, 2),
-        ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100),
-        ATTR_UINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 16002),
-        ATTR_UINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 24),
-        ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, wma3_block_size),
-        ATTR_BLOB(MF_MT_USER_DATA, wma3_codec_data, sizeof(wma3_codec_data)),
-        ATTR_UINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, 1),
-        ATTR_UINT32(MF_MT_AUDIO_PREFER_WAVEFORMATEX, 1),
-        ATTR_UINT32(MF_MT_FIXED_SIZE_SAMPLES, 1),
-        {0},
-    };
-    const struct attribute_desc expect_output_type_desc_xma2[] =
-    {
-        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio),
-        ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_XMAudio2),
-        ATTR_UINT32(MF_MT_AUDIO_NUM_CHANNELS, 2),
-        ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100),
-        ATTR_UINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 16002),
-        ATTR_UINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 24),
-        ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, wma3_block_size),
-        ATTR_BLOB(MF_MT_USER_DATA, wma3_codec_data, sizeof(wma3_codec_data)),
-        ATTR_UINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, 1),
-        ATTR_UINT32(MF_MT_AUDIO_PREFER_WAVEFORMATEX, 1),
-        ATTR_UINT32(MF_MT_FIXED_SIZE_SAMPLES, 1),
-        {0},
-    };
-    const MFT_OUTPUT_STREAM_INFO output_info_wma2 =
-    {
-        .cbSize = wma2_block_size,
-        .cbAlignment = 1,
-    };
-    const MFT_OUTPUT_STREAM_INFO output_info_wma3 =
-    {
-        .cbSize = wma3_block_size,
-        .cbAlignment = 1,
-    };
-    const MFT_OUTPUT_STREAM_INFO output_info_wma_lossless =
-    {
-        .cbSize = wma_lossless_block_size,
+        .cbSize = wmaenc_block_size,
         .cbAlignment = 1,
     };
     const MFT_INPUT_STREAM_INFO input_info =
@@ -3188,102 +3012,38 @@ static void test_wma_encoder(GUID subtype)
         .cbAlignment = 1,
     };
 
-    const struct buffer_desc output_buffer_desc_wma2[] =
+    const struct buffer_desc output_buffer_desc[] =
     {
-        {.length = wma2_block_size},
+        {.length = wmaenc_block_size},
     };
-    const struct attribute_desc output_sample_attributes_wma2[] =
-    {
-        ATTR_UINT32(mft_output_sample_incomplete, 1),
-        ATTR_UINT32(MFSampleExtension_CleanPoint, 1),
-        {0},
-    };
-    const struct sample_desc output_sample_desc_wma2[] =
-    {
-        {
-            .attributes = output_sample_attributes_wma2,
-            .sample_time = 0, .sample_duration = 3250794,
-            .buffer_count = 1, .buffers = output_buffer_desc_wma2,
-        },
-        {
-            .attributes = output_sample_attributes_wma2,
-            .sample_time = 3250794, .sample_duration = 3715193,
-            .buffer_count = 1, .buffers = output_buffer_desc_wma2,
-        },
-        {
-            .attributes = output_sample_attributes_wma2,
-            .sample_time = 6965986, .sample_duration = 3366893,
-            .buffer_count = 1, .buffers = output_buffer_desc_wma2,
-        },
-    };
-
-    const struct buffer_desc output_buffer_desc_wma3[] =
-    {
-        {.length = wma2_block_size},
-    };
-    const struct attribute_desc output_sample_attributes_wma3[] =
+    const struct attribute_desc output_sample_attributes[] =
     {
         ATTR_UINT32(mft_output_sample_incomplete, 1),
         ATTR_UINT32(MFSampleExtension_CleanPoint, 1),
         {0},
     };
-    const struct sample_desc output_sample_desc_wma3[] =
+    const struct sample_desc output_sample_desc[] =
     {
         {
-            .attributes = output_sample_attributes_wma3,
+            .attributes = output_sample_attributes,
             .sample_time = 0, .sample_duration = 3250794,
-            .buffer_count = 1, .buffers = output_buffer_desc_wma3,
+            .buffer_count = 1, .buffers = output_buffer_desc,
         },
         {
-            .attributes = output_sample_attributes_wma3,
+            .attributes = output_sample_attributes,
             .sample_time = 3250794, .sample_duration = 3715193,
-            .buffer_count = 1, .buffers = output_buffer_desc_wma3,
+            .buffer_count = 1, .buffers = output_buffer_desc,
         },
         {
-            .attributes = output_sample_attributes_wma3,
+            .attributes = output_sample_attributes,
             .sample_time = 6965986, .sample_duration = 3366893,
-            .buffer_count = 1, .buffers = output_buffer_desc_wma3,
+            .buffer_count = 1, .buffers = output_buffer_desc,
         },
     };
 
-    const struct buffer_desc output_buffer_desc_wma_lossless[] =
-    {
-        {.length = wma2_block_size},
-    };
-    const struct attribute_desc output_sample_attributes_wma_lossless[] =
-    {
-        ATTR_UINT32(mft_output_sample_incomplete, 1),
-        ATTR_UINT32(MFSampleExtension_CleanPoint, 1),
-        {0},
-    };
-    const struct sample_desc output_sample_desc_wma_lossless[] =
-    {
-        {
-            .attributes = output_sample_attributes_wma_lossless,
-            .sample_time = 0, .sample_duration = 3250794,
-            .buffer_count = 1, .buffers = output_buffer_desc_wma_lossless,
-        },
-        {
-            .attributes = output_sample_attributes_wma_lossless,
-            .sample_time = 3250794, .sample_duration = 3715193,
-            .buffer_count = 1, .buffers = output_buffer_desc_wma_lossless,
-        },
-        {
-            .attributes = output_sample_attributes_wma_lossless,
-            .sample_time = 6965986, .sample_duration = 3366893,
-            .buffer_count = 1, .buffers = output_buffer_desc_wma_lossless,
-            .repeat_count = 15,
-        },
-    };
-
-    const struct attribute_desc *output_type_desc = NULL, *expect_output_type_desc = NULL;
-    const struct attribute_desc *input_type_desc = NULL, *expect_input_type_desc = NULL;
-    MFT_REGISTER_TYPE_INFO output_type = {MFMediaType_Audio, subtype};
-    MFT_REGISTER_TYPE_INFO input_type = {MFMediaType_Audio, MFAudioFormat_PCM};
-    const struct sample_desc *output_sample_desc = NULL;
-    const MFT_OUTPUT_STREAM_INFO *output_info = NULL;
+    MFT_REGISTER_TYPE_INFO output_type = {MFMediaType_Audio, MFAudioFormat_WMAudioV8};
+    MFT_REGISTER_TYPE_INFO input_type = {MFMediaType_Audio, MFAudioFormat_Float};
     IMFSample *input_sample, *output_sample;
-    const WCHAR *wmaenc_resource = NULL;
     IMFCollection *output_samples;
     DWORD length, output_status;
     IMFMediaType *media_type;
@@ -3297,58 +3057,7 @@ static void test_wma_encoder(GUID subtype)
     hr = CoInitialize(NULL);
     ok(hr == S_OK, "Failed to initialize, hr %#lx.\n", hr);
 
-    winetest_push_context("wmaenc %#lx", subtype.Data1);
-
-    if (IsEqualGUID(&subtype, &MFAudioFormat_WMAudioV8))
-    {
-        output_type_desc = output_type_desc_wma2;
-        expect_output_type_desc = expect_output_type_desc_wma2;
-        input_type_desc = input_type_desc_wma2;
-        expect_input_type_desc = expect_input_type_desc_wma2;
-        output_info = &output_info_wma2;
-        output_sample_desc = output_sample_desc_wma2;
-        wmaenc_resource = L"wmaencdata.bin";
-    }
-    else if (IsEqualGUID(&subtype, &MFAudioFormat_WMAudioV9))
-    {
-        output_type_desc = output_type_desc_wma3;
-        expect_output_type_desc = expect_output_type_desc_wma3;
-        input_type_desc = input_type_desc_wma3;
-        expect_input_type_desc = expect_input_type_desc_wma3;
-        output_info = &output_info_wma3;
-        output_sample_desc = output_sample_desc_wma3;
-        wmaenc_resource = L"wma3data.bin";
-    }
-    else if (IsEqualGUID(&subtype, &MFAudioFormat_WMAudio_Lossless))
-    {
-        output_type_desc = output_type_desc_wma_lossless;
-        expect_output_type_desc = expect_output_type_desc_wma_lossless;
-        input_type_desc = input_type_desc_wma_lossless;
-        expect_input_type_desc = expect_input_type_desc_wma_lossless;
-        output_info = &output_info_wma_lossless;
-        output_sample_desc = output_sample_desc_wma_lossless;
-        wmaenc_resource = L"wma_losslessdata.bin";
-    }
-    else if (IsEqualGUID(&subtype, &MFAudioFormat_WMASPDIF))
-    {
-        output_type_desc = output_type_desc_wmaspdif;
-        expect_output_type_desc = expect_output_type_desc_wmaspdif;
-        input_type_desc = input_type_desc_wma3;
-        expect_input_type_desc = expect_input_type_desc_wma3;
-        output_info = &output_info_wma3;
-        output_sample_desc = output_sample_desc_wma3;
-        wmaenc_resource = L"wma3data.bin";
-    }
-    else if (IsEqualGUID(&subtype, &MFAudioFormat_XMAudio2))
-    {
-        output_type_desc = output_type_desc_xma2;
-        expect_output_type_desc = expect_output_type_desc_xma2;
-        input_type_desc = input_type_desc_wma3;
-        expect_input_type_desc = expect_input_type_desc_wma3;
-        output_info = &output_info_wma3;
-        output_sample_desc = output_sample_desc_wma3;
-        wmaenc_resource = L"xma2data.bin";
-    }
+    winetest_push_context("wmaenc");
 
     if (!check_mft_enum(MFT_CATEGORY_AUDIO_ENCODER, &input_type, &output_type, class_id))
         goto failed;
@@ -3369,194 +3078,26 @@ static void test_wma_encoder(GUID subtype)
     check_mft_get_input_stream_info(transform, MF_E_TRANSFORM_TYPE_NOT_SET, NULL);
     check_mft_get_output_stream_info(transform, MF_E_TRANSFORM_TYPE_NOT_SET, NULL);
 
-    {
-        static const PROPERTYKEY MFPKEY_FOURCC = {{0x593e3f2e,0xf84d,0x4e85,{0xb6,0x8d,0xf6,0x69,0x40,0xe,0xda,0xbc}},0x0c};
+    check_mft_set_input_type_required(transform, input_type_desc);
 
-        WMT_PROP_DATATYPE type;
-        IPropertyStore *store;
-        IWMCodecProps *props;
-        PROPVARIANT value;
-        BYTE data[1024];
-        DWORD size = sizeof(data);
-
-        hr = IMFTransform_QueryInterface(transform, &IID_IWMCodecProps, (void **)&props);
-        ok(hr == S_OK, "QueryInterface returned %#lx\n", hr);
-        hr = IWMCodecProps_GetCodecProp(props, subtype.Data1, L"_CODECNAME", &type, data, &size);
-        ok(hr == S_OK, "QueryInterface returned %#lx\n", hr);
-        ok(0, "type %u\n", type);
-        ok(0, "size %lu\n", size);
-        ok(0, "name %s\n", debugstr_wn((WCHAR *)data, size));
-        IWMCodecProps_Release(props);
-
-        hr = IMFTransform_QueryInterface(transform, &IID_IPropertyStore, (void **)&store);
-        ok(hr == S_OK, "QueryInterface returned %#lx\n", hr);
-
-        value.vt = VT_I4;
-        value.ulVal = subtype.Data1;
-        hr = IPropertyStore_SetValue(store, &MFPKEY_FOURCC, &value);
-        ok(hr == S_OK, "SetValue returned %#lx\n", hr);
-
-        IPropertyStore_Release(store);
-    }
-
-    if (IsEqualGUID(&subtype, &MFAudioFormat_WMAudio_Lossless))
-    {
-        static const PROPERTYKEY MFPKEY_VBRENABLED = {{0xe48d9459,0x6abe,0x4eb5,{0x92,0x11,0x60,0x8,0xc,0x1a,0xb9,0x84}},0x14};
-        static const PROPERTYKEY MFPKEY_CONSTRAIN_ENUMERATED_VBRQUALITY = {{0x6dbdf03b,0xb05c,0x4a03,{0x8e,0xc1,0xbb,0xe6,0x3d,0xb1,0x0c,0xb4}},0x1a};
-        static const PROPERTYKEY MFPKEY_DESIRED_VBRQUALITY = {{0x6dbdf03b,0xb05c,0x4a03,{0x8e,0xc1,0xbb,0xe6,0x3d,0xb1,0x0c,0xb4}},0x19};
-        static const PROPERTYKEY MFPKEY_ENHANCED_WMA = {{0x6dbdf03b,0xb05c,0x4a03,{0x8e,0xc1,0xbb,0xe6,0x3d,0xb1,0x0c,0xb4}},0x14}; 
-
-        IPropertyStore *store;
-        PROPVARIANT value;
-
-        hr = IMFTransform_QueryInterface(transform, &IID_IPropertyStore, (void **)&store);
-        ok(hr == S_OK, "QueryInterface returned %#lx\n", hr);
-
-        value.vt = VT_BOOL;
-        value.boolVal = VARIANT_TRUE;
-        hr = IPropertyStore_SetValue(store, &MFPKEY_VBRENABLED, &value);
-        ok(hr == S_OK, "SetValue returned %#lx\n", hr);
-        hr = IPropertyStore_SetValue(store, &MFPKEY_CONSTRAIN_ENUMERATED_VBRQUALITY, &value);
-        ok(hr == S_OK, "SetValue returned %#lx\n", hr);
-
-        value.vt = VT_UI4;
-        value.ulVal = 100;
-        hr = IPropertyStore_SetValue(store, &MFPKEY_DESIRED_VBRQUALITY, &value);
-        ok(hr == S_OK, "SetValue returned %#lx\n", hr);
-        value.ulVal = 2;
-        hr = IPropertyStore_SetValue(store, &MFPKEY_ENHANCED_WMA, &value);
-        ok(hr == S_OK, "SetValue returned %#lx\n", hr);
-
-        IPropertyStore_Release(store);
-    }
-
-    if (IsEqualGUID(&subtype, &MFAudioFormat_WMASPDIF))
-    {
-        static const PROPERTYKEY MFPKEY_WMAENC_RTSPDIF = {{0x6dbdf03b,0xb05c,0x4a03,{0x8e,0xc1,0xbb,0xe6,0x3d,0xb1,0x0c,0xb4}},0x1e};
-        static const PROPERTYKEY MFPKEY_VBRENABLED = {{0xe48d9459,0x6abe,0x4eb5,{0x92,0x11,0x60,0x8,0xc,0x1a,0xb9,0x84}},0x14};
-        static const PROPERTYKEY MFPKEY_CONSTRAIN_ENUMERATED_VBRQUALITY = {{0x6dbdf03b,0xb05c,0x4a03,{0x8e,0xc1,0xbb,0xe6,0x3d,0xb1,0x0c,0xb4}},0x1a};
-
-        IPropertyStore *store;
-        PROPVARIANT value;
-
-        hr = IMFTransform_QueryInterface(transform, &IID_IPropertyStore, (void **)&store);
-        ok(hr == S_OK, "QueryInterface returned %#lx\n", hr);
-
-        value.vt = VT_BOOL;
-        value.boolVal = VARIANT_TRUE;
-        hr = IPropertyStore_SetValue(store, &MFPKEY_WMAENC_RTSPDIF, &value);
-        ok(hr == S_OK, "SetValue returned %#lx\n", hr);
-        hr = IPropertyStore_SetValue(store, &MFPKEY_VBRENABLED, &value);
-        ok(hr == S_OK, "SetValue returned %#lx\n", hr);
-        hr = IPropertyStore_SetValue(store, &MFPKEY_CONSTRAIN_ENUMERATED_VBRQUALITY, &value);
-        ok(hr == S_OK, "SetValue returned %#lx\n", hr);
-
-        IPropertyStore_Release(store);
-    }
-
-    i = -1;
-    while (SUCCEEDED(hr = IMFTransform_GetOutputAvailableType(transform, 0, ++i, &media_type)))
-    {
-        UINT32 value;
-        GUID guid;
-
-        winetest_push_context("out %lu", i);
-        ok(hr == S_OK, "GetOutputAvailableType returned %#lx\n", hr);
-
-        hr = IMFMediaType_GetGUID(media_type, &MF_MT_SUBTYPE, &guid);
-        ok(hr == S_OK, "GetUINT32 MF_MT_SUBTYPE returned %#lx\n", hr);
-        if (IsEqualGUID(&subtype, &MFAudioFormat_WMAudio_Lossless))
-            ok(IsEqualGUID(&guid, &MFAudioFormat_WMAudio_Lossless), "got MF_MT_SUBTYPE %s\n", debugstr_guid(&guid));
-        else
-            ok(IsEqualGUID(&guid, &MFAudioFormat_WMAudioV8) || IsEqualGUID(&guid, &MFAudioFormat_WMAudioV9),
-                    "got MF_MT_SUBTYPE %s\n", debugstr_guid(&guid));
-
-        hr = IMFMediaType_GetUINT32(media_type, &MF_MT_AUDIO_BITS_PER_SAMPLE, &value);
-        ok(hr == S_OK, "GetUINT32 MF_MT_AUDIO_BITS_PER_SAMPLE returned hr %#lx\n", hr);
-        if (IsEqualGUID(&guid, &MFAudioFormat_WMAudioV8))
-            ok(value == 16, "got MF_MT_AUDIO_BITS_PER_SAMPLE %u\n", value);
-        else
-            ok(value == 16 || value == 24, "got MF_MT_AUDIO_BITS_PER_SAMPLE %u\n", value);
-
-        hr = IMFMediaType_GetBlob(media_type, &MF_MT_USER_DATA, NULL, 0, &value);
-        ok(hr == E_NOT_SUFFICIENT_BUFFER, "GetBlob MF_MT_USER_DATA returned hr %#lx\n", hr);
-        if (IsEqualGUID(&guid, &MFAudioFormat_WMAudioV8))
-            ok(value == 10, "got MF_MT_USER_DATA size %u\n", value);
-        else
-            ok(value == 18, "got MF_MT_USER_DATA size %u\n", value);
-
-        if (IsEqualGUID(&subtype, &MFAudioFormat_WMAudioV8) && i == 34)
-            check_media_type(media_type, expect_output_type_desc, -1);
-        else if (IsEqualGUID(&subtype, &MFAudioFormat_WMAudioV9) && i == 82)
-            check_media_type(media_type, expect_output_type_desc, -1);
-        else if (IsEqualGUID(&subtype, &MFAudioFormat_WMAudio_Lossless) && i == 1)
-            check_media_type(media_type, expect_output_type_desc, -1);
-        else if (IsEqualGUID(&subtype, &MFAudioFormat_WMASPDIF))
-            dump_media_type(media_type);
-        else if (IsEqualGUID(&subtype, &MFAudioFormat_XMAudio2))
-            dump_media_type(media_type);
-
-        ret = IMFMediaType_Release(media_type);
-        ok(ret == 0, "Release returned %lu\n", ret);
-        winetest_pop_context();
-    }
-    ok(hr == MF_E_NO_MORE_TYPES, "GetOutputAvailableType returned %#lx\n", hr);
-    if (IsEqualGUID(&subtype, &MFAudioFormat_WMAudio_Lossless))
-        ok(i == 8, "%lu output media types\n", i);
-    else
-        ok(i == 222, "%lu output media types\n", i);
+    hr = MFCreateMediaType(&media_type);
+    ok(hr == S_OK, "MFCreateMediaType returned %#lx\n", hr);
+    init_media_type(media_type, input_type_desc, -1);
+    hr = IMFTransform_SetInputType(transform, 0, media_type, 0);
+    ok(hr == S_OK, "SetInputType returned %#lx.\n", hr);
+    ret = IMFMediaType_Release(media_type);
+    ok(ret == 0, "Release returned %lu\n", ret);
 
     check_mft_set_output_type_required(transform, output_type_desc);
     check_mft_set_output_type(transform, output_type_desc, S_OK);
     check_mft_get_output_current_type(transform, expect_output_type_desc);
-
-    i = -1;
-    while (SUCCEEDED(hr = IMFTransform_GetInputAvailableType(transform, 0, ++i, &media_type)))
-    {
-        UINT32 value;
-        GUID guid;
-
-        winetest_push_context("out %lu", i);
-        ok(hr == S_OK, "GetOutputAvailableType returned %#lx\n", hr);
-
-        hr = IMFMediaType_GetGUID(media_type, &MF_MT_SUBTYPE, &guid);
-        ok(hr == S_OK, "GetUINT32 MF_MT_SUBTYPE returned %#lx\n", hr);
-        if (IsEqualGUID(&subtype, &MFAudioFormat_WMAudio_Lossless))
-            ok(IsEqualGUID(&guid, &MFAudioFormat_PCM), "got MF_MT_SUBTYPE %s\n", debugstr_guid(&guid));
-        else
-            ok(IsEqualGUID(&guid, &MFAudioFormat_PCM) || IsEqualGUID(&guid, &MFAudioFormat_Float),
-                    "got MF_MT_SUBTYPE %s\n", debugstr_guid(&guid));
-
-        hr = IMFMediaType_GetUINT32(media_type, &MF_MT_AUDIO_BITS_PER_SAMPLE, &value);
-        ok(hr == S_OK, "GetUINT32 MF_MT_AUDIO_BITS_PER_SAMPLE returned hr %#lx\n", hr);
-        if (IsEqualGUID(&subtype, &MFAudioFormat_WMAudioV8))
-            ok(value == 16 || value == 32, "got MF_MT_AUDIO_BITS_PER_SAMPLE %u\n", value);
-        else
-            ok(value == 24 || value == 32, "got MF_MT_AUDIO_BITS_PER_SAMPLE %u\n", value);
-
-        if (IsEqualGUID(&subtype, &MFAudioFormat_WMAudioV8) && i == 1)
-            check_media_type(media_type, expect_input_type_desc, -1);
-        else if (IsEqualGUID(&subtype, &MFAudioFormat_WMAudioV9) && i == 1)
-            check_media_type(media_type, expect_input_type_desc, -1);
-        else if (IsEqualGUID(&subtype, &MFAudioFormat_WMAudio_Lossless) && i == 1)
-            check_media_type(media_type, expect_input_type_desc, -1);
-
-        ret = IMFMediaType_Release(media_type);
-        ok(ret == 0, "Release returned %lu\n", ret);
-        winetest_pop_context();
-    }
-    ok(hr == MF_E_NO_MORE_TYPES, "GetOutputAvailableType returned %#lx\n", hr);
-    if (IsEqualGUID(&subtype, &MFAudioFormat_WMAudio_Lossless))
-        ok(i == 2, "%lu output media types\n", i);
-    else
-        ok(i == 3, "%lu output media types\n", i);
 
     check_mft_set_input_type_required(transform, input_type_desc);
     check_mft_set_input_type(transform, input_type_desc, S_OK);
     check_mft_get_input_current_type(transform, expect_input_type_desc);
 
     check_mft_get_input_stream_info(transform, S_OK, &input_info);
-    check_mft_get_output_stream_info(transform, S_OK, output_info);
+    check_mft_get_output_stream_info(transform, S_OK, &output_info);
 
     load_resource(L"audiodata.bin", &audio_data, &audio_data_len);
     ok(audio_data_len == 179928, "got length %lu\n", audio_data_len);
@@ -3578,7 +3119,7 @@ static void test_wma_encoder(GUID subtype)
     hr = MFCreateCollection(&output_samples);
     ok(hr == S_OK, "MFCreateCollection returned %#lx\n", hr);
 
-    output_sample = create_sample(NULL, output_info->cbSize);
+    output_sample = create_sample(NULL, output_info.cbSize);
     for (i = 0; SUCCEEDED(hr = check_mft_process_output(transform, output_sample, &output_status)); i++)
     {
         winetest_push_context("%lu", i);
@@ -3588,7 +3129,7 @@ static void test_wma_encoder(GUID subtype)
         ok(hr == S_OK, "AddElement returned %#lx\n", hr);
         ref = IMFSample_Release(output_sample);
         ok(ref == 1, "Release returned %ld\n", ref);
-        output_sample = create_sample(NULL, output_info->cbSize);
+        output_sample = create_sample(NULL, output_info.cbSize);
         winetest_pop_context();
     }
     ok(hr == MF_E_TRANSFORM_NEED_MORE_INPUT, "ProcessOutput returned %#lx\n", hr);
@@ -3597,11 +3138,11 @@ static void test_wma_encoder(GUID subtype)
     ok(ret == 0, "Release returned %lu\n", ret);
     ok(i == 3, "got %lu output samples\n", i);
 
-    ret = check_mf_sample_collection(output_samples, output_sample_desc, wmaenc_resource);
+    ret = check_mf_sample_collection(output_samples, output_sample_desc, L"wmaencdata.bin");
     ok(ret == 0, "got %lu%% diff\n", ret);
     IMFCollection_Release(output_samples);
 
-    output_sample = create_sample(NULL, output_info->cbSize);
+    output_sample = create_sample(NULL, output_info.cbSize);
     hr = check_mft_process_output(transform, output_sample, &output_status);
     ok(hr == MF_E_TRANSFORM_NEED_MORE_INPUT, "ProcessOutput returned %#lx\n", hr);
     ok(output_status == 0, "got output[0].dwStatus %#lx\n", output_status);
@@ -3713,7 +3254,7 @@ static void test_wma_decoder(void)
         ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio, .required = TRUE),
         ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_WMAudioV8, .required = TRUE),
         ATTR_BLOB(MF_MT_USER_DATA, wma_codec_data, sizeof(wma_codec_data), .required = TRUE),
-        ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, wma2_block_size, .required = TRUE),
+        ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, wmaenc_block_size, .required = TRUE),
         ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 22050, .required = TRUE),
         ATTR_UINT32(MF_MT_AUDIO_NUM_CHANNELS, 2, .required = TRUE),
         ATTR_UINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 4003), /* not required by SetInputType, but needed for the transform to work */
@@ -3736,7 +3277,7 @@ static void test_wma_decoder(void)
         ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio),
         ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_WMAudioV8),
         ATTR_BLOB(MF_MT_USER_DATA, wma_codec_data, sizeof(wma_codec_data)),
-        ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, wma2_block_size),
+        ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, wmaenc_block_size),
         ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 22050),
         ATTR_UINT32(MF_MT_AUDIO_NUM_CHANNELS, 2),
         ATTR_UINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 4003),
@@ -3759,7 +3300,7 @@ static void test_wma_decoder(void)
     };
     const MFT_INPUT_STREAM_INFO input_info =
     {
-        .cbSize = wma2_block_size,
+        .cbSize = wmaenc_block_size,
         .cbAlignment = 1,
     };
     const MFT_OUTPUT_STREAM_INFO output_info =
@@ -3896,19 +3437,19 @@ static void test_wma_decoder(void)
     check_mft_get_output_stream_info(transform, S_OK, &output_info);
 
     load_resource(L"wmaencdata.bin", &wmaenc_data, &wmaenc_data_len);
-    ok(wmaenc_data_len % wma2_block_size == 0, "got length %lu\n", wmaenc_data_len);
+    ok(wmaenc_data_len % wmaenc_block_size == 0, "got length %lu\n", wmaenc_data_len);
 
-    input_sample = create_sample(wmaenc_data, wma2_block_size / 2);
+    input_sample = create_sample(wmaenc_data, wmaenc_block_size / 2);
     hr = IMFTransform_ProcessInput(transform, 0, input_sample, 0);
     ok(hr == S_OK, "ProcessInput returned %#lx\n", hr);
     ret = IMFSample_Release(input_sample);
     ok(ret == 0, "Release returned %lu\n", ret);
-    input_sample = create_sample(wmaenc_data, wma2_block_size + 1);
+    input_sample = create_sample(wmaenc_data, wmaenc_block_size + 1);
     hr = IMFTransform_ProcessInput(transform, 0, input_sample, 0);
     ok(hr == S_OK, "ProcessInput returned %#lx\n", hr);
     ret = IMFSample_Release(input_sample);
     ok(ret == 0, "Release returned %lu\n", ret);
-    input_sample = create_sample(wmaenc_data, wma2_block_size);
+    input_sample = create_sample(wmaenc_data, wmaenc_block_size);
     hr = IMFTransform_ProcessInput(transform, 0, input_sample, 0);
     ok(hr == S_OK, "ProcessInput returned %#lx\n", hr);
     hr = IMFTransform_ProcessInput(transform, 0, input_sample, 0);
@@ -3925,7 +3466,7 @@ static void test_wma_decoder(void)
             || broken(output_status == (MFT_OUTPUT_DATA_BUFFER_INCOMPLETE|MFT_OUTPUT_DATA_BUFFER_NO_SAMPLE)) /* Win7 */,
             "got output[0].dwStatus %#lx\n", output_status);
 
-    input_sample = create_sample(wmaenc_data, wma2_block_size);
+    input_sample = create_sample(wmaenc_data, wmaenc_block_size);
     hr = IMFTransform_ProcessInput(transform, 0, input_sample, 0);
     ok(hr == MF_E_NOTACCEPTING, "ProcessInput returned %#lx\n", hr);
     ret = IMFSample_Release(input_sample);
@@ -3978,7 +3519,7 @@ static void test_wma_decoder(void)
     ret = IMFSample_Release(output_sample);
     ok(ret == 0, "Release returned %lu\n", ret);
 
-    input_sample = create_sample(wmaenc_data, wma2_block_size);
+    input_sample = create_sample(wmaenc_data, wmaenc_block_size);
     hr = IMFTransform_ProcessInput(transform, 0, input_sample, 0);
     ok(hr == S_OK, "ProcessInput returned %#lx\n", hr);
 
@@ -5559,6 +5100,7 @@ static void test_h264_decoder_concat_streams(void)
             MFT_OUTPUT_DATA_BUFFER data = {.pSample = create_sample(NULL, info.cbSize)};
 
             hr = IMFTransform_ProcessOutput(transform, 0, 1, &data, &output_status);
+            todo_wine_if(hr == 0xd0000001)
             ok(hr == S_OK || hr == MF_E_TRANSFORM_NEED_MORE_INPUT || hr == MF_E_TRANSFORM_STREAM_CHANGE,
                "ProcessOutput returned %#lx\n", hr);
 
@@ -10751,1168 +10293,6 @@ failed:
     CoUninitialize();
 }
 
-struct test_transform
-{
-    IMFTransform IMFTransform_iface;
-    LONG refcount;
-
-    CRITICAL_SECTION cs;
-    CONDITION_VARIABLE results_cond;
-    BOOL shutdown;
-
-    UINT input_count;
-    IMFMediaType *available_input_types[4];
-    IMFMediaType *input_types[4];
-    IMFSample *input_samples[4];
-    HRESULT input_results[4];
-    HANDLE process_input_event[4];
-
-    UINT output_count;
-    IMFMediaType *available_output_types[4];
-    IMFMediaType *output_types[4];
-    IMFSample *output_samples[4];
-    HRESULT output_results[4];
-    HANDLE process_output_event[4];
-};
-
-static HRESULT WINAPI test_transform_QueryInterface(IMFTransform *iface, REFIID iid, void **out)
-{
-    struct test_transform *impl = CONTAINING_RECORD(iface, struct test_transform, IMFTransform_iface);
-
-    if (IsEqualGUID(iid, &IID_IUnknown)
-            || IsEqualGUID(iid, &IID_IMFTransform))
-    {
-        IMFTransform_AddRef((*out = &impl->IMFTransform_iface));
-        return S_OK;
-    }
-
-    *out = NULL;
-    return E_NOINTERFACE;
-}
-
-static ULONG WINAPI test_transform_AddRef(IMFTransform *iface)
-{
-    struct test_transform *impl = CONTAINING_RECORD(iface, struct test_transform, IMFTransform_iface);
-    ULONG refcount = InterlockedIncrement(&impl->refcount);
-    return refcount;
-}
-
-static ULONG WINAPI test_transform_Release(IMFTransform *iface)
-{
-    struct test_transform *impl = CONTAINING_RECORD(iface, struct test_transform, IMFTransform_iface);
-    ULONG refcount = InterlockedDecrement(&impl->refcount);
-    UINT i;
-
-    if (!refcount)
-    {
-        for (i = 0; i < impl->input_count; i++)
-            CloseHandle(impl->process_input_event[i]);
-        for (i = 0; i < impl->output_count; i++)
-            CloseHandle(impl->process_output_event[i]);
-        DeleteCriticalSection(&impl->cs);
-        free(impl);
-    }
-
-    return refcount;
-}
-
-static HRESULT WINAPI test_transform_GetStreamLimits(IMFTransform *iface, DWORD *input_minimum,
-        DWORD *input_maximum, DWORD *output_minimum, DWORD *output_maximum)
-{
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI test_transform_GetStreamCount(IMFTransform *iface, DWORD *inputs, DWORD *outputs)
-{
-    struct test_transform *impl = CONTAINING_RECORD(iface, struct test_transform, IMFTransform_iface);
-    *inputs = impl->input_count;
-    *outputs = impl->output_count;
-    return S_OK;
-}
-
-static HRESULT WINAPI test_transform_GetStreamIDs(IMFTransform *iface, DWORD input_size, DWORD *inputs,
-        DWORD output_size, DWORD *outputs)
-{
-    struct test_transform *impl = CONTAINING_RECORD(iface, struct test_transform, IMFTransform_iface);
-    UINT i;
-
-    for (i = 0; i < impl->input_count; ++i)
-        inputs[i] = i;
-    for (i = 0; i < impl->output_count; ++i)
-        outputs[i] = i;
-
-    return S_OK;
-}
-
-static HRESULT WINAPI test_transform_GetInputStreamInfo(IMFTransform *iface, DWORD id, MFT_INPUT_STREAM_INFO *info)
-{
-    info->cbAlignment = 0;
-    info->cbSize = 0x1000;
-    info->dwFlags = 0;
-    info->cbMaxLookahead = 0;
-    info->hnsMaxLatency = 0;
-    return S_OK;
-}
-
-static HRESULT WINAPI test_transform_GetOutputStreamInfo(IMFTransform *iface, DWORD id, MFT_OUTPUT_STREAM_INFO *info)
-{
-    info->cbAlignment = 0;
-    info->cbSize = 0x1000;
-    info->dwFlags = MFT_OUTPUT_STREAM_PROVIDES_SAMPLES;
-    return S_OK;
-}
-
-static HRESULT WINAPI test_transform_GetAttributes(IMFTransform *iface, IMFAttributes **attributes)
-{
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI test_transform_GetInputStreamAttributes(IMFTransform *iface, DWORD id, IMFAttributes **attributes)
-{
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI test_transform_GetOutputStreamAttributes(IMFTransform *iface, DWORD id, IMFAttributes **attributes)
-{
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI test_transform_DeleteInputStream(IMFTransform *iface, DWORD id)
-{
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI test_transform_AddInputStreams(IMFTransform *iface, DWORD streams, DWORD *ids)
-{
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI test_transform_GetInputAvailableType(IMFTransform *iface, DWORD id, DWORD index,
-        IMFMediaType **type)
-{
-    struct test_transform *impl = CONTAINING_RECORD(iface, struct test_transform, IMFTransform_iface);
-    HRESULT hr;
-
-    EnterCriticalSection(&impl->cs);
-    if (impl->shutdown)
-        hr = MF_E_SHUTDOWN;
-    else if (index >= impl->input_count)
-        hr = MF_E_NO_MORE_TYPES;
-    else
-    {
-        IMFMediaType_AddRef((*type = impl->available_input_types[index]));
-        hr = S_OK;
-    }
-    LeaveCriticalSection(&impl->cs);
-    return hr;
-}
-
-static HRESULT WINAPI test_transform_GetOutputAvailableType(IMFTransform *iface, DWORD id,
-        DWORD index, IMFMediaType **type)
-{
-    struct test_transform *impl = CONTAINING_RECORD(iface, struct test_transform, IMFTransform_iface);
-    HRESULT hr;
-
-    EnterCriticalSection(&impl->cs);
-    if (impl->shutdown)
-        hr = MF_E_SHUTDOWN;
-    else if (index >= impl->output_count)
-        hr = MF_E_NO_MORE_TYPES;
-    else
-    {
-        IMFMediaType_AddRef((*type = impl->available_output_types[index]));
-        hr = S_OK;
-    }
-    LeaveCriticalSection(&impl->cs);
-    return hr;
-}
-
-static HRESULT WINAPI test_transform_SetInputType(IMFTransform *iface, DWORD id, IMFMediaType *type, DWORD flags)
-{
-    struct test_transform *impl = CONTAINING_RECORD(iface, struct test_transform, IMFTransform_iface);
-    HRESULT hr;
-
-    EnterCriticalSection(&impl->cs);
-    if (impl->shutdown)
-        hr = MF_E_SHUTDOWN;
-    else if (id >= impl->input_count)
-        hr = MF_E_INVALIDSTREAMNUMBER;
-    else
-    {
-        IMFMediaType_AddRef((impl->input_types[id] = type));
-        hr = S_OK;
-    }
-    LeaveCriticalSection(&impl->cs);
-    return hr;
-}
-
-static HRESULT WINAPI test_transform_SetOutputType(IMFTransform *iface, DWORD id, IMFMediaType *type, DWORD flags)
-{
-    struct test_transform *impl = CONTAINING_RECORD(iface, struct test_transform, IMFTransform_iface);
-    HRESULT hr;
-
-    EnterCriticalSection(&impl->cs);
-    if (impl->shutdown)
-        hr = MF_E_SHUTDOWN;
-    else if (id >= impl->output_count)
-        hr = MF_E_INVALIDSTREAMNUMBER;
-    else
-    {
-        IMFMediaType_AddRef((impl->output_types[id] = type));
-        hr = S_OK;
-    }
-    LeaveCriticalSection(&impl->cs);
-    return hr;
-}
-
-static HRESULT WINAPI test_transform_GetInputCurrentType(IMFTransform *iface, DWORD id, IMFMediaType **type)
-{
-    struct test_transform *impl = CONTAINING_RECORD(iface, struct test_transform, IMFTransform_iface);
-    HRESULT hr;
-
-    EnterCriticalSection(&impl->cs);
-    if (impl->shutdown)
-        hr = MF_E_SHUTDOWN;
-    else if (id >= impl->input_count)
-        hr = MF_E_INVALIDSTREAMNUMBER;
-    else if (!impl->input_types[id])
-        hr = MF_E_TRANSFORM_TYPE_NOT_SET;
-    else
-    {
-        IMFMediaType_AddRef((*type = impl->input_types[id]));
-        hr = S_OK;
-    }
-    LeaveCriticalSection(&impl->cs);
-    return hr;
-}
-
-static HRESULT WINAPI test_transform_GetOutputCurrentType(IMFTransform *iface, DWORD id, IMFMediaType **type)
-{
-    struct test_transform *impl = CONTAINING_RECORD(iface, struct test_transform, IMFTransform_iface);
-    HRESULT hr;
-
-    EnterCriticalSection(&impl->cs);
-    if (impl->shutdown)
-        hr = MF_E_SHUTDOWN;
-    else if (id >= impl->output_count)
-        hr = MF_E_INVALIDSTREAMNUMBER;
-    else if (!impl->output_types[id])
-        hr = MF_E_TRANSFORM_TYPE_NOT_SET;
-    else
-    {
-        IMFMediaType_AddRef((*type = impl->output_types[id]));
-        hr = S_OK;
-    }
-    LeaveCriticalSection(&impl->cs);
-    return hr;
-}
-
-static HRESULT WINAPI test_transform_GetInputStatus(IMFTransform *iface, DWORD id, DWORD *flags)
-{
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI test_transform_GetOutputStatus(IMFTransform *iface, DWORD *flags)
-{
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI test_transform_SetOutputBounds(IMFTransform *iface, LONGLONG lower, LONGLONG upper)
-{
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI test_transform_ProcessEvent(IMFTransform *iface, DWORD id, IMFMediaEvent *event)
-{
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI test_transform_ProcessMessage(IMFTransform *iface, MFT_MESSAGE_TYPE message, ULONG_PTR param)
-{
-    return S_OK;
-}
-
-static HRESULT WINAPI test_transform_ProcessInput(IMFTransform *iface, DWORD id, IMFSample *sample, DWORD flags)
-{
-    struct test_transform *impl = CONTAINING_RECORD(iface, struct test_transform, IMFTransform_iface);
-    IMFSample *previous;
-    HRESULT hr;
-
-    EnterCriticalSection(&impl->cs);
-
-    if (impl->shutdown)
-        hr = MF_E_SHUTDOWN;
-    else
-    {
-        if ((previous = impl->input_samples[id]))
-        {
-            /* samples should be received again after MF_E_NOTACCEPTING */
-            if (impl->input_results[id] == MF_E_NOTACCEPTING)
-                ok(previous == sample || broken(previous != sample && !has_video_processor) /* w7 */,
-                        "got different sample\n");
-            IMFSample_Release(previous);
-        }
-
-        impl->input_results[id] = E_PENDING;
-        IMFSample_AddRef((impl->input_samples[id] = sample));
-        SetEvent(impl->process_input_event[id]);
-
-        while ((hr = impl->input_results[id]) == E_PENDING && !impl->shutdown)
-            SleepConditionVariableCS(&impl->results_cond, &impl->cs, INFINITE);
-    }
-
-    LeaveCriticalSection(&impl->cs);
-    return hr;
-}
-
-static HRESULT WINAPI test_transform_ProcessOutput(IMFTransform *iface, DWORD flags, DWORD count,
-        MFT_OUTPUT_DATA_BUFFER *samples, DWORD *status)
-{
-    struct test_transform *impl = CONTAINING_RECORD(iface, struct test_transform, IMFTransform_iface);
-    HRESULT hr, result;
-    UINT i;
-
-    EnterCriticalSection(&impl->cs);
-
-    if (impl->shutdown)
-        hr = MF_E_SHUTDOWN;
-    else
-    {
-        for (i = 0; i < count; ++i)
-        {
-            UINT id = samples[i].dwStreamID;
-            ok(!samples[i].pEvents, "got pEvents\n");
-            ok(!samples[i].pSample, "got pSample\n");
-            ok(!samples[i].dwStatus, "got dwStatus\n");
-            ok(id == i, "got dwStreamID %#lx\n", samples[i].dwStreamID);
-
-            impl->output_results[id] = E_PENDING;
-            SetEvent(impl->process_output_event[id]);
-        }
-
-        for (i = 0, hr = MF_E_TRANSFORM_NEED_MORE_INPUT; i < count; ++i)
-        {
-            UINT id = samples[i].dwStreamID;
-            while ((result = impl->output_results[id]) == E_PENDING && !impl->shutdown)
-                SleepConditionVariableCS(&impl->results_cond, &impl->cs, INFINITE);
-            samples[i].pSample = impl->output_samples[id];
-            impl->output_samples[id] = NULL;
-            if (FAILED(result))
-                samples[i].dwStatus = MFT_OUTPUT_DATA_BUFFER_NO_SAMPLE;
-            else
-                hr = S_OK;
-        }
-
-        *status = 0;
-    }
-
-    LeaveCriticalSection(&impl->cs);
-    return hr;
-}
-
-static const IMFTransformVtbl test_transform_vtbl =
-{
-    test_transform_QueryInterface,
-    test_transform_AddRef,
-    test_transform_Release,
-    test_transform_GetStreamLimits,
-    test_transform_GetStreamCount,
-    test_transform_GetStreamIDs,
-    test_transform_GetInputStreamInfo,
-    test_transform_GetOutputStreamInfo,
-    test_transform_GetAttributes,
-    test_transform_GetInputStreamAttributes,
-    test_transform_GetOutputStreamAttributes,
-    test_transform_DeleteInputStream,
-    test_transform_AddInputStreams,
-    test_transform_GetInputAvailableType,
-    test_transform_GetOutputAvailableType,
-    test_transform_SetInputType,
-    test_transform_SetOutputType,
-    test_transform_GetInputCurrentType,
-    test_transform_GetOutputCurrentType,
-    test_transform_GetInputStatus,
-    test_transform_GetOutputStatus,
-    test_transform_SetOutputBounds,
-    test_transform_ProcessEvent,
-    test_transform_ProcessMessage,
-    test_transform_ProcessInput,
-    test_transform_ProcessOutput,
-};
-
-static HRESULT test_transform_create(UINT input_count, IMFMediaType **input_types,
-        UINT output_count, IMFMediaType **output_types, IMFTransform **out)
-{
-    struct test_transform *impl;
-    UINT i;
-
-    *out = NULL;
-    if (!(impl = calloc(1, sizeof(*impl))))
-        return E_OUTOFMEMORY;
-    impl->IMFTransform_iface.lpVtbl = &test_transform_vtbl;
-    impl->refcount = 1;
-
-    impl->input_count = input_count;
-    impl->output_count = output_count;
-
-    for (i = 0; i < input_count; i++)
-    {
-        IMFMediaType_AddRef((impl->available_input_types[i] = input_types[i]));
-        impl->process_input_event[i] = CreateEventW(NULL, FALSE, FALSE, NULL);
-    }
-    for (i = 0; i < output_count; i++)
-    {
-        IMFMediaType_AddRef((impl->available_output_types[i] = output_types[i]));
-        impl->process_output_event[i] = CreateEventW(NULL, FALSE, FALSE, NULL);
-    }
-
-    InitializeCriticalSection(&impl->cs);
-
-    *out = &impl->IMFTransform_iface;
-    return S_OK;
-}
-
-static DWORD test_transform_wait_process_input(IMFTransform *iface, DWORD timeout)
-{
-    struct test_transform *impl = CONTAINING_RECORD(iface, struct test_transform, IMFTransform_iface);
-    return WaitForMultipleObjects(impl->input_count, impl->process_input_event, FALSE, timeout);
-}
-
-static void test_transform_get_input(IMFTransform *iface, UINT index, IMFSample **sample)
-{
-    struct test_transform *impl = CONTAINING_RECORD(iface, struct test_transform, IMFTransform_iface);
-
-    EnterCriticalSection(&impl->cs);
-    impl->input_results[index] = sample ? S_OK : MF_E_NOTACCEPTING;
-    if (sample)
-    {
-        *sample = impl->input_samples[index];
-        impl->input_samples[index] = NULL;
-    }
-    LeaveCriticalSection(&impl->cs);
-    WakeAllConditionVariable(&impl->results_cond);
-}
-
-static DWORD test_transform_wait_process_output(IMFTransform *iface, DWORD timeout)
-{
-    struct test_transform *impl = CONTAINING_RECORD(iface, struct test_transform, IMFTransform_iface);
-    return WaitForMultipleObjects(impl->output_count, impl->process_output_event, FALSE, timeout);
-}
-
-static void test_transform_set_output(IMFTransform *iface, UINT index, IMFSample *sample)
-{
-    struct test_transform *impl = CONTAINING_RECORD(iface, struct test_transform, IMFTransform_iface);
-
-    EnterCriticalSection(&impl->cs);
-    impl->output_results[index] = sample ? S_OK : MF_E_TRANSFORM_NEED_MORE_INPUT;
-    if ((impl->output_samples[index] = sample))
-        IMFSample_AddRef(sample);
-    LeaveCriticalSection(&impl->cs);
-    WakeAllConditionVariable(&impl->results_cond);
-}
-
-static void test_transform_shutdown(IMFTransform *iface)
-{
-    struct test_transform *impl = CONTAINING_RECORD(iface, struct test_transform, IMFTransform_iface);
-    UINT i;
-
-    EnterCriticalSection(&impl->cs);
-    impl->shutdown = TRUE;
-    for (i = 0; i < impl->input_count; i++)
-    {
-        impl->input_results[i] = MF_E_SHUTDOWN;
-        if (impl->input_samples[i])
-            IMFSample_Release(impl->input_samples[i]);
-        impl->input_samples[i] = NULL;
-    }
-    for (i = 0; i < impl->output_count; i++)
-    {
-        impl->output_results[i] = MF_E_SHUTDOWN;
-        if (impl->output_samples[i])
-            IMFSample_Release(impl->output_samples[i]);
-        impl->output_samples[i] = NULL;
-    }
-    LeaveCriticalSection(&impl->cs);
-    WakeAllConditionVariable(&impl->results_cond);
-}
-
-
-static IMFTopologyNode *test_transform_create_source_node(IMFTopology *topology,
-        IMFMediaSource *source, UINT index, IMFMediaType **media_type)
-{
-    IMFPresentationDescriptor *pd;
-    IMFMediaTypeHandler *handler;
-    IMFStreamDescriptor *sd;
-    IMFTopologyNode *node;
-    BOOL selected;
-    HRESULT hr;
-
-    /* create source node */
-    hr = MFCreateTopologyNode(MF_TOPOLOGY_SOURCESTREAM_NODE, &node);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    hr = IMFTopology_AddNode(topology, node);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-
-    hr = IMFMediaSource_CreatePresentationDescriptor(source, &pd);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    hr = IMFPresentationDescriptor_SelectStream(pd, index);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    hr = IMFPresentationDescriptor_GetStreamDescriptorByIndex(pd, index, &selected, &sd);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-
-    hr = IMFStreamDescriptor_GetMediaTypeHandler(sd, &handler);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    hr = IMFMediaTypeHandler_GetMediaTypeByIndex(handler, 0, media_type);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    IMFMediaTypeHandler_Release(handler);
-
-    hr = IMFTopologyNode_SetUnknown(node, &MF_TOPONODE_SOURCE, (IUnknown *)source);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    hr = IMFTopologyNode_SetUnknown(node, &MF_TOPONODE_STREAM_DESCRIPTOR, (IUnknown *)sd);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    IMFStreamDescriptor_Release(sd);
-    hr = IMFTopologyNode_SetUnknown(node, &MF_TOPONODE_PRESENTATION_DESCRIPTOR, (IUnknown *)pd);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    IMFPresentationDescriptor_Release(pd);
-
-    return node;
-}
-
-static IMFTopologyNode *test_transform_create_transform_node(IMFTopology *topology,
-        UINT input_count, IMFMediaType **input_types, UINT output_count, IMFMediaType **output_types,
-        IMFTransform **transform)
-{
-    IMFTopologyNode *node;
-    HRESULT hr;
-
-    hr = MFCreateTopologyNode(MF_TOPOLOGY_TRANSFORM_NODE, &node);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    hr = IMFTopology_AddNode(topology, node);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    hr = test_transform_create(input_count, input_types, output_count, output_types, transform);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    hr = IMFTopologyNode_SetObject(node, (IUnknown *)*transform);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    hr = IMFTopologyNode_SetUINT32(node, &MF_TOPONODE_CONNECT_METHOD, MF_CONNECT_DIRECT);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-
-    return node;
-}
-
-static IMFTopologyNode *test_transform_create_output_node(IMFTopology *topology,
-        IMFMediaType *media_type, IMFSampleGrabberSinkCallback *callback)
-{
-    IMFStreamSink *stream_sink;
-    IMFMediaSink *media_sink;
-    IMFTopologyNode *node;
-    IMFActivate *activate;
-    HRESULT hr;
-
-    /* create output node */
-    hr = MFCreateTopologyNode(MF_TOPOLOGY_OUTPUT_NODE, &node);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    hr = IMFTopology_AddNode(topology, node);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-
-    hr = MFCreateSampleGrabberSinkActivate(media_type, callback, &activate);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    hr = IMFActivate_SetUINT32(activate, &MF_SAMPLEGRABBERSINK_IGNORE_CLOCK, 1);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    hr = IMFActivate_ActivateObject(activate, &IID_IMFMediaSink, (void **)&media_sink);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    IMFActivate_Release(activate);
-
-    hr = IMFMediaSink_GetStreamSinkByIndex(media_sink, 0, &stream_sink);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    IMFMediaSink_Release(media_sink);
-    hr = IMFTopologyNode_SetObject(node, (IUnknown *)stream_sink);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    IMFStreamSink_Release(stream_sink);
-    hr = IMFTopologyNode_SetUINT32(node, &MF_TOPONODE_CONNECT_METHOD, MF_CONNECT_DIRECT);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-
-    return node;
-}
-
-static void test_media_session_transform_simple(void)
-{
-    IMFAsyncCallback *media_event_callback;
-    IMFSampleGrabberSinkCallback *grabber_callback;
-    IMFTopologyNode *up_node, *node;
-    IMFMediaType *media_type;
-    IMFMediaSession *session;
-    LONGLONG time, duration;
-    IMFTransform *transform;
-    IMFMediaSource *source;
-    UINT32 i;
-    IMFTopology *topology;
-    PROPVARIANT propvar;
-    IMFSample *sample;
-    HRESULT hr;
-    DWORD res;
-
-    hr = MFStartup(MF_VERSION, MFSTARTUP_FULL);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-
-    if (!(source = create_media_source(L"test.mp4", L"video/mp4")))
-    {
-        win_skip("MP4 media source is not supported, skipping tests.\n");
-        goto done;
-    }
-
-    grabber_callback = create_test_grabber_callback();
-    media_event_callback = create_test_callback(TRUE);
-
-    hr = MFCreateMediaSession(NULL, &session);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-
-
-    /* create the topology with 1 source -> MFT -> 1 output */
-
-    hr = MFCreateTopology(&topology);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-
-    up_node = test_transform_create_source_node(topology, source, 0, &media_type);
-
-    node = test_transform_create_transform_node(topology, 1, &media_type, 1, &media_type, &transform);
-    hr = IMFTopologyNode_ConnectOutput(up_node, 0, node, 0);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    IMFTopologyNode_Release(up_node);
-    up_node = node;
-
-    node = test_transform_create_output_node(topology, media_type, grabber_callback);
-    IMFMediaType_Release(media_type);
-    hr = IMFTopologyNode_ConnectOutput(up_node, 0, node, 0);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    IMFTopologyNode_Release(up_node);
-    IMFTopologyNode_Release(node);
-    IMFMediaSource_Release(source);
-
-
-    hr = IMFMediaSession_SetTopology(session, 0, topology);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-
-    hr = wait_media_event(session, media_event_callback, MESessionTopologySet, 1000, &propvar);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    ok(propvar.vt == VT_UNKNOWN, "got vt %u\n", propvar.vt);
-    ok(propvar.punkVal != (IUnknown *)topology, "got punkVal %p\n", propvar.punkVal);
-    IMFTopology_Release(topology);
-    IMFTopology_AddRef((topology = (IMFTopology *)propvar.punkVal));
-    PropVariantClear(&propvar);
-
-    hr = wait_media_event(session, media_event_callback, MESessionTopologyStatus, 1000, &propvar);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    ok(propvar.vt == VT_UNKNOWN, "got vt %u\n", propvar.vt);
-    ok(propvar.punkVal == (IUnknown *)topology, "got punkVal %p\n", propvar.punkVal);
-    PropVariantClear(&propvar);
-
-    hr = IMFMediaSession_Start(session, &GUID_NULL, &propvar);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-
-
-    /* starts with a ProcessOutput call */
-
-    res = test_transform_wait_process_input(transform, 0);
-    ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
-    res = test_transform_wait_process_output(transform, 1000);
-    ok(res == 0, "got res %#lx\n", res);
-
-    /* ProcessOutput call loops until it fails */
-
-    for (i = 0, time = 0, duration = 1000; i < 20; i++)
-    {
-        IMFMediaBuffer *buffer;
-
-        winetest_push_context("%u", i);
-
-        hr = MFCreateSample(&sample);
-        ok(hr == S_OK, "got hr %#lx\n", hr);
-        hr = MFCreateMemoryBuffer(0x1000, &buffer);
-        ok(hr == S_OK, "got hr %#lx\n", hr);
-        hr = IMFSample_AddBuffer(sample, buffer);
-        ok(hr == S_OK, "got hr %#lx\n", hr);
-        IMFMediaBuffer_Release(buffer);
-
-        hr = IMFSample_SetSampleTime(sample, time + duration);
-        ok(hr == S_OK, "got hr %#lx\n", hr);
-        hr = IMFSample_SetSampleDuration(sample, duration);
-        ok(hr == S_OK, "got hr %#lx\n", hr);
-
-        test_transform_set_output(transform, 0, sample);
-
-        IMFSample_Release(sample);
-        time += duration;
-
-        res = test_transform_wait_process_output(transform, 1000);
-        ok(res == 0, "got res %#lx\n", res);
-
-        winetest_pop_context();
-    }
-
-    res = test_transform_wait_process_input(transform, 0);
-    ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
-    res = test_transform_wait_process_output(transform, 0);
-    ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
-    test_transform_set_output(transform, 0, NULL);
-
-    for (i = 0; i < 10; i++)
-    {
-        winetest_push_context("%u", i);
-
-        /* a single ProcessInput call */
-        res = test_transform_wait_process_input(transform, 1000);
-        ok(res == 0, "got res %#lx\n", res);
-        res = test_transform_wait_process_input(transform, 0);
-        ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
-        res = test_transform_wait_process_output(transform, 0);
-        ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
-        /* take the sample and return S_OK */
-        test_transform_get_input(transform, 0, &sample);
-
-        /* ProcessOutput call loop */
-        res = test_transform_wait_process_output(transform, 1000);
-        ok(res == 0, "got res %#lx\n", res);
-        test_transform_set_output(transform, 0, sample);
-
-        res = test_transform_wait_process_output(transform, 1000);
-        ok(res == 0, "got res %#lx\n", res);
-        test_transform_set_output(transform, 0, NULL);
-
-        IMFSample_Release(sample);
-
-
-        /* returning MF_E_NOTACCEPTING doesn't change the pattern */
-        res = test_transform_wait_process_input(transform, 1000);
-        ok(res == 0, "got res %#lx\n", res);
-        res = test_transform_wait_process_input(transform, 0);
-        ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
-        res = test_transform_wait_process_output(transform, 0);
-        ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
-        /* release the sample and return MF_E_NOTACCEPTING */
-        test_transform_get_input(transform, 0, NULL);
-
-        /* ProcessOutput call loop */
-        res = test_transform_wait_process_output(transform, 1000);
-        ok(res == 0, "got res %#lx\n", res);
-        test_transform_set_output(transform, 0, NULL);
-        /* needs to fail at least twice */
-        res = test_transform_wait_process_output(transform, 1000);
-        ok(res == 0, "got res %#lx\n", res);
-        test_transform_set_output(transform, 0, NULL);
-
-        winetest_pop_context();
-    }
-
-    test_transform_shutdown(transform);
-
-    IMFTransform_Release(transform);
-    hr = IMFMediaSession_Shutdown(session);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    IMFMediaSession_Release(session);
-
-    IMFAsyncCallback_Release(media_event_callback);
-
-done:
-    hr = MFShutdown();
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-}
-
-static void test_media_session_transform_multiple_outputs(void)
-{
-    IMFAsyncCallback *media_event_callback;
-    IMFSampleGrabberSinkCallback *grabber_callback;
-    IMFTopologyNode *up_node, *node;
-    IMFMediaType *media_types[2];
-    IMFMediaSession *session;
-    LONGLONG time, duration;
-    IMFTransform *transform;
-    IMFMediaSource *source;
-    UINT32 i;
-    IMFTopology *topology;
-    PROPVARIANT propvar;
-    IMFSample *sample;
-    HRESULT hr;
-    DWORD res;
-
-    hr = MFStartup(MF_VERSION, MFSTARTUP_FULL);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-
-    if (!(source = create_media_source(L"test.mp4", L"video/mp4")))
-    {
-        win_skip("MP4 media source is not supported, skipping tests.\n");
-        goto done;
-    }
-
-    grabber_callback = create_test_grabber_callback();
-    media_event_callback = create_test_callback(TRUE);
-
-    hr = MFCreateMediaSession(NULL, &session);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-
-
-    /* create the topology with 1 source -> MFT -> 2 output */
-    hr = MFCreateTopology(&topology);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-
-    up_node = test_transform_create_source_node(topology, source, 0, &media_types[0]);
-    IMFMediaType_AddRef((media_types[1] = media_types[0]));
-
-    node = test_transform_create_transform_node(topology, 1, media_types, 2, media_types, &transform);
-    hr = IMFTopologyNode_ConnectOutput(up_node, 0, node, 0);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    IMFTopologyNode_Release(up_node);
-    up_node = node;
-
-    node = test_transform_create_output_node(topology, media_types[0], grabber_callback);
-    IMFMediaType_Release(media_types[0]);
-    hr = IMFTopologyNode_ConnectOutput(up_node, 0, node, 0);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    IMFTopologyNode_Release(node);
-
-    node = test_transform_create_output_node(topology, media_types[1], grabber_callback);
-    IMFMediaType_Release(media_types[1]);
-    hr = IMFTopologyNode_ConnectOutput(up_node, 1, node, 0);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    IMFTopologyNode_Release(node);
-
-    IMFTopologyNode_Release(up_node);
-    IMFMediaSource_Release(source);
-
-
-    hr = IMFMediaSession_SetTopology(session, 0, topology);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-
-    hr = wait_media_event(session, media_event_callback, MESessionTopologySet, 1000, &propvar);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    ok(propvar.vt == VT_UNKNOWN, "got vt %u\n", propvar.vt);
-    ok(propvar.punkVal != (IUnknown *)topology, "got punkVal %p\n", propvar.punkVal);
-    IMFTopology_Release(topology);
-    IMFTopology_AddRef((topology = (IMFTopology *)propvar.punkVal));
-    PropVariantClear(&propvar);
-
-    hr = wait_media_event(session, media_event_callback, MESessionTopologyStatus, 1000, &propvar);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    ok(propvar.vt == VT_UNKNOWN, "got vt %u\n", propvar.vt);
-    ok(propvar.punkVal == (IUnknown *)topology, "got punkVal %p\n", propvar.punkVal);
-    PropVariantClear(&propvar);
-
-    hr = IMFMediaSession_Start(session, &GUID_NULL, &propvar);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-
-
-    /* starts with a ProcessOutput call for every stream */
-
-    res = test_transform_wait_process_input(transform, 0);
-    ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
-    res = test_transform_wait_process_output(transform, 1000);
-    ok(res == 0, "got res %#lx\n", res);
-    res = test_transform_wait_process_output(transform, 1000);
-    ok(res == 1, "got res %#lx\n", res);
-
-    /* ProcessOutput call loops until it fails */
-
-    for (i = 0, time = 0, duration = 1000; i < 20; i++)
-    {
-        IMFMediaBuffer *buffer;
-
-        winetest_push_context("%u", i);
-
-        hr = MFCreateSample(&sample);
-        ok(hr == S_OK, "got hr %#lx\n", hr);
-        hr = MFCreateMemoryBuffer(0x1000, &buffer);
-        ok(hr == S_OK, "got hr %#lx\n", hr);
-        hr = IMFSample_AddBuffer(sample, buffer);
-        ok(hr == S_OK, "got hr %#lx\n", hr);
-        IMFMediaBuffer_Release(buffer);
-
-        hr = IMFSample_SetSampleTime(sample, time + duration);
-        ok(hr == S_OK, "got hr %#lx\n", hr);
-        hr = IMFSample_SetSampleDuration(sample, duration);
-        ok(hr == S_OK, "got hr %#lx\n", hr);
-
-        test_transform_set_output(transform, 0, sample);
-        test_transform_set_output(transform, 1, sample);
-        IMFSample_Release(sample);
-        time += duration;
-
-        res = test_transform_wait_process_output(transform, 1000);
-        ok(res == 0, "got res %#lx\n", res);
-        res = test_transform_wait_process_output(transform, 1000);
-        ok(res == 1, "got res %#lx\n", res);
-
-        winetest_pop_context();
-    }
-
-    res = test_transform_wait_process_input(transform, 0);
-    ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
-    res = test_transform_wait_process_output(transform, 0);
-    ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
-    test_transform_set_output(transform, 0, NULL);
-    test_transform_set_output(transform, 1, NULL);
-
-    for (i = 0; i < 10; i++)
-    {
-        winetest_push_context("%u", i);
-
-        /* a single ProcessInput call */
-        res = test_transform_wait_process_input(transform, 1000);
-        ok(res == 0, "got res %#lx\n", res);
-        res = test_transform_wait_process_input(transform, 0);
-        ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
-        res = test_transform_wait_process_output(transform, 0);
-        ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
-        /* take the sample and return S_OK */
-        test_transform_get_input(transform, 0, &sample);
-
-        /* ProcessOutput call loop */
-        res = test_transform_wait_process_output(transform, 1000);
-        ok(res == 0, "got res %#lx\n", res);
-        res = test_transform_wait_process_output(transform, 1000);
-        ok(res == 1, "got res %#lx\n", res);
-        test_transform_set_output(transform, 0, NULL);
-        test_transform_set_output(transform, 1, sample);
-
-        res = test_transform_wait_process_output(transform, 1000);
-        ok(res == 0, "got res %#lx\n", res);
-        res = test_transform_wait_process_output(transform, 1000);
-        ok(res == 1, "got res %#lx\n", res);
-        test_transform_set_output(transform, 0, NULL);
-        test_transform_set_output(transform, 1, NULL);
-
-        IMFSample_Release(sample);
-
-
-        /* returning MF_E_NOTACCEPTING doesn't change the pattern */
-        res = test_transform_wait_process_input(transform, 1000);
-        ok(res == 0, "got res %#lx\n", res);
-        res = test_transform_wait_process_input(transform, 0);
-        ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
-        res = test_transform_wait_process_output(transform, 0);
-        ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
-        /* release the sample and return MF_E_NOTACCEPTING */
-        test_transform_get_input(transform, 0, NULL);
-
-        /* ProcessOutput call loop */
-        res = test_transform_wait_process_output(transform, 1000);
-        ok(res == 0, "got res %#lx\n", res);
-        res = test_transform_wait_process_output(transform, 1000);
-        ok(res == 1, "got res %#lx\n", res);
-        test_transform_set_output(transform, 0, NULL);
-        test_transform_set_output(transform, 1, NULL);
-        /* needs to fail at least twice */
-        res = test_transform_wait_process_output(transform, 1000);
-        ok(res == 0, "got res %#lx\n", res);
-        res = test_transform_wait_process_output(transform, 1000);
-        ok(res == 1, "got res %#lx\n", res);
-        test_transform_set_output(transform, 0, NULL);
-        test_transform_set_output(transform, 1, NULL);
-
-        winetest_pop_context();
-    }
-
-    test_transform_shutdown(transform);
-
-    IMFTransform_Release(transform);
-    hr = IMFMediaSession_Shutdown(session);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    IMFMediaSession_Release(session);
-
-    IMFAsyncCallback_Release(media_event_callback);
-
-done:
-    hr = MFShutdown();
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-}
-
-static void test_media_session_transform_multiple_sources(void)
-{
-    IMFAsyncCallback *media_event_callback;
-    IMFSampleGrabberSinkCallback *grabber_callback;
-    IMFTopologyNode *up_nodes[2], *node;
-    IMFMediaType *media_types[2];
-    UINT32 i;
-    IMFMediaSession *session;
-    LONGLONG time, duration;
-    IMFTransform *transform;
-    IMFMediaSource *source;
-    IMFTopology *topology;
-    PROPVARIANT propvar;
-    DWORD res, stream;
-    IMFSample *sample;
-    HRESULT hr;
-
-    hr = MFStartup(MF_VERSION, MFSTARTUP_FULL);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-
-    if (!(source = create_media_source(L"multiple-streams.mp4", L"video/mp4")))
-    {
-        win_skip("MP4 media source is not supported, skipping tests.\n");
-        goto done;
-    }
-
-    grabber_callback = create_test_grabber_callback();
-    media_event_callback = create_test_callback(TRUE);
-
-    hr = MFCreateMediaSession(NULL, &session);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-
-
-    /* create the topology with 2 sources -> MFT -> 1 output */
-    hr = MFCreateTopology(&topology);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-
-    up_nodes[0] = test_transform_create_source_node(topology, source, 0, &media_types[0]);
-    up_nodes[1] = test_transform_create_source_node(topology, source, 1, &media_types[1]);
-
-    node = test_transform_create_transform_node(topology, 2, media_types, 1, media_types, &transform);
-    hr = IMFTopologyNode_ConnectOutput(up_nodes[0], 0, node, 0);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    IMFTopologyNode_Release(up_nodes[0]);
-    hr = IMFTopologyNode_ConnectOutput(up_nodes[1], 0, node, 1);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    IMFTopologyNode_Release(up_nodes[1]);
-    up_nodes[0] = node;
-
-    node = test_transform_create_output_node(topology, media_types[0], grabber_callback);
-    IMFMediaType_Release(media_types[0]);
-    hr = IMFTopologyNode_ConnectOutput(up_nodes[0], 0, node, 0);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    IMFTopologyNode_Release(up_nodes[0]);
-    IMFTopologyNode_Release(node);
-    IMFMediaSource_Release(source);
-
-
-    hr = IMFMediaSession_SetTopology(session, 0, topology);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-
-    hr = wait_media_event(session, media_event_callback, MESessionTopologySet, 1000, &propvar);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    ok(propvar.vt == VT_UNKNOWN, "got vt %u\n", propvar.vt);
-    ok(propvar.punkVal != (IUnknown *)topology, "got punkVal %p\n", propvar.punkVal);
-    IMFTopology_Release(topology);
-    IMFTopology_AddRef((topology = (IMFTopology *)propvar.punkVal));
-    PropVariantClear(&propvar);
-
-    hr = wait_media_event(session, media_event_callback, MESessionTopologyStatus, 1000, &propvar);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    ok(propvar.vt == VT_UNKNOWN, "got vt %u\n", propvar.vt);
-    ok(propvar.punkVal == (IUnknown *)topology, "got punkVal %p\n", propvar.punkVal);
-    PropVariantClear(&propvar);
-
-    hr = IMFMediaSession_Start(session, &GUID_NULL, &propvar);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-
-
-    /* starts with a ProcessOutput call */
-
-    res = test_transform_wait_process_input(transform, 0);
-    ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
-    res = test_transform_wait_process_output(transform, 1000);
-    ok(res == 0, "got res %#lx\n", res);
-
-    /* ProcessOutput call loops until it fails */
-
-    for (i = 0, time = 0, duration = 1000; i < 20; i++)
-    {
-        IMFMediaBuffer *buffer;
-
-        winetest_push_context("%u", i);
-
-        hr = MFCreateSample(&sample);
-        ok(hr == S_OK, "got hr %#lx\n", hr);
-        hr = MFCreateMemoryBuffer(0x1000, &buffer);
-        ok(hr == S_OK, "got hr %#lx\n", hr);
-        hr = IMFSample_AddBuffer(sample, buffer);
-        ok(hr == S_OK, "got hr %#lx\n", hr);
-        IMFMediaBuffer_Release(buffer);
-
-        hr = IMFSample_SetSampleTime(sample, time + duration);
-        ok(hr == S_OK, "got hr %#lx\n", hr);
-        hr = IMFSample_SetSampleDuration(sample, duration);
-        ok(hr == S_OK, "got hr %#lx\n", hr);
-
-        test_transform_set_output(transform, 0, sample);
-
-        IMFSample_Release(sample);
-        time += duration;
-
-        res = test_transform_wait_process_output(transform, 1000);
-        ok(res == 0, "got res %#lx\n", res);
-
-        winetest_pop_context();
-    }
-
-    res = test_transform_wait_process_input(transform, 0);
-    ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
-    res = test_transform_wait_process_output(transform, 0);
-    ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
-    test_transform_set_output(transform, 0, NULL);
-
-    for (i = 0; i < 10; i++)
-    {
-        winetest_push_context("%u", i);
-
-        /* a single ProcessInput call for stream 0 or 1, depending on the media source */
-        res = test_transform_wait_process_input(transform, 1000);
-        ok(res == 0 || res == 1, "got res %#lx\n", res);
-        stream = res;
-        res = test_transform_wait_process_input(transform, 0);
-        ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
-        res = test_transform_wait_process_output(transform, 0);
-        ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
-        /* take the sample and return S_OK */
-        test_transform_get_input(transform, stream, &sample);
-
-        /* ProcessOutput call loop */
-        res = test_transform_wait_process_output(transform, 1000);
-        ok(res == 0, "got res %#lx\n", res);
-        test_transform_set_output(transform, 0, sample);
-
-        res = test_transform_wait_process_output(transform, 1000);
-        ok(res == 0, "got res %#lx\n", res);
-        test_transform_set_output(transform, 0, NULL);
-
-        IMFSample_Release(sample);
-
-
-        /* a single ProcessInput call for stream 0 or 1, depending on the media source */
-        res = test_transform_wait_process_input(transform, 1000);
-        ok(res == 0 || res == 1, "got res %#lx\n", res);
-        stream = res;
-        res = test_transform_wait_process_input(transform, 0);
-        ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
-        res = test_transform_wait_process_output(transform, 0);
-        ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
-        /* release the sample and return MF_E_NOTACCEPTING */
-        test_transform_get_input(transform, stream, NULL);
-
-        /* ProcessOutput call loop */
-        res = test_transform_wait_process_output(transform, 1000);
-        ok(res == 0, "got res %#lx\n", res);
-        test_transform_set_output(transform, 0, NULL);
-
-        /* needs to fail at least twice */
-        res = test_transform_wait_process_output(transform, 1000);
-        ok(res == 0, "got res %#lx\n", res);
-        test_transform_set_output(transform, 0, NULL);
-
-        winetest_pop_context();
-    }
-
-    test_transform_shutdown(transform);
-
-    IMFTransform_Release(transform);
-    hr = IMFMediaSession_Shutdown(session);
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-    IMFMediaSession_Release(session);
-
-    IMFAsyncCallback_Release(media_event_callback);
-
-done:
-    hr = MFShutdown();
-    ok(hr == S_OK, "got hr %#lx\n", hr);
-}
-
 START_TEST(transform)
 {
     winetest_mute_threshold = 1;
@@ -11923,12 +10303,7 @@ START_TEST(transform)
     test_sample_copier_output_processing();
     test_aac_encoder();
     test_aac_decoder();
-    test_wma_encoder(MFAudioFormat_WMAudioV8);
-    test_wma_encoder(MFAudioFormat_WMAudioV9);
-    test_wma_encoder(MFAudioFormat_WMAudio_Lossless);
-    test_wma_encoder(MEDIASUBTYPE_MSAUDIO1);
-    test_wma_encoder(MFAudioFormat_WMASPDIF);
-    test_wma_encoder(MFAudioFormat_XMAudio2);
+    test_wma_encoder();
     test_wma_decoder();
     test_wma_decoder_dmo_input_type();
     test_wma_decoder_dmo_output_type();
@@ -11952,7 +10327,4 @@ START_TEST(transform)
     test_h264_decoder_concat_streams();
 
     test_video_processor_with_dxgi_manager();
-    test_media_session_transform_simple();
-    test_media_session_transform_multiple_outputs();
-    test_media_session_transform_multiple_sources();
 }

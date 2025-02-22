@@ -76,7 +76,6 @@ DEFINE_MEDIATYPE_GUID(MFVideoFormat_RGB4, MAKEFOURCC('4','P','x','x'));
 DEFINE_MEDIATYPE_GUID(MFVideoFormat_ABGR32, D3DFMT_A8B8G8R8);
 DEFINE_MEDIATYPE_GUID(MFVideoFormat_ARGB1555, D3DFMT_A1R5G5B5);
 DEFINE_MEDIATYPE_GUID(MFVideoFormat_ARGB4444, D3DFMT_A4R4G4B4);
-DEFINE_MEDIATYPE_GUID(MFVideoFormat_ABGR32, D3DFMT_A8B8G8R8);
 /* SDK MFVideoFormat_A2R10G10B10 uses D3DFMT_A2B10G10R10, let's name it the other way */
 DEFINE_MEDIATYPE_GUID(MFVideoFormat_A2B10G10R10, D3DFMT_A2R10G10B10);
 DEFINE_MEDIATYPE_GUID(MFAudioFormat_RAW_AAC,WAVE_FORMAT_RAW_AAC1);
@@ -8367,59 +8366,6 @@ static void test_MFInitAMMediaTypeFromMFMediaType(void)
     static const BYTE dummy_mpeg_sequence[] = {0x04,0x05,0x06,0x07,0x08};
     static const BYTE dummy_user_data[] = {0x01,0x02,0x03};
 
-    static const struct video_type_pair
-    {
-        const GUID *am_type;
-        const GUID *mf_type;
-        UINT extra_size;
-    } video_types[] =
-    {
-        /* these RGB formats are converted, MEDIASUBTYPE variant isn't
-         * defined using DEFINE_MEDIATYPE_GUID */
-        { &MEDIASUBTYPE_RGB1, &MFVideoFormat_RGB1, 0 },
-        { &MEDIASUBTYPE_RGB4, &MFVideoFormat_RGB4, 0 },
-        { &MEDIASUBTYPE_RGB8, &MFVideoFormat_RGB8, 0 },
-        { &MEDIASUBTYPE_RGB555, &MFVideoFormat_RGB555, 0 },
-        { &MEDIASUBTYPE_RGB565, &MFVideoFormat_RGB565, 12 },
-        { &MEDIASUBTYPE_RGB24, &MFVideoFormat_RGB24, 0 },
-        { &MEDIASUBTYPE_RGB32, &MFVideoFormat_RGB32, 0 },
-        { &MEDIASUBTYPE_ARGB1555, &MFVideoFormat_ARGB1555, 0 },
-        { &MEDIASUBTYPE_ARGB4444, &MFVideoFormat_ARGB4444, 0 },
-        { &MEDIASUBTYPE_ARGB32, &MFVideoFormat_ARGB32, 0 },
-        { &MEDIASUBTYPE_A2R10G10B10, &MFVideoFormat_A2B10G10R10, 0 },
-        { &MEDIASUBTYPE_A2B10G10R10, &MFVideoFormat_A2R10G10B10, 0 },
-
-        /* any other GUID is passed through */
-        { &MEDIASUBTYPE_I420, &MFVideoFormat_I420, 0 },
-        { &MEDIASUBTYPE_AYUV, &MFVideoFormat_AYUV, 0 },
-        { &MEDIASUBTYPE_YV12, &MFVideoFormat_YV12, 0 },
-        { &MEDIASUBTYPE_YUY2, &MFVideoFormat_YUY2, 0 },
-        { &MEDIASUBTYPE_UYVY, &MFVideoFormat_UYVY, 0 },
-        { &MEDIASUBTYPE_YVYU, &MFVideoFormat_YVYU, 0 },
-        { &MEDIASUBTYPE_NV12, &MFVideoFormat_NV12, 0 },
-
-        /* even formats that don't exist in MF */
-        { &DUMMY_GUID3, &DUMMY_GUID3, 0 },
-        { &MEDIASUBTYPE_NV24, &MEDIASUBTYPE_NV24, 0 },
-        { &MEDIASUBTYPE_P208, &MEDIASUBTYPE_P208, 0 },
-
-        /* if the mapping is ambiguous, it is not corrected */
-        { &MEDIASUBTYPE_h264, &MEDIASUBTYPE_h264, 0 },
-        { &MEDIASUBTYPE_H264, &MFVideoFormat_H264, 48 },
-    };
-
-    static const struct audio_type_pair
-    {
-        const GUID *am_type;
-        const GUID *mf_type;
-        UINT extra_size;
-    } audio_types[] =
-    {
-        { &MEDIASUBTYPE_WMAUDIO2, &MFAudioFormat_WMAudioV8, 0 },
-        { &MEDIASUBTYPE_WMAUDIO3, &MFAudioFormat_WMAudioV9, 0 },
-        { &MEDIASUBTYPE_WMAUDIO_LOSSLESS, &MFAudioFormat_WMAudio_Lossless, 0 },
-    };
-
     WAVEFORMATEXTENSIBLE *wave_format_ext;
     VIDEOINFOHEADER *video_info;
     WAVEFORMATEX *wave_format;
@@ -8430,7 +8376,6 @@ static void test_MFInitAMMediaTypeFromMFMediaType(void)
     MFVideoArea *area;
     UINT32 value32;
     HRESULT hr;
-    UINT i;
 
     hr = MFCreateMediaType(&media_type);
     ok(hr == S_OK, "Failed to create media type, hr %#lx.\n", hr);
@@ -9256,44 +9201,6 @@ static void test_MFInitAMMediaTypeFromMFMediaType(void)
 
 
     IMFMediaType_Release(media_type);
-
-    for (i = 0; i < ARRAY_SIZE(video_types); ++i)
-    {
-        winetest_push_context("%s", debugstr_guid(video_types[i].mf_type));
-
-        hr = MFCreateVideoMediaTypeFromSubtype(video_types[i].mf_type, (IMFVideoMediaType **)&media_type);
-        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-        hr = MFInitAMMediaTypeFromMFMediaType(media_type, GUID_NULL, &am_type);
-        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-        ok(IsEqualGUID(&am_type.majortype, &MFMediaType_Video), "got %s.\n", debugstr_guid(&am_type.majortype));
-        ok(IsEqualGUID(&am_type.subtype, video_types[i].am_type), "got %s.\n", debugstr_guid(&am_type.subtype));
-        ok(IsEqualGUID(&am_type.formattype, &FORMAT_VideoInfo), "got %s.\n", debugstr_guid(&am_type.formattype));
-        ok(am_type.cbFormat == sizeof(VIDEOINFOHEADER) + video_types[i].extra_size, "got %lu\n", am_type.cbFormat - (UINT)sizeof(VIDEOINFOHEADER));
-        CoTaskMemFree(am_type.pbFormat);
-
-        IMFMediaType_Release(media_type);
-        winetest_pop_context();
-    }
-
-    for (i = 0; i < ARRAY_SIZE(audio_types); ++i)
-    {
-        WAVEFORMATEX format = {.wFormatTag = audio_types[i].mf_type->Data1};
-
-        winetest_push_context("%s", debugstr_guid(audio_types[i].mf_type));
-
-        hr = MFCreateAudioMediaType(&format, (IMFAudioMediaType **)&media_type);
-        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-        hr = MFInitAMMediaTypeFromMFMediaType(media_type, GUID_NULL, &am_type);
-        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-        ok(IsEqualGUID(&am_type.majortype, &MFMediaType_Audio), "got %s.\n", debugstr_guid(&am_type.majortype));
-        ok(IsEqualGUID(&am_type.subtype, audio_types[i].am_type), "got %s.\n", debugstr_guid(&am_type.subtype));
-        ok(IsEqualGUID(&am_type.formattype, &FORMAT_WaveFormatEx), "got %s.\n", debugstr_guid(&am_type.formattype));
-        ok(am_type.cbFormat == sizeof(WAVEFORMATEX) + audio_types[i].extra_size, "got %lu\n", am_type.cbFormat - (UINT)sizeof(WAVEFORMATEX));
-        CoTaskMemFree(am_type.pbFormat);
-
-        IMFMediaType_Release(media_type);
-        winetest_pop_context();
-    }
 }
 
 static void test_MFCreateAMMediaTypeFromMFMediaType(void)
@@ -10377,7 +10284,6 @@ static void test_MFMapDXGIFormatToDX9Format(void)
         { DXGI_FORMAT_R32G32_FLOAT, D3DFMT_G32R32F },
         { DXGI_FORMAT_R10G10B10A2_UNORM, D3DFMT_A2B10G10R10 },
         { DXGI_FORMAT_R8G8B8A8_UNORM_SRGB, D3DFMT_A8R8G8B8 },
-        { DXGI_FORMAT_R8G8B8A8_UNORM, D3DFMT_A8B8G8R8 },
         { DXGI_FORMAT_R8G8B8A8_SNORM, D3DFMT_Q8W8V8U8 },
         { DXGI_FORMAT_R16G16_FLOAT, D3DFMT_G16R16F },
         { DXGI_FORMAT_R16G16_UNORM, D3DFMT_G16R16 },
@@ -10466,7 +10372,6 @@ static void test_MFMapDX9FormatToDXGIFormat(void)
         { DXGI_FORMAT_BC1_UNORM, D3DFMT_DXT1 },
         { DXGI_FORMAT_BC2_UNORM, D3DFMT_DXT2 },
         { DXGI_FORMAT_BC3_UNORM, D3DFMT_DXT4 },
-        { DXGI_FORMAT_R8G8B8A8_UNORM, D3DFMT_A8B8G8R8 },
         { DXGI_FORMAT_B8G8R8A8_UNORM, D3DFMT_A8R8G8B8 },
         { DXGI_FORMAT_B8G8R8X8_UNORM, D3DFMT_X8R8G8B8 },
         { DXGI_FORMAT_R8G8B8A8_UNORM, D3DFMT_A8B8G8R8, .broken = TRUE },
@@ -11864,7 +11769,6 @@ static void check_video_format(const MFVIDEOFORMAT *format, unsigned int width, 
         case D3DFMT_X8R8G8B8:
         case D3DFMT_R8G8B8:
         case D3DFMT_A8R8G8B8:
-        case D3DFMT_A8B8G8R8:
         case D3DFMT_R5G6B5:
         case D3DFMT_X1R5G5B5:
         case D3DFMT_A2B10G10R10:
@@ -11922,7 +11826,6 @@ static void test_MFInitVideoFormat_RGB(void)
         D3DFMT_X8R8G8B8,
         D3DFMT_R8G8B8,
         D3DFMT_A8R8G8B8,
-        D3DFMT_A8B8G8R8,
         D3DFMT_R5G6B5,
         D3DFMT_X1R5G5B5,
         D3DFMT_A2B10G10R10,
@@ -13611,203 +13514,6 @@ static void test_2dbuffer_copy(void)
     ID3D11Device_Release(device);
 }
 
-
-#define async_trace( msg, ... ) if (winetest_debug > 1 || 1) trace( "%04lx:%s " msg, GetCurrentThreadId(), __func__, ## __VA_ARGS__ )
-
-#define DEFINE_MF_ASYNC_CALLBACK_(pfx, impl_type, impl_from, iface_mem, expr, queue_expr)           \
-    static inline impl_type *impl_from(IMFAsyncCallback *iface)                                     \
-    {                                                                                               \
-        return CONTAINING_RECORD(iface, impl_type, iface_mem);                                      \
-    }                                                                                               \
-    static HRESULT WINAPI pfx##_QueryInterface(IMFAsyncCallback *iface, REFIID iid, void **out)     \
-    {                                                                                               \
-        if (IsEqualIID(iid, &IID_IUnknown) || IsEqualIID(iid, &IID_IMFAsyncCallback))               \
-        {                                                                                           \
-            IMFAsyncCallback_AddRef((*out = iface));                                                \
-            return S_OK;                                                                            \
-        }                                                                                           \
-        *out = NULL;                                                                                \
-        return E_NOINTERFACE;                                                                       \
-    }                                                                                               \
-    static ULONG WINAPI pfx##_AddRef(IMFAsyncCallback *iface)                                       \
-    {                                                                                               \
-        impl_type *impl = impl_from(iface);                                                         \
-        return IUnknown_AddRef((IUnknown *)(expr));                                                 \
-    }                                                                                               \
-    static ULONG WINAPI pfx##_Release(IMFAsyncCallback *iface)                                      \
-    {                                                                                               \
-        impl_type *impl = impl_from(iface);                                                         \
-        return IUnknown_Release((IUnknown *)(expr));                                                \
-    }                                                                                               \
-    static HRESULT WINAPI pfx##_GetParameters(IMFAsyncCallback *iface, DWORD *flags, DWORD *queue); \
-    static HRESULT WINAPI pfx##_Invoke(IMFAsyncCallback *iface, IMFAsyncResult *result);            \
-    static const IMFAsyncCallbackVtbl pfx##_vtbl =                                                  \
-    {                                                                                               \
-        pfx##_QueryInterface,                                                                       \
-        pfx##_AddRef,                                                                               \
-        pfx##_Release,                                                                              \
-        pfx##_GetParameters,                                                                        \
-        pfx##_Invoke,                                                                               \
-    };                                                                                              \
-
-#define DEFINE_MF_ASYNC_CALLBACK(name, impl_type, base_iface, queue_expr) \
-    DEFINE_MF_ASYNC_CALLBACK_(name, impl_type, impl_from_##name, name##_iface, &impl->base_iface, queue_expr)
-
-struct async_callback
-{
-    IUnknown IUnknown_iface;
-    IMFAsyncCallback async_call_iface;
-    LONG refcount;
-};
-
-static HRESULT WINAPI async_callback_QueryInterface(IUnknown *iface, REFIID riid, void **obj)
-{
-    if (IsEqualIID(riid, &IID_IUnknown))
-    {
-        *obj = iface;
-        IUnknown_AddRef(iface);
-        return S_OK;
-    }
-
-    *obj = NULL;
-    return E_NOINTERFACE;
-}
-
-static ULONG WINAPI async_callback_AddRef(IUnknown *iface)
-{
-    struct async_callback *callback = CONTAINING_RECORD(iface, struct async_callback, IUnknown_iface);
-    return InterlockedIncrement(&callback->refcount);
-}
-
-static ULONG WINAPI async_callback_Release(IUnknown *iface)
-{
-    struct async_callback *callback = CONTAINING_RECORD(iface, struct async_callback, IUnknown_iface);
-    ULONG refcount = InterlockedDecrement(&callback->refcount);
-
-    if (!refcount)
-        free(callback);
-
-    return refcount;
-}
-
-static const IUnknownVtbl async_callback_vtbl =
-{
-    async_callback_QueryInterface,
-    async_callback_AddRef,
-    async_callback_Release,
-};
-
-DEFINE_MF_ASYNC_CALLBACK(async_call, struct async_callback, IUnknown_iface, MFASYNC_CALLBACK_QUEUE_MULTITHREADED)
-
-static HRESULT WINAPI async_call_GetParameters(IMFAsyncCallback *iface, DWORD *flags, DWORD *queue)
-{
-    struct async_callback *callback = impl_from_async_call(iface);
-    async_trace("callback %p flags %p queue %p\n", callback, flags, queue);
-    *queue = MFASYNC_CALLBACK_QUEUE_MULTITHREADED;
-    *flags = MFASYNC_BLOCKING_CALLBACK;
-    return S_OK;
-}
-
-static HRESULT WINAPI async_call_Invoke(IMFAsyncCallback *iface, IMFAsyncResult *result)
-{
-    struct async_callback *callback = impl_from_async_call(iface);
-    async_trace("callback %p, result %p\n", callback, result);
-    Sleep(1000);
-    return S_OK;
-}
-
-static HRESULT async_callback_create(IMFAsyncCallback **out)
-{
-    struct async_callback *callback;
-
-    *out = NULL;
-    if (!(callback = calloc(1, sizeof(*callback))))
-        return E_OUTOFMEMORY;
-
-    callback->IUnknown_iface.lpVtbl = &async_callback_vtbl;
-    callback->async_call_iface.lpVtbl = &async_call_vtbl;
-    callback->refcount = 1;
-
-    *out = &callback->async_call_iface;
-    return S_OK;
-}
-
-static void test_async_callbacks(void)
-{
-    IMFAsyncCallback *callback;
-    IMFAsyncResult *result;
-    HRESULT hr;
-
-    hr = MFStartup(MF_VERSION, MFSTARTUP_FULL);
-    ok(hr == S_OK, "hr %#lx.\n", hr);
-
-    hr = async_callback_create(&callback);
-    async_trace("hr %#lx callback %p\n", hr, callback);
-
-    hr = MFPutWorkItem(MFASYNC_CALLBACK_QUEUE_MULTITHREADED, callback, NULL);
-    async_trace("MFASYNC_CALLBACK_QUEUE_MULTITHREADED hr %#lx\n", hr);
-    hr = MFPutWorkItem(MFASYNC_CALLBACK_QUEUE_MULTITHREADED, callback, NULL);
-    async_trace("MFASYNC_CALLBACK_QUEUE_MULTITHREADED hr %#lx\n", hr);
-    hr = MFPutWorkItem(0, callback, NULL);
-    async_trace("0 hr %#lx\n", hr);
-    hr = MFPutWorkItem(1, callback, NULL);
-    async_trace("1 hr %#lx\n", hr);
-    hr = MFPutWorkItem(MFASYNC_CALLBACK_QUEUE_ALL, callback, NULL);
-    async_trace("MFASYNC_CALLBACK_QUEUE_ALL hr %#lx\n", hr);
-
-
-Sleep(5000);
-async_trace("***\n");
-
-    hr = MFCreateAsyncResult(NULL, callback, NULL, &result);
-    async_trace("hr %#lx result %p\n", hr, result);
-
-    hr = MFPutWorkItemEx(MFASYNC_CALLBACK_QUEUE_MULTITHREADED, result);
-    async_trace("MFASYNC_CALLBACK_QUEUE_MULTITHREADED hr %#lx\n", hr);
-    hr = MFPutWorkItemEx(MFASYNC_CALLBACK_QUEUE_MULTITHREADED, result);
-    async_trace("MFASYNC_CALLBACK_QUEUE_MULTITHREADED hr %#lx\n", hr);
-    hr = MFPutWorkItemEx(0, result);
-    async_trace("0 hr %#lx\n", hr);
-    hr = MFPutWorkItemEx(1, result);
-    async_trace("1 hr %#lx\n", hr);
-
-Sleep(5000);
-async_trace("***\n");
-
-
-hr = MFInvokeCallback(result);
-async_trace("hr %#lx\n", hr);
-hr = MFInvokeCallback(result);
-async_trace("hr %#lx\n", hr);
-hr = MFInvokeCallback(result);
-async_trace("hr %#lx\n", hr);
-hr = MFInvokeCallback(result);
-async_trace("hr %#lx\n", hr);
-
-Sleep(5000);
-async_trace("***\n");
-
-
-    IMFAsyncCallback_Release(callback);
-
-    hr = MFShutdown();
-    ok(hr == S_OK, "hr %#lx.\n", hr);
-/*
-    MFPutWorkItem(DWORD queue, IMFAsyncCallback *callback, IUnknown *state);
-    MFPutWorkItem2(DWORD queue, LONG priority, IMFAsyncCallback *callback, IUnknown *state);
-    MFScheduleWorkItem(IMFAsyncCallback *callback, IUnknown *state, INT64 timeout, MFWORKITEM_KEY *key);
-    MFAllocateSerialWorkQueue(DWORD target_queue, DWORD *queue);
-    MFCancelWorkItem(MFWORKITEM_KEY key);
-
-    MFCreateAsyncResult(IUnknown *object, IMFAsyncCallback *callback, IUnknown *state, IMFAsyncResult **result);
-    MFPutWorkItemEx(DWORD queue, IMFAsyncResult *result);
-    MFPutWorkItemEx2(DWORD queue, LONG priority, IMFAsyncResult *result);
-    MFInvokeCallback(IMFAsyncResult *result);
-    MFScheduleWorkItemEx(IMFAsyncResult *result, INT64 timeout, MFWORKITEM_KEY *key);
-    MFPutWaitingWorkItem(HANDLE event, LONG priority, IMFAsyncResult *result, MFWORKITEM_KEY *key);
-*/
-}
-
 static void test_undefined_queue_id(void)
 {
     struct test_callback *callback;
@@ -13941,8 +13647,6 @@ START_TEST(mfplat)
     test_MFCreatePathFromURL();
     test_2dbuffer_copy();
     test_undefined_queue_id();
-done:
-    test_async_callbacks();
 
     CoUninitialize();
 }

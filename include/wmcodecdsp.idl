@@ -110,25 +110,3 @@ interface IWMResamplerProps : IUnknown
     HRESULT SetHalfFilterLength(LONG length);
     HRESULT SetUserChannelMtx(ChMtxType *conversion_matrix);
 }
-
-typedef enum WMT_PROP_DATATYPE
-{
-    WMT_PROP_TYPE_DWORD = 0,
-    WMT_PROP_TYPE_STRING = 1,
-    WMT_PROP_TYPE_BINARY = 2,
-    WMT_PROP_TYPE_BOOL = 3,
-    WMT_PROP_TYPE_QWORD = 4,
-    WMT_PROP_TYPE_WORD = 5,
-    WMT_PROP_TYPE_GUID = 6,
-} WMT_PROP_DATATYPE;
-
-[
-    local,
-    object,
-    uuid(2573e11a-f01a-4fdd-a98d-63b8e0ba9589),
-]
-interface IWMCodecProps : IUnknown
-{
-    HRESULT GetFormatProp(DMO_MEDIA_TYPE *mt, const WCHAR *name, WMT_PROP_DATATYPE *type, BYTE *value, DWORD *size);
-    HRESULT GetCodecProp(DWORD format, const WCHAR *name, WMT_PROP_DATATYPE *type, BYTE *value, DWORD *size);
-}

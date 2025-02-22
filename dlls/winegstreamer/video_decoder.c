@@ -445,7 +445,7 @@ static HRESULT init_allocator(struct video_decoder *decoder)
     if (FAILED(hr = IMFTransform_SetOutputType(decoder->copier, 0, decoder->output_type, 0)))
         return hr;
 
-    if (FAILED(hr = IMFVideoSampleAllocatorEx_InitializeSampleAllocatorEx(decoder->allocator, 2, 2,
+    if (FAILED(hr = IMFVideoSampleAllocatorEx_InitializeSampleAllocatorEx(decoder->allocator, 10, 10,
             decoder->attributes, decoder->output_type)))
         return hr;
     decoder->allocator_initialized = TRUE;

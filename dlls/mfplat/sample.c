@@ -186,7 +186,7 @@ static ULONG WINAPI sample_tracked_Release(IMFSample *iface)
     IRtwqAsyncResult *tracked_result = NULL;
     HRESULT hr;
 
-    AcquireSRWLockExclusive(&sample->attributes.lock);
+    EnterCriticalSection(&sample->attributes.cs);
     if (sample->tracked_result && sample->tracked_refcount == refcount)
     {
         tracked_result = sample->tracked_result;
@@ -197,7 +197,7 @@ static ULONG WINAPI sample_tracked_Release(IMFSample *iface)
         if (FAILED(hr = RtwqInvokeCallback(tracked_result)))
             WARN("Failed to invoke tracking callback, hr %#lx.\n", hr);
     }
-    ReleaseSRWLockExclusive(&sample->attributes.lock);
+    LeaveCriticalSection(&sample->attributes.cs);
 
     if (tracked_result)
         IRtwqAsyncResult_Release(tracked_result);
@@ -487,9 +487,9 @@ static HRESULT WINAPI sample_GetSampleFlags(IMFSample *iface, DWORD *flags)
 
     TRACE("%p, %p.\n", iface, flags);
 
-    AcquireSRWLockShared(&sample->attributes.lock);
+    EnterCriticalSection(&sample->attributes.cs);
     *flags = sample->flags;
-    ReleaseSRWLockShared(&sample->attributes.lock);
+    LeaveCriticalSection(&sample->attributes.cs);
 
     return S_OK;
 }
@@ -500,9 +500,9 @@ static HRESULT WINAPI sample_SetSampleFlags(IMFSample *iface, DWORD flags)
 
     TRACE("%p, %#lx.\n", iface, flags);
 
-    AcquireSRWLockExclusive(&sample->attributes.lock);
+    EnterCriticalSection(&sample->attributes.cs);
     sample->flags = flags;
-    ReleaseSRWLockExclusive(&sample->attributes.lock);
+    LeaveCriticalSection(&sample->attributes.cs);
 
     return S_OK;
 }
@@ -514,12 +514,12 @@ static HRESULT WINAPI sample_GetSampleTime(IMFSample *iface, LONGLONG *timestamp
 
     TRACE("%p, %p.\n", iface, timestamp);
 
-    AcquireSRWLockShared(&sample->attributes.lock);
+    EnterCriticalSection(&sample->attributes.cs);
     if (sample->prop_flags & SAMPLE_PROP_HAS_TIMESTAMP)
         *timestamp = sample->timestamp;
     else
         hr = MF_E_NO_SAMPLE_TIMESTAMP;
-    ReleaseSRWLockShared(&sample->attributes.lock);
+    LeaveCriticalSection(&sample->attributes.cs);
 
     return hr;
 }
@@ -530,10 +530,10 @@ static HRESULT WINAPI sample_SetSampleTime(IMFSample *iface, LONGLONG timestamp)
 
     TRACE("%p, %s.\n", iface, debugstr_time(timestamp));
 
-    AcquireSRWLockExclusive(&sample->attributes.lock);
+    EnterCriticalSection(&sample->attributes.cs);
     sample->timestamp = timestamp;
     sample->prop_flags |= SAMPLE_PROP_HAS_TIMESTAMP;
-    ReleaseSRWLockExclusive(&sample->attributes.lock);
+    LeaveCriticalSection(&sample->attributes.cs);
 
     return S_OK;
 }
@@ -545,12 +545,12 @@ static HRESULT WINAPI sample_GetSampleDuration(IMFSample *iface, LONGLONG *durat
 
     TRACE("%p, %p.\n", iface, duration);
 
-    AcquireSRWLockShared(&sample->attributes.lock);
+    EnterCriticalSection(&sample->attributes.cs);
     if (sample->prop_flags & SAMPLE_PROP_HAS_DURATION)
         *duration = sample->duration;
     else
         hr = MF_E_NO_SAMPLE_DURATION;
-    ReleaseSRWLockShared(&sample->attributes.lock);
+    LeaveCriticalSection(&sample->attributes.cs);
 
     return hr;
 }
@@ -561,10 +561,10 @@ static HRESULT WINAPI sample_SetSampleDuration(IMFSample *iface, LONGLONG durati
 
     TRACE("%p, %s.\n", iface, debugstr_time(duration));
 
-    AcquireSRWLockExclusive(&sample->attributes.lock);
+    EnterCriticalSection(&sample->attributes.cs);
     sample->duration = duration;
     sample->prop_flags |= SAMPLE_PROP_HAS_DURATION;
-    ReleaseSRWLockExclusive(&sample->attributes.lock);
+    LeaveCriticalSection(&sample->attributes.cs);
 
     return S_OK;
 }
@@ -578,9 +578,9 @@ static HRESULT WINAPI sample_GetBufferCount(IMFSample *iface, DWORD *count)
     if (!count)
         return E_INVALIDARG;
 
-    AcquireSRWLockShared(&sample->attributes.lock);
+    EnterCriticalSection(&sample->attributes.cs);
     *count = sample->buffer_count;
-    ReleaseSRWLockShared(&sample->attributes.lock);
+    LeaveCriticalSection(&sample->attributes.cs);
 
     return S_OK;
 }
@@ -592,7 +592,7 @@ static HRESULT WINAPI sample_GetBufferByIndex(IMFSample *iface, DWORD index, IMF
 
     TRACE("%p, %lu, %p.\n", iface, index, buffer);
 
-    AcquireSRWLockShared(&sample->attributes.lock);
+    EnterCriticalSection(&sample->attributes.cs);
     if (index < sample->buffer_count)
     {
         *buffer = sample->buffers[index];
@@ -600,7 +600,7 @@ static HRESULT WINAPI sample_GetBufferByIndex(IMFSample *iface, DWORD index, IMF
     }
     else
         hr = E_INVALIDARG;
-    ReleaseSRWLockShared(&sample->attributes.lock);
+    LeaveCriticalSection(&sample->attributes.cs);
 
     return hr;
 }
@@ -682,7 +682,7 @@ static HRESULT WINAPI sample_ConvertToContiguousBuffer(IMFSample *iface, IMFMedi
 
     TRACE("%p, %p.\n", iface, buffer);
 
-    AcquireSRWLockExclusive(&sample->attributes.lock);
+    EnterCriticalSection(&sample->attributes.cs);
 
     if (sample->buffer_count == 0)
         hr = E_UNEXPECTED;
@@ -711,7 +711,7 @@ static HRESULT WINAPI sample_ConvertToContiguousBuffer(IMFSample *iface, IMFMedi
         IMFMediaBuffer_AddRef(*buffer);
     }
 
-    ReleaseSRWLockExclusive(&sample->attributes.lock);
+    LeaveCriticalSection(&sample->attributes.cs);
 
     return hr;
 }
@@ -723,7 +723,7 @@ static HRESULT WINAPI sample_AddBuffer(IMFSample *iface, IMFMediaBuffer *buffer)
 
     TRACE("%p, %p.\n", iface, buffer);
 
-    AcquireSRWLockExclusive(&sample->attributes.lock);
+    EnterCriticalSection(&sample->attributes.cs);
     if (!mf_array_reserve((void **)&sample->buffers, &sample->capacity, sample->buffer_count + 1,
             sizeof(*sample->buffers)))
         hr = E_OUTOFMEMORY;
@@ -732,7 +732,7 @@ static HRESULT WINAPI sample_AddBuffer(IMFSample *iface, IMFMediaBuffer *buffer)
         sample->buffers[sample->buffer_count++] = buffer;
         IMFMediaBuffer_AddRef(buffer);
     }
-    ReleaseSRWLockExclusive(&sample->attributes.lock);
+    LeaveCriticalSection(&sample->attributes.cs);
 
     return hr;
 }
@@ -744,7 +744,7 @@ static HRESULT WINAPI sample_RemoveBufferByIndex(IMFSample *iface, DWORD index)
 
     TRACE("%p, %lu.\n", iface, index);
 
-    AcquireSRWLockExclusive(&sample->attributes.lock);
+    EnterCriticalSection(&sample->attributes.cs);
     if (index < sample->buffer_count)
     {
         IMFMediaBuffer_Release(sample->buffers[index]);
@@ -757,7 +757,7 @@ static HRESULT WINAPI sample_RemoveBufferByIndex(IMFSample *iface, DWORD index)
     }
     else
         hr = E_INVALIDARG;
-    ReleaseSRWLockExclusive(&sample->attributes.lock);
+    LeaveCriticalSection(&sample->attributes.cs);
 
     return hr;
 }
@@ -769,11 +769,11 @@ static HRESULT WINAPI sample_RemoveAllBuffers(IMFSample *iface)
 
     TRACE("%p.\n", iface);
 
-    AcquireSRWLockExclusive(&sample->attributes.lock);
+    EnterCriticalSection(&sample->attributes.cs);
     for (i = 0; i < sample->buffer_count; ++i)
          IMFMediaBuffer_Release(sample->buffers[i]);
     sample->buffer_count = 0;
-    ReleaseSRWLockExclusive(&sample->attributes.lock);
+    LeaveCriticalSection(&sample->attributes.cs);
 
     return S_OK;
 }
@@ -784,9 +784,9 @@ static HRESULT WINAPI sample_GetTotalLength(IMFSample *iface, DWORD *total_lengt
 
     TRACE("%p, %p.\n", iface, total_length);
 
-    AcquireSRWLockShared(&sample->attributes.lock);
+    EnterCriticalSection(&sample->attributes.cs);
     *total_length = sample_get_total_length(sample);
-    ReleaseSRWLockShared(&sample->attributes.lock);
+    LeaveCriticalSection(&sample->attributes.cs);
 
     return S_OK;
 }
@@ -803,7 +803,7 @@ static HRESULT WINAPI sample_CopyToBuffer(IMFSample *iface, IMFMediaBuffer *buff
 
     TRACE("%p, %p.\n", iface, buffer);
 
-    AcquireSRWLockShared(&sample->attributes.lock);
+    EnterCriticalSection(&sample->attributes.cs);
 
     total_length = sample_get_total_length(sample);
     dst_current_length = 0;
@@ -871,7 +871,7 @@ done:
     if (locked)
         IMFMediaBuffer_Unlock(buffer);
 
-    ReleaseSRWLockShared(&sample->attributes.lock);
+    LeaveCriticalSection(&sample->attributes.cs);
 
     return hr;
 }
@@ -953,7 +953,7 @@ static HRESULT WINAPI tracked_sample_SetAllocator(IMFTrackedSample *iface,
 
     TRACE("%p, %p, %p.\n", iface, sample_allocator, state);
 
-    AcquireSRWLockExclusive(&sample->attributes.lock);
+    EnterCriticalSection(&sample->attributes.cs);
 
     if (sample->tracked_result)
         hr = MF_E_NOTACCEPTING;
@@ -973,7 +973,7 @@ static HRESULT WINAPI tracked_sample_SetAllocator(IMFTrackedSample *iface,
         }
     }
 
-    ReleaseSRWLockExclusive(&sample->attributes.lock);
+    LeaveCriticalSection(&sample->attributes.cs);
 
     return hr;
 }

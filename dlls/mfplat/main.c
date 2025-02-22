@@ -490,7 +490,7 @@ static HRESULT WINAPI transform_activate_ActivateObject(IMFActivate *iface, REFI
 
     TRACE("%p, %s, %p.\n", iface, debugstr_guid(riid), obj);
 
-    IMFActivate_LockStore(iface);
+    EnterCriticalSection(&activate->attributes.cs);
 
     if (!activate->transform)
     {
@@ -518,7 +518,7 @@ static HRESULT WINAPI transform_activate_ActivateObject(IMFActivate *iface, REFI
     if (activate->transform)
         hr = IMFTransform_QueryInterface(activate->transform, riid, obj);
 
-    IMFActivate_UnlockStore(iface);
+    LeaveCriticalSection(&activate->attributes.cs);
 
     return hr;
 }
@@ -529,7 +529,7 @@ static HRESULT WINAPI transform_activate_ShutdownObject(IMFActivate *iface)
 
     TRACE("%p.\n", iface);
 
-    IMFActivate_LockStore(iface);
+    EnterCriticalSection(&activate->attributes.cs);
 
     if (activate->transform)
     {
@@ -537,7 +537,7 @@ static HRESULT WINAPI transform_activate_ShutdownObject(IMFActivate *iface)
         activate->transform = NULL;
     }
 
-    IMFActivate_UnlockStore(iface);
+    LeaveCriticalSection(&activate->attributes.cs);
 
     return S_OK;
 }
@@ -1702,7 +1702,7 @@ static HRESULT attributes_get_item(struct attributes *attributes, const GUID *ke
     struct attribute *attribute;
     HRESULT hr;
 
-    if (attributes->lock_tid != GetCurrentThreadId()) AcquireSRWLockExclusive(&attributes->lock);
+    EnterCriticalSection(&attributes->cs);
 
     attribute = attributes_find_item(attributes, key, NULL);
     if (attribute)
@@ -1715,7 +1715,7 @@ static HRESULT attributes_get_item(struct attributes *attributes, const GUID *ke
     else
         hr = MF_E_ATTRIBUTENOTFOUND;
 
-    if (attributes->lock_tid != GetCurrentThreadId()) ReleaseSRWLockExclusive(&attributes->lock);
+    LeaveCriticalSection(&attributes->cs);
 
     return hr;
 }
@@ -1725,14 +1725,14 @@ HRESULT attributes_GetItem(struct attributes *attributes, REFGUID key, PROPVARIA
     struct attribute *attribute;
     HRESULT hr;
 
-    if (attributes->lock_tid != GetCurrentThreadId()) AcquireSRWLockExclusive(&attributes->lock);
+    EnterCriticalSection(&attributes->cs);
 
     if ((attribute = attributes_find_item(attributes, key, NULL)))
         hr = value ? PropVariantCopy(value, &attribute->value) : S_OK;
     else
         hr = MF_E_ATTRIBUTENOTFOUND;
 
-    if (attributes->lock_tid != GetCurrentThreadId()) ReleaseSRWLockExclusive(&attributes->lock);
+    LeaveCriticalSection(&attributes->cs);
 
     return hr;
 }
@@ -1742,7 +1742,7 @@ HRESULT attributes_GetItemType(struct attributes *attributes, REFGUID key, MF_AT
     struct attribute *attribute;
     HRESULT hr = S_OK;
 
-    if (attributes->lock_tid != GetCurrentThreadId()) AcquireSRWLockExclusive(&attributes->lock);
+    EnterCriticalSection(&attributes->cs);
 
     if ((attribute = attributes_find_item(attributes, key, NULL)))
     {
@@ -1751,7 +1751,7 @@ HRESULT attributes_GetItemType(struct attributes *attributes, REFGUID key, MF_AT
     else
         hr = MF_E_ATTRIBUTENOTFOUND;
 
-    if (attributes->lock_tid != GetCurrentThreadId()) ReleaseSRWLockExclusive(&attributes->lock);
+    LeaveCriticalSection(&attributes->cs);
 
     return hr;
 }
@@ -1762,7 +1762,7 @@ HRESULT attributes_CompareItem(struct attributes *attributes, REFGUID key, REFPR
 
     *result = FALSE;
 
-    if (attributes->lock_tid != GetCurrentThreadId()) AcquireSRWLockExclusive(&attributes->lock);
+    EnterCriticalSection(&attributes->cs);
 
     if ((attribute = attributes_find_item(attributes, key, NULL)))
     {
@@ -1770,7 +1770,7 @@ HRESULT attributes_CompareItem(struct attributes *attributes, REFGUID key, REFPR
                 !PropVariantCompareEx(&attribute->value, value, PVCU_DEFAULT, PVCF_DEFAULT);
     }
 
-    if (attributes->lock_tid != GetCurrentThreadId()) ReleaseSRWLockExclusive(&attributes->lock);
+    LeaveCriticalSection(&attributes->cs);
 
     return S_OK;
 }
@@ -1788,7 +1788,7 @@ HRESULT attributes_Compare(struct attributes *attributes, IMFAttributes *theirs,
     if (FAILED(hr = IMFAttributes_GetCount(theirs, &count)))
         return hr;
 
-    if (attributes->lock_tid != GetCurrentThreadId()) AcquireSRWLockExclusive(&attributes->lock);
+    EnterCriticalSection(&attributes->cs);
 
     result = TRUE;
 
@@ -1846,7 +1846,7 @@ HRESULT attributes_Compare(struct attributes *attributes, IMFAttributes *theirs,
             hr = E_INVALIDARG;
     }
 
-    if (attributes->lock_tid != GetCurrentThreadId()) ReleaseSRWLockExclusive(&attributes->lock);
+    LeaveCriticalSection(&attributes->cs);
 
     if (SUCCEEDED(hr))
         *ret = result;
@@ -1901,7 +1901,7 @@ HRESULT attributes_GetGUID(struct attributes *attributes, REFGUID key, GUID *val
     struct attribute *attribute;
     HRESULT hr = S_OK;
 
-    if (attributes->lock_tid != GetCurrentThreadId()) AcquireSRWLockExclusive(&attributes->lock);
+    EnterCriticalSection(&attributes->cs);
 
     attribute = attributes_find_item(attributes, key, NULL);
     if (attribute)
@@ -1914,7 +1914,7 @@ HRESULT attributes_GetGUID(struct attributes *attributes, REFGUID key, GUID *val
     else
         hr = MF_E_ATTRIBUTENOTFOUND;
 
-    if (attributes->lock_tid != GetCurrentThreadId()) ReleaseSRWLockExclusive(&attributes->lock);
+    LeaveCriticalSection(&attributes->cs);
 
     return hr;
 }
@@ -1924,7 +1924,7 @@ HRESULT attributes_GetStringLength(struct attributes *attributes, REFGUID key, U
     struct attribute *attribute;
     HRESULT hr = S_OK;
 
-    if (attributes->lock_tid != GetCurrentThreadId()) AcquireSRWLockExclusive(&attributes->lock);
+    EnterCriticalSection(&attributes->cs);
 
     attribute = attributes_find_item(attributes, key, NULL);
     if (attribute)
@@ -1937,7 +1937,7 @@ HRESULT attributes_GetStringLength(struct attributes *attributes, REFGUID key, U
     else
         hr = MF_E_ATTRIBUTENOTFOUND;
 
-    if (attributes->lock_tid != GetCurrentThreadId()) ReleaseSRWLockExclusive(&attributes->lock);
+    LeaveCriticalSection(&attributes->cs);
 
     return hr;
 }
@@ -1948,7 +1948,7 @@ HRESULT attributes_GetString(struct attributes *attributes, REFGUID key, WCHAR *
     struct attribute *attribute;
     HRESULT hr = S_OK;
 
-    if (attributes->lock_tid != GetCurrentThreadId()) AcquireSRWLockExclusive(&attributes->lock);
+    EnterCriticalSection(&attributes->cs);
 
     attribute = attributes_find_item(attributes, key, NULL);
     if (attribute)
@@ -1971,7 +1971,7 @@ HRESULT attributes_GetString(struct attributes *attributes, REFGUID key, WCHAR *
     else
         hr = MF_E_ATTRIBUTENOTFOUND;
 
-    if (attributes->lock_tid != GetCurrentThreadId()) ReleaseSRWLockExclusive(&attributes->lock);
+    LeaveCriticalSection(&attributes->cs);
 
     return hr;
 }
@@ -1999,7 +1999,7 @@ HRESULT attributes_GetBlobSize(struct attributes *attributes, REFGUID key, UINT3
     struct attribute *attribute;
     HRESULT hr = S_OK;
 
-    if (attributes->lock_tid != GetCurrentThreadId()) AcquireSRWLockExclusive(&attributes->lock);
+    EnterCriticalSection(&attributes->cs);
 
     attribute = attributes_find_item(attributes, key, NULL);
     if (attribute)
@@ -2012,7 +2012,7 @@ HRESULT attributes_GetBlobSize(struct attributes *attributes, REFGUID key, UINT3
     else
         hr = MF_E_ATTRIBUTENOTFOUND;
 
-    if (attributes->lock_tid != GetCurrentThreadId()) ReleaseSRWLockExclusive(&attributes->lock);
+    LeaveCriticalSection(&attributes->cs);
 
     return hr;
 }
@@ -2022,7 +2022,7 @@ HRESULT attributes_GetBlob(struct attributes *attributes, REFGUID key, UINT8 *bu
     struct attribute *attribute;
     HRESULT hr;
 
-    if (attributes->lock_tid != GetCurrentThreadId()) AcquireSRWLockExclusive(&attributes->lock);
+    EnterCriticalSection(&attributes->cs);
 
     attribute = attributes_find_item(attributes, key, NULL);
     if (attribute)
@@ -2045,7 +2045,7 @@ HRESULT attributes_GetBlob(struct attributes *attributes, REFGUID key, UINT8 *bu
     else
         hr = MF_E_ATTRIBUTENOTFOUND;
 
-    if (attributes->lock_tid != GetCurrentThreadId()) ReleaseSRWLockExclusive(&attributes->lock);
+    LeaveCriticalSection(&attributes->cs);
 
     return hr;
 }
@@ -2085,7 +2085,7 @@ static HRESULT attributes_set_item(struct attributes *attributes, REFGUID key, R
 {
     struct attribute *attribute;
 
-    if (attributes->lock_tid != GetCurrentThreadId()) AcquireSRWLockExclusive(&attributes->lock);
+    EnterCriticalSection(&attributes->cs);
 
     attribute = attributes_find_item(attributes, key, NULL);
     if (!attribute)
@@ -2093,7 +2093,7 @@ static HRESULT attributes_set_item(struct attributes *attributes, REFGUID key, R
         if (!mf_array_reserve((void **)&attributes->attributes, &attributes->capacity, attributes->count + 1,
                 sizeof(*attributes->attributes)))
         {
-            if (attributes->lock_tid != GetCurrentThreadId()) ReleaseSRWLockExclusive(&attributes->lock);
+            LeaveCriticalSection(&attributes->cs);
             return E_OUTOFMEMORY;
         }
         attributes->attributes[attributes->count].key = *key;
@@ -2104,7 +2104,7 @@ static HRESULT attributes_set_item(struct attributes *attributes, REFGUID key, R
 
     PropVariantCopy(&attribute->value, value);
 
-    if (attributes->lock_tid != GetCurrentThreadId()) ReleaseSRWLockExclusive(&attributes->lock);
+    LeaveCriticalSection(&attributes->cs);
 
     return S_OK;
 }
@@ -2135,7 +2135,7 @@ HRESULT attributes_DeleteItem(struct attributes *attributes, REFGUID key)
     struct attribute *attribute;
     size_t index = 0;
 
-    if (attributes->lock_tid != GetCurrentThreadId()) AcquireSRWLockExclusive(&attributes->lock);
+    EnterCriticalSection(&attributes->cs);
 
     if ((attribute = attributes_find_item(attributes, key, &index)))
     {
@@ -2149,14 +2149,14 @@ HRESULT attributes_DeleteItem(struct attributes *attributes, REFGUID key)
             memmove(&attributes->attributes[index], &attributes->attributes[index + 1], count * sizeof(*attributes->attributes));
     }
 
-    if (attributes->lock_tid != GetCurrentThreadId()) ReleaseSRWLockExclusive(&attributes->lock);
+    LeaveCriticalSection(&attributes->cs);
 
     return S_OK;
 }
 
 HRESULT attributes_DeleteAllItems(struct attributes *attributes)
 {
-    if (attributes->lock_tid != GetCurrentThreadId()) AcquireSRWLockExclusive(&attributes->lock);
+    EnterCriticalSection(&attributes->cs);
 
     while (attributes->count)
     {
@@ -2166,7 +2166,7 @@ HRESULT attributes_DeleteAllItems(struct attributes *attributes)
     attributes->attributes = NULL;
     attributes->capacity = 0;
 
-    if (attributes->lock_tid != GetCurrentThreadId()) ReleaseSRWLockExclusive(&attributes->lock);
+    LeaveCriticalSection(&attributes->cs);
 
     return S_OK;
 }
@@ -2237,25 +2237,23 @@ HRESULT attributes_SetUnknown(struct attributes *attributes, REFGUID key, IUnkno
 
 HRESULT attributes_LockStore(struct attributes *attributes)
 {
-    AcquireSRWLockExclusive(&attributes->lock);
-    attributes->lock_tid = GetCurrentThreadId();
+    EnterCriticalSection(&attributes->cs);
 
     return S_OK;
 }
 
 HRESULT attributes_UnlockStore(struct attributes *attributes)
 {
-    attributes->lock_tid = 0;
-    ReleaseSRWLockExclusive(&attributes->lock);
+    LeaveCriticalSection(&attributes->cs);
 
     return S_OK;
 }
 
 HRESULT attributes_GetCount(struct attributes *attributes, UINT32 *count)
 {
-    if (attributes->lock_tid != GetCurrentThreadId()) AcquireSRWLockExclusive(&attributes->lock);
+    EnterCriticalSection(&attributes->cs);
     *count = attributes->count;
-    if (attributes->lock_tid != GetCurrentThreadId()) ReleaseSRWLockExclusive(&attributes->lock);
+    LeaveCriticalSection(&attributes->cs);
 
     return S_OK;
 }
@@ -2264,7 +2262,7 @@ HRESULT attributes_GetItemByIndex(struct attributes *attributes, UINT32 index, G
 {
     HRESULT hr = S_OK;
 
-    if (attributes->lock_tid != GetCurrentThreadId()) AcquireSRWLockExclusive(&attributes->lock);
+    EnterCriticalSection(&attributes->cs);
 
     if (index < attributes->count)
     {
@@ -2275,7 +2273,7 @@ HRESULT attributes_GetItemByIndex(struct attributes *attributes, UINT32 index, G
     else
         hr = E_INVALIDARG;
 
-    if (attributes->lock_tid != GetCurrentThreadId()) ReleaseSRWLockExclusive(&attributes->lock);
+    LeaveCriticalSection(&attributes->cs);
 
     return hr;
 }
@@ -2285,7 +2283,7 @@ HRESULT attributes_CopyAllItems(struct attributes *attributes, IMFAttributes *de
     HRESULT hr = S_OK;
     size_t i;
 
-    if (attributes->lock_tid != GetCurrentThreadId()) AcquireSRWLockExclusive(&attributes->lock);
+    EnterCriticalSection(&attributes->cs);
 
     IMFAttributes_LockStore(dest);
 
@@ -2300,7 +2298,7 @@ HRESULT attributes_CopyAllItems(struct attributes *attributes, IMFAttributes *de
 
     IMFAttributes_UnlockStore(dest);
 
-    if (attributes->lock_tid != GetCurrentThreadId()) ReleaseSRWLockExclusive(&attributes->lock);
+    LeaveCriticalSection(&attributes->cs);
 
     return hr;
 }
@@ -2619,14 +2617,17 @@ HRESULT init_attributes_object(struct attributes *object, UINT32 size)
 {
     object->IMFAttributes_iface.lpVtbl = &mfattributes_vtbl;
     object->ref = 1;
-    InitializeSRWLock(&object->lock);
+    InitializeCriticalSection(&object->cs);
 
     object->attributes = NULL;
     object->count = 0;
     object->capacity = 0;
     if (!mf_array_reserve((void **)&object->attributes, &object->capacity, size,
                           sizeof(*object->attributes)))
+    {
+        DeleteCriticalSection(&object->cs);
         return E_OUTOFMEMORY;
+    }
 
     return S_OK;
 }
@@ -2638,6 +2639,8 @@ void clear_attributes_object(struct attributes *object)
     for (i = 0; i < object->count; i++)
         PropVariantClear(&object->attributes[i].value);
     free(object->attributes);
+
+    DeleteCriticalSection(&object->cs);
 }
 
 /***********************************************************************
@@ -6709,7 +6712,7 @@ static void queue_notify_subscriber(struct event_queue *queue)
         return;
 
     queue->notified = TRUE;
-    RtwqInvokeCallback(queue->subscriber);
+    RtwqPutWorkItem(MFASYNC_CALLBACK_QUEUE_STANDARD, 0, queue->subscriber);
 }
 
 static HRESULT WINAPI eventqueue_BeginGetEvent(IMFMediaEventQueue *iface, IMFAsyncCallback *callback, IUnknown *state)
