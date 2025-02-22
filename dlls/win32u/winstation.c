@@ -52,12 +52,6 @@ struct shared_input_cache
     DWORD tid;
 };
 
-struct shared_window_cache
-{
-    const shared_object_t *object;
-    HWND hwnd;
-};
-
 struct session_thread_data
 {
     const shared_object_t *shared_desktop;         /* thread desktop shared session cached object */
@@ -65,9 +59,6 @@ struct session_thread_data
     struct shared_input_cache shared_input;        /* current thread input shared session cached object */
     struct shared_input_cache shared_foreground;   /* foreground thread input shared session cached object */
     struct shared_input_cache other_thread_input;  /* other thread input shared session cached object */
-    const shared_object_t *shared_desktop_window; /* desktop window shared session cached object */
-    const shared_object_t *shared_message_window; /* message window shared session cached object */
-    struct shared_window_cache other_process_window;  /* other process window shared session cached object */
 };
 
 struct session_block
@@ -188,7 +179,7 @@ static NTSTATUS find_shared_session_block( SIZE_T offset, SIZE_T size, struct se
     return status;
 }
 
-const shared_object_t *find_shared_session_object( struct obj_locator locator )
+static const shared_object_t *find_shared_session_object( struct obj_locator locator )
 {
     struct session_block *block = NULL;
     const shared_object_t *object;
@@ -334,70 +325,6 @@ NTSTATUS get_shared_input( UINT tid, struct object_lock *lock, const input_shm_t
     do { status = try_get_shared_input( tid, lock, input_shm, cache ); }
     while (!status && !cache->id);
 
-    return status;
-}
-
-NTSTATUS get_shared_window( HWND hwnd, struct object_lock *lock, const window_shm_t **window_shm )
-{
-    struct session_thread_data *data = get_session_thread_data();
-    const shared_object_t *object, **cache;
-    UINT status = STATUS_SUCCESS;
-    WND *win;
-
-    TRACE( "hwnd %p, lock %p, input_shm %p\n", hwnd, lock, window_shm );
-
-    if (!(win = get_win_ptr( hwnd ))) return STATUS_INVALID_HANDLE;
-
-    if (win == WND_OTHER_PROCESS)
-    {
-        cache = &data->other_process_window.object;
-        if (hwnd != data->other_process_window.hwnd)
-        {
-            memset( &data->other_process_window, 0, sizeof(data->other_process_window) );
-            data->other_process_window.hwnd = hwnd;
-        }
-    }
-    else if (win != WND_DESKTOP)
-    {
-        cache = &win->shared;
-    }
-    else if (LOWORD(hwnd) == LOWORD(get_desktop_window()))
-    {
-        cache = &data->shared_desktop_window;
-        hwnd = get_desktop_window();
-    }
-    else
-    {
-        cache = &data->shared_message_window;
-        hwnd = get_hwnd_message_parent();
-    }
-
-    if (!(object = *cache))
-    {
-        obj_locator_t locator;
-
-        SERVER_START_REQ( get_window_info )
-        {
-            req->handle = wine_server_user_handle( hwnd );
-            wine_server_call( req );
-            locator = reply->locator;
-        }
-        SERVER_END_REQ;
-
-        *cache = find_shared_session_object( locator );
-        if (!(object = *cache)) status = STATUS_INVALID_HANDLE;
-        memset( lock, 0, sizeof(*lock) );
-    }
-
-    if (!status && (!lock->id || !shared_object_release_seqlock( object, lock->seq )))
-    {
-        shared_object_acquire_seqlock( object, &lock->seq );
-        if (!(lock->id = object->id)) lock->id = -1;
-        *window_shm = &object->shm.window;
-        status = STATUS_PENDING;
-    }
-
-    if (win && win != WND_DESKTOP && win != WND_OTHER_PROCESS) release_win_ptr( win );
     return status;
 }
 
@@ -636,8 +563,6 @@ BOOL WINAPI NtUserSetThreadDesktop( HDESK handle )
         struct session_thread_data *data = get_session_thread_data();
         data->shared_desktop = find_shared_session_object( locator );
         memset( &data->shared_foreground, 0, sizeof(data->shared_foreground) );
-        data->shared_desktop_window = NULL;
-        data->shared_message_window = NULL;
         thread_info->client_info.top_window = 0;
         thread_info->client_info.msg_window = 0;
         if (was_virtual_desktop != is_virtual_desktop()) update_display_cache( TRUE );
@@ -852,7 +777,6 @@ HWND get_desktop_window(void)
     static const WCHAR wine_service_station_name[] =
         {'_','_','w','i','n','e','s','e','r','v','i','c','e','_','w','i','n','s','t','a','t','i','o','n',0};
     struct ntuser_thread_info *thread_info = NtUserGetThreadInfo();
-    obj_locator_t top_locator, msg_locator;
     WCHAR name[MAX_PATH];
     BOOL is_service;
 
@@ -872,8 +796,6 @@ HWND get_desktop_window(void)
         {
             thread_info->top_window = reply->top_window;
             thread_info->msg_window = reply->msg_window;
-            top_locator = reply->top_locator;
-            msg_locator = reply->msg_locator;
         }
     }
     SERVER_END_REQ;
@@ -956,21 +878,13 @@ HWND get_desktop_window(void)
             {
                 thread_info->top_window = reply->top_window;
                 thread_info->msg_window = reply->msg_window;
-                top_locator = reply->top_locator;
-                msg_locator = reply->msg_locator;
             }
         }
         SERVER_END_REQ;
     }
 
     if (!thread_info->top_window) ERR_(win)( "failed to create desktop window\n" );
-    else
-    {
-        struct session_thread_data *data = get_session_thread_data();
-        data->shared_desktop_window = find_shared_session_object( top_locator );
-        data->shared_message_window = find_shared_session_object( msg_locator );
-        user_driver->pSetDesktopWindow( UlongToHandle( thread_info->top_window ));
-    }
+    else user_driver->pSetDesktopWindow( UlongToHandle( thread_info->top_window ));
 
     register_builtin_classes();
     return UlongToHandle( thread_info->top_window );

@@ -49,7 +49,6 @@ struct user_object
 typedef struct tagWND
 {
     struct user_object obj;           /* object header */
-    const shared_object_t *shared;    /* shared session object */
     HWND               parent;        /* Window parent */
     HWND               owner;         /* Window owner */
     struct tagCLASS   *class;         /* Window class */
@@ -57,11 +56,14 @@ typedef struct tagWND
     WNDPROC            winproc;       /* Window procedure */
     UINT               tid;           /* Owner thread id */
     HINSTANCE          hInstance;     /* Window hInstance (from CreateWindow) */
+    struct window_rects rects;        /* window rects in window DPI, relative to the parent client area */
     RECT               normal_rect;   /* Normal window rect saved when maximized/minimized */
     POINT              min_pos;       /* Position for minimized window */
     POINT              max_pos;       /* Position for maximized window */
     WCHAR             *text;          /* Window text */
     struct win_scroll_bar_info *pScroll; /* Scroll-bar info */
+    UINT               dwStyle;       /* Window style (from CreateWindow) */
+    UINT               dwExStyle;     /* Extended style (from CreateWindowEx) */
     UINT_PTR           wIDmenu;       /* ID or hmenu (from CreateWindow) */
     UINT               helpContext;   /* Help context ID */
     UINT               flags;         /* Misc. flags (see below) */
@@ -70,6 +72,7 @@ typedef struct tagWND
     HICON              hIconSmall;    /* window's small icon */
     HICON              hIconSmall2;   /* window's secondary small icon, derived from hIcon */
     HIMC               imc;           /* window's input context */
+    UINT               dpi_context;   /* window DPI awareness context */
     struct window_surface *surface;   /* Window surface if any */
     struct list        vulkan_surfaces; /* list of vulkan surfaces created for this window */
     struct tagDIALOGINFO *dlgInfo;    /* Dialog additional info (dialogs only) */
