@@ -454,7 +454,7 @@ _ACRTIMP int __cdecl vprintf_s(const char*,va_list) __WINE_CRT_PRINTF_ATTR(1, 0)
 _ACRTIMP int __cdecl vsprintf(char*,const char*,va_list) __WINE_CRT_PRINTF_ATTR(2, 0);
 _ACRTIMP int __cdecl vsprintf_s(char*,size_t,const char*,va_list) __WINE_CRT_PRINTF_ATTR(3, 0);
 
-int __cdecl _vsnprintf(char*,size_t,const char*,va_list) __WINE_CRT_PRINTF_ATTR(3, 0);
+_ACRTIMP int __cdecl _vsnprintf(char*,size_t,const char*,va_list) __WINE_CRT_PRINTF_ATTR(3, 0);
 static inline int vsnprintf(char *buffer, size_t size, const char *format, va_list args) __WINE_CRT_PRINTF_ATTR(3, 0);
 static inline int vsnprintf(char *buffer, size_t size, const char *format, va_list args)
 { return _vsnprintf(buffer,size,format,args); }
