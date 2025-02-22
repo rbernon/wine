@@ -205,15 +205,6 @@ typedef unsigned int size_t;
 #define _SIZE_T_DEFINED
 #endif
 
-#ifndef _SSIZE_T_DEFINED
-#ifdef _WIN64
-typedef __int64 ssize_t;
-#else
-typedef int ssize_t;
-#endif
-#define _SSIZE_T_DEFINED
-#endif
-
 #ifndef _TIME32_T_DEFINED
 typedef __msvcrt_long __time32_t;
 #define _TIME32_T_DEFINED
@@ -257,15 +248,6 @@ typedef unsigned short  wctype_t;
 #ifndef _ERRNO_T_DEFINED
 typedef int errno_t;
 #define _ERRNO_T_DEFINED
-#endif
-
-#ifndef _CONST_RETURN
-# ifdef __cplusplus
-#  define _CONST_RETURN const
-#  define _CRT_CONST_CORRECT_OVERLOADS
-# else
-#  define _CONST_RETURN
-# endif
 #endif
 
 struct threadlocaleinfostruct;

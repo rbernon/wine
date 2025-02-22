@@ -476,7 +476,7 @@ typedef int             LONG,       *PLONG;
 #endif
 
 /* Some systems might have wchar_t, but we really need 16 bit characters */
-#if defined(WINE_UNICODE_NATIVE) || defined(_MSC_VER)
+#if defined(WINE_UNICODE_NATIVE)
 typedef wchar_t         WCHAR;
 #elif __cpp_unicode_literals >= 200710
 typedef char16_t        WCHAR;
@@ -6217,8 +6217,6 @@ NTSYSAPI VOID WINAPI RtlRunOnceInitialize(PRTL_RUN_ONCE);
 NTSYSAPI DWORD WINAPI RtlRunOnceExecuteOnce(PRTL_RUN_ONCE,PRTL_RUN_ONCE_INIT_FN,PVOID,PVOID*);
 NTSYSAPI DWORD WINAPI RtlRunOnceBeginInitialize(PRTL_RUN_ONCE, DWORD, PVOID*);
 NTSYSAPI DWORD WINAPI RtlRunOnceComplete(PRTL_RUN_ONCE, DWORD, PVOID);
-NTSYSAPI WORD WINAPI RtlCaptureStackBackTrace(DWORD,DWORD,void**,DWORD*);
-
 NTSYSAPI WORD WINAPI RtlCaptureStackBackTrace(DWORD,DWORD,void**,DWORD*);
 
 #include <pshpack8.h>

@@ -53,9 +53,6 @@ _ACRTIMP size_t   __cdecl _wcsxfrm_l(wchar_t*,const wchar_t*,size_t,_locale_t);
 
 _ACRTIMP wchar_t* __cdecl wcscat(wchar_t*,const wchar_t*);
 _ACRTIMP errno_t  __cdecl wcscat_s(wchar_t*,size_t,const wchar_t*);
-#ifdef __cplusplus
-extern "C++" template <size_t S> inline errno_t wcscat_s(wchar_t (&dst)[S], const wchar_t *arg) { return wcscat_s(dst, S, arg); }
-#endif
 _ACRTIMP wchar_t* __cdecl wcschr(const wchar_t*,wchar_t);
 _ACRTIMP int      __cdecl wcscmp(const wchar_t*,const wchar_t*);
 _ACRTIMP int      __cdecl wcscoll(const wchar_t*,const wchar_t*);

@@ -46,10 +46,10 @@ void __stdcall __std_close_threadpool_work(PTP_WORK work)
 }
 
 PTP_WORK __stdcall __std_create_threadpool_work(PTP_WORK_CALLBACK callback, void *context,
-                                                PTP_CALLBACK_ENVIRON env)
+                                                PTP_CALLBACK_ENVIRON environ)
 {
-    TRACE("(%p %p %p)\n", callback, context, env);
-    return CreateThreadpoolWork(callback, context, env);
+    TRACE("(%p %p %p)\n", callback, context, environ);
+    return CreateThreadpoolWork(callback, context, environ);
 }
 
 void __stdcall __std_submit_threadpool_work(PTP_WORK work)

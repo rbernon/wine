@@ -58,8 +58,3 @@ BOOL WINAPI DllMain( HINSTANCE inst, DWORD reason, void *reserved )
     NtCurrentTeb()->Peb->KernelCallbackTable = user_callbacks;
     return TRUE;
 }
-
-BOOL WINAPI DllMainCRTStartup( HINSTANCE inst, DWORD reason, void *reserved )
-{
-    return DllMain( inst, reason, reserved );
-}

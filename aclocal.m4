@@ -184,25 +184,6 @@ CFLAGS=$ac_wine_try_cflags_saved])
 AS_VAR_IF([ac_var],[yes],[m4_default([$2], [EXTRACFLAGS="$EXTRACFLAGS $1"])], [$3])dnl
 AS_VAR_POPDEF([ac_var])])
 
-dnl **** Check if we can link an empty program with special CXXFLAGS ****
-dnl
-dnl Usage: WINE_TRY_CXXFLAGS(flags,[action-if-yes,[action-if-no]])
-dnl
-dnl The default action-if-yes is to append the flags to EXTRACXXFLAGS.
-dnl
-AC_DEFUN([WINE_TRY_CXXFLAGS],
-[AS_VAR_PUSHDEF([ac_var], ac_cv_cxxflags_[[$1]])dnl
-AC_CACHE_CHECK([whether the C++ compiler supports $1], ac_var,
-[ac_wine_try_cxxflags_saved=$CXXFLAGS
-CXXFLAGS="$CXXFLAGS $1"
-AC_LANG_PUSH([C++])
-AC_LINK_IFELSE([AC_LANG_SOURCE([[int main(int argc, char **argv) { return 0; }]])],
-               [AS_VAR_SET(ac_var,yes)], [AS_VAR_SET(ac_var,no)])
-CXXFLAGS=$ac_wine_try_cxxflags_saved])
-AC_LANG_POP([C++])
-AS_VAR_IF([ac_var],[yes],[m4_default([$2], [EXTRACXXFLAGS="$EXTRACXXFLAGS $1"])], [$3])dnl
-AS_VAR_POPDEF([ac_var])])
-
 dnl **** Check if we can link an empty program with special CFLAGS ****
 dnl
 dnl Usage: WINE_TRY_PE_CFLAGS(flags,[action-if-yes,[action-if-no]])
@@ -226,29 +207,6 @@ int __cdecl mainCRTStartup(void) { return 0; }]])],
 CFLAGS=$ac_wine_try_cflags_saved
 ac_exeext=$ac_wine_try_cflags_saved_exeext])
 AS_VAR_IF([ac_var],[yes],[m4_default([$2], [AS_VAR_APPEND([${wine_arch}_EXTRACFLAGS],[" $1"])])], [$3])dnl
-AS_VAR_POPDEF([ac_var]) }])
-
-dnl **** Check if we can link an empty program with special CXXFLAGS ****
-dnl
-dnl Usage: WINE_TRY_PE_CXXFLAGS(flags,[action-if-yes,[action-if-no]])
-dnl
-dnl The default action-if-yes is to append the flags to the arch-specific EXTRACXXFLAGS.
-dnl
-AC_DEFUN([WINE_TRY_PE_CXXFLAGS],
-[{ AS_VAR_PUSHDEF([ac_var], ac_cv_${wine_arch}_cxxflags_[[$1]])dnl
-AC_CACHE_CHECK([whether $CXX supports $1], ac_var,
-[ac_wine_try_cxxflags_saved=$CXXFLAGS
-ac_wine_try_cxxflags_saved_exeext=$ac_exeext
-CXXFLAGS="$CXXFLAGS -nostdlib -nodefaultlibs $1"
-ac_exeext=".exe"
-AC_LANG_PUSH([C++])
-AC_LINK_IFELSE([AC_LANG_SOURCE([[void *__os_arm64x_dispatch_ret = 0;
-extern "C" int __cdecl mainCRTStartup(void) { return 0; }]])],
-               [AS_VAR_SET(ac_var,yes)], [AS_VAR_SET(ac_var,no)])
-AC_LANG_POP([C++])
-CXXFLAGS=$ac_wine_try_cxxflags_saved
-ac_exeext=$ac_wine_try_cxxflags_saved_exeext])
-AS_VAR_IF([ac_var],[yes],[m4_default([$2], [AS_VAR_APPEND([${wine_arch}_EXTRACXXFLAGS],[" $1"])])], [$3])dnl
 AS_VAR_POPDEF([ac_var]) }])
 
 dnl **** Check whether the given MinGW header is available ****

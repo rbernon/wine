@@ -304,7 +304,6 @@ void DECLSPEC_NORETURN CDECL _wassert(const wchar_t* str, const wchar_t* file, u
   else
     fwprintf(stderr, L"Assertion failed: %ls, file %ls, line %d\n\n", str, file, line);
 
-do { static volatile int i = 0; while (!i) {} } while (0);
   raise(SIGABRT);
   _exit(3);
 }

@@ -171,9 +171,7 @@ static const char *debug_flags[MAX_ARCHS];
 static const char *delay_load_flags[MAX_ARCHS];
 static struct strarray target_flags[MAX_ARCHS];
 static struct strarray extra_cflags[MAX_ARCHS];
-static struct strarray extra_cxxflags[MAX_ARCHS];
 static struct strarray extra_cflags_extlib[MAX_ARCHS];
-static struct strarray extra_cxxflags_extlib[MAX_ARCHS];
 static struct strarray disabled_dirs[MAX_ARCHS];
 static unsigned int native_archs[MAX_ARCHS];
 static unsigned int hybrid_archs[MAX_ARCHS];
@@ -1225,16 +1223,13 @@ static const struct
 } parse_functions[] =
 {
     { ".c",   parse_c_file },
-    { ".cpp", parse_c_file },
     { ".h",   parse_c_file },
     { ".inl", parse_c_file },
     { ".l",   parse_c_file },
-    { ".ll",   parse_c_file },
     { ".m",   parse_c_file },
     { ".rh",  parse_c_file },
     { ".x",   parse_c_file },
     { ".y",   parse_c_file },
-    { ".yy",  parse_c_file },
     { ".idl", parse_idl_file },
     { ".rc",  parse_rc_file },
     { ".in",  parse_in_file },
@@ -1465,7 +1460,6 @@ static struct file *open_include_file( const struct makefile *make, struct incl_
 
     /* check for generated files */
     if ((file = open_local_generated_file( make, pFile, ".tab.h", ".y" ))) return file;
-    if ((file = open_local_generated_file( make, pFile, ".h", ".yy" ))) return file;
     if ((file = open_local_generated_file( make, pFile, ".h", ".idl" ))) return file;
     if (fontforge && (file = open_local_generated_file( make, pFile, ".ttf", ".sfd" ))) return file;
     if (convert && rsvg && icotool)
@@ -1941,29 +1935,9 @@ static void add_generated_sources( struct makefile *make )
             source->files_count = source->files_size = 0;
             source->files = NULL;
         }
-        if (strendswith( source->name, ".yy" ))
-        {
-            file = add_generated_source( make, replace_extension( source->name, ".yy", ".cpp" ), NULL, 0 );
-            /* steal the includes list from the source file */
-            file->files_count = source->files_count;
-            file->files_size = source->files_size;
-            file->files = source->files;
-            source->files_count = source->files_size = 0;
-            source->files = NULL;
-        }
         if (strendswith( source->name, ".l" ))
         {
             file = add_generated_source( make, replace_extension( source->name, ".l", ".yy.c" ), NULL, 0 );
-            /* steal the includes list from the source file */
-            file->files_count = source->files_count;
-            file->files_size = source->files_size;
-            file->files = source->files;
-            source->files_count = source->files_size = 0;
-            source->files = NULL;
-        }
-        if (strendswith( source->name, ".ll" ))
-        {
-            file = add_generated_source( make, replace_extension( source->name, ".ll", ".cpp" ), NULL, 0 );
             /* steal the includes list from the source file */
             file->files_count = source->files_count;
             file->files_size = source->files_size;
@@ -2729,38 +2703,26 @@ static void output_po_files( struct makefile *make )
     strarray_add( &make->maintainerclean_files, strmake( "%s/wine.pot", po_dir ));
 }
 
-static void output_source_bison( struct makefile *make, struct incl_file *source, const char *obj,
-                                 const char *c_ext, const char *h_ext )
-{
-    char *header = strmake( "%s%s", obj, h_ext );
-
-    if (find_include_file( make, header ))
-    {
-        output( "%s: %s\n", obj_dir_path( make, header ), source->filename );
-        output( "\t%s%s -o %s.$$$$%s --defines=$@ %s && rm -f %s.$$$$%s\n",
-                cmd_prefix( "BISON" ), bison, obj_dir_path( make, obj ), c_ext,
-                source->filename, obj_dir_path( make, obj ), c_ext );
-        strarray_add( &make->clean_files, header );
-    }
-    output( "%s%s: %s\n", obj_dir_path( make, obj ), c_ext, source->filename );
-    output( "\t%s%s -o $@ %s\n", cmd_prefix( "BISON" ), bison, source->filename );
-}
 
 /*******************************************************************
  *         output_source_y
  */
 static void output_source_y( struct makefile *make, struct incl_file *source, const char *obj )
 {
-    output_source_bison( make, source, obj, ".tab.c", ".tab.h" );
+    char *header = strmake( "%s.tab.h", obj );
+
+    if (find_include_file( make, header ))
+    {
+        output( "%s: %s\n", obj_dir_path( make, header ), source->filename );
+        output( "\t%s%s -o %s.tab.$$$$.c --defines=$@ %s && rm -f %s.tab.$$$$.c\n",
+                cmd_prefix( "BISON" ), bison, obj_dir_path( make, obj ),
+                source->filename, obj_dir_path( make, obj ));
+        strarray_add( &make->clean_files, header );
+    }
+    output( "%s.tab.c: %s\n", obj_dir_path( make, obj ), source->filename );
+    output( "\t%s%s -o $@ %s\n", cmd_prefix( "BISON" ), bison, source->filename );
 }
 
-/*******************************************************************
- *         output_source_yy
- */
-static void output_source_yy( struct makefile *make, struct incl_file *source, const char *obj )
-{
-    output_source_bison( make, source, obj, ".cpp", ".h" );
-}
 
 /*******************************************************************
  *         output_source_l
@@ -2771,14 +2733,6 @@ static void output_source_l( struct makefile *make, struct incl_file *source, co
     output( "\t%s%s -o$@ %s\n", cmd_prefix( "FLEX" ), flex, source->filename );
 }
 
-/*******************************************************************
- *         output_source_ll
- */
-static void output_source_ll( struct makefile *make, struct incl_file *source, const char *obj )
-{
-    output( "%s.cpp: %s\n", obj_dir_path( make, obj ), source->filename );
-    output( "\t%s%s -o $@ %s\n", cmd_prefix( "FLEX" ), flex, source->filename );
-}
 
 /*******************************************************************
  *         output_source_h
@@ -3236,7 +3190,6 @@ static void output_source_one_arch( struct makefile *make, struct incl_file *sou
                                     struct strarray defines, struct strarray *targets,
                                     unsigned int arch )
 {
-    const int is_cxx = strendswith( source->name, ".cpp" );
     const char *obj_name, *var_cc, *var_cflags;
     struct compile_command *cmd;
     struct strarray cflags = empty_strarray;
@@ -3277,13 +3230,6 @@ static void output_source_one_arch( struct makefile *make, struct incl_file *sou
         var_cflags = "$(x86_64_CFLAGS)";
         strarray_add( &cflags, "-D__arm64ec_x64__" );
         strarray_addall( &cflags, get_expanded_make_var_array( top_makefile, "x86_64_EXTRACFLAGS" ));
-    }
-    else if (is_cxx)
-    {
-        var_cc     = arch_make_variable( "CXX", arch );
-        var_cflags = arch_make_variable( "CXXFLAGS", arch );
-        strarray_addall( &cflags, make->extlib ? extra_cxxflags_extlib[arch] : extra_cxxflags[arch] );
-        strarray_addall( &cflags, get_expanded_make_var_array( make, "EXTRACXXFLAGS" ) );
     }
     else
     {
@@ -3425,9 +3371,7 @@ static const struct
 } output_source_funcs[] =
 {
     { "y", output_source_y },
-    { "yy", output_source_yy },
     { "l", output_source_l },
-    { "ll", output_source_ll },
     { "h", output_source_h },
     { "rh", output_source_h },
     { "inl", output_source_h },
@@ -3604,8 +3548,7 @@ static void output_import_lib( struct makefile *make, unsigned int arch )
     output( "\n" );
 
     add_install_rule( make, make->importlib, arch, name,
-                      strmake( delay_load_flags[arch] ? "d%s%s.lib" : "d%slib%s.a",
-                               arch_install_dirs[arch], make->importlib ));
+                      strmake( "d%slib%s.a", arch_install_dirs[arch], make->importlib ));
 }
 
 
@@ -3659,13 +3602,8 @@ static void output_static_lib( struct makefile *make, unsigned int arch )
     if (!arch) output_filenames_obj_dir( make, make->unixobj_files );
     output( "\n" );
     if (!make->extlib)
-    {
-        char *basename = strdup( make->staticlib + 3 );
-        basename[strlen(basename) - 2] = 0;
         add_install_rule( make, make->staticlib, arch, name,
-                          delay_load_flags[arch] ? strmake( "d%s%s.lib", arch_install_dirs[arch], basename )
-                                                 : strmake( "d%s%s", arch_install_dirs[arch], make->staticlib ));
-    }
+                          strmake( "d%s%s", arch_install_dirs[arch], make->staticlib ));
 }
 
 
@@ -4748,8 +4686,6 @@ int main( int argc, char *argv[] )
     {
         extra_cflags[arch] = get_expanded_arch_var_array( top_makefile, "EXTRACFLAGS", arch );
         extra_cflags_extlib[arch] = remove_warning_flags( extra_cflags[arch] );
-        extra_cxxflags[arch] = get_expanded_arch_var_array( top_makefile, "EXTRACXXFLAGS", arch );
-        extra_cxxflags_extlib[arch] = remove_warning_flags( extra_cxxflags[arch] );
         disabled_dirs[arch] = get_expanded_arch_var_array( top_makefile, "DISABLED_SUBDIRS", arch );
         if (!is_multiarch( arch )) continue;
         delay_load_flags[arch] = get_expanded_arch_var( top_makefile, "DELAYLOADFLAG", arch );

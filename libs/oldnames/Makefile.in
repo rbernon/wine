@@ -1,4 +1,0 @@
-STATICLIB = liboldnames.a
-
-SOURCES = \
-	oldnames.c \
