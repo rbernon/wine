@@ -38,21 +38,20 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(dmusic);
 
-struct class_factory
-{
+typedef struct {
         IClassFactory IClassFactory_iface;
         HRESULT (*create_instance)(IUnknown **ret_iface);
-};
+} IClassFactoryImpl;
 
 /******************************************************************
  *      IClassFactory implementation
  */
-static struct class_factory *impl_from_IClassFactory(IClassFactory *iface)
+static inline IClassFactoryImpl *impl_from_IClassFactory(IClassFactory *iface)
 {
-    return CONTAINING_RECORD(iface, struct class_factory, IClassFactory_iface);
+        return CONTAINING_RECORD(iface, IClassFactoryImpl, IClassFactory_iface);
 }
 
-static HRESULT WINAPI class_factory_QueryInterface(IClassFactory *iface, REFIID riid, void **ppv)
+static HRESULT WINAPI ClassFactory_QueryInterface(IClassFactory *iface, REFIID riid, void **ppv)
 {
         if (ppv == NULL)
                 return E_POINTER;
@@ -72,20 +71,19 @@ static HRESULT WINAPI class_factory_QueryInterface(IClassFactory *iface, REFIID 
         return S_OK;
 }
 
-static ULONG WINAPI class_factory_AddRef(IClassFactory *iface)
+static ULONG WINAPI ClassFactory_AddRef(IClassFactory *iface)
 {
         return 2; /* non-heap based object */
 }
 
-static ULONG WINAPI class_factory_Release(IClassFactory *iface)
+static ULONG WINAPI ClassFactory_Release(IClassFactory *iface)
 {
         return 1; /* non-heap based object */
 }
 
-static HRESULT WINAPI class_factory_CreateInstance(IClassFactory *iface, IUnknown *unk_outer,
-        REFIID riid, void **ret_iface)
+static HRESULT WINAPI ClassFactory_CreateInstance(IClassFactory *iface, IUnknown *unk_outer, REFIID riid, void **ret_iface)
 {
-    struct class_factory *This = impl_from_IClassFactory(iface);
+    IClassFactoryImpl *This = impl_from_IClassFactory(iface);
     IUnknown *object;
     HRESULT hr;
 
@@ -102,23 +100,23 @@ static HRESULT WINAPI class_factory_CreateInstance(IClassFactory *iface, IUnknow
     return hr;
 }
 
-static HRESULT WINAPI class_factory_LockServer(IClassFactory *iface, BOOL dolock)
+static HRESULT WINAPI ClassFactory_LockServer(IClassFactory *iface, BOOL dolock)
 {
         TRACE("(%d)\n", dolock);
         return S_OK;
 }
 
-static const IClassFactoryVtbl class_factory_vtbl =
-{
-    class_factory_QueryInterface,
-    class_factory_AddRef,
-    class_factory_Release,
-    class_factory_CreateInstance,
-    class_factory_LockServer
+static const IClassFactoryVtbl classfactory_vtbl = {
+        ClassFactory_QueryInterface,
+        ClassFactory_AddRef,
+        ClassFactory_Release,
+        ClassFactory_CreateInstance,
+        ClassFactory_LockServer
 };
 
-static struct class_factory music_factory = {{&class_factory_vtbl}, music_create};
-static struct class_factory collection_factory = {{&class_factory_vtbl}, collection_create};
+static IClassFactoryImpl DirectMusic_CF = {{&classfactory_vtbl}, music_create};
+static IClassFactoryImpl Collection_CF = {{&classfactory_vtbl}, collection_create};
+
 
 
 /******************************************************************
@@ -126,20 +124,20 @@ static struct class_factory collection_factory = {{&class_factory_vtbl}, collect
  *
  *
  */
-HRESULT WINAPI DllGetClassObject(REFCLSID clsid, REFIID iid, void **out)
+HRESULT WINAPI DllGetClassObject(REFCLSID rclsid, REFIID riid, LPVOID *ppv)
 {
-    TRACE("(%s, %s, %p)\n", debugstr_dmguid(clsid), debugstr_dmguid(iid), out);
-
-    *out = NULL;
-
-    if (IsEqualCLSID(clsid, &CLSID_DirectMusic))
-        IClassFactory_QueryInterface(&music_factory.IClassFactory_iface, iid, out);
-    if (IsEqualCLSID(clsid, &CLSID_DirectMusicCollection))
-        IClassFactory_QueryInterface(&collection_factory.IClassFactory_iface, iid, out);
-
-    if (*out) return S_OK;
-
-    WARN("(%s, %s, %p): no interface found.\n", debugstr_dmguid(clsid), debugstr_dmguid(iid), out);
+	TRACE("(%s, %s, %p)\n", debugstr_dmguid(rclsid), debugstr_dmguid(riid), ppv);
+	if (IsEqualCLSID (rclsid, &CLSID_DirectMusic) && IsEqualIID (riid, &IID_IClassFactory)) {
+		*ppv = &DirectMusic_CF;
+		IClassFactory_AddRef((IClassFactory*)*ppv);
+		return S_OK;
+	} else if (IsEqualCLSID (rclsid, &CLSID_DirectMusicCollection) && IsEqualIID (riid, &IID_IClassFactory)) {
+		*ppv = &Collection_CF;
+		IClassFactory_AddRef((IClassFactory*)*ppv);
+		return S_OK;
+	}
+	
+    WARN("(%s, %s, %p): no interface found.\n", debugstr_dmguid(rclsid), debugstr_dmguid(riid), ppv);
     return CLASS_E_CLASSNOTAVAILABLE;
 }
 

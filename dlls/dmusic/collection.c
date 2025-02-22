@@ -21,8 +21,6 @@
 #include "dmusic_private.h"
 #include "soundfont.h"
 
-#include "fluidsynth.h"
-
 WINE_DEFAULT_DEBUG_CHANNEL(dmusic);
 
 struct instrument_entry
@@ -226,36 +224,6 @@ static const IDirectMusicCollectionVtbl collection_vtbl =
     collection_EnumInstrument,
 };
 
-static HRESULT parse_wave_pool_table(IDirectMusicCollectionImpl *This, IStream *stream, const struct chunk_entry *parent)
-{
-    struct chunk_entry chunk = {.parent = parent};
-    IPersistStream *persist;
-    IUnknown *wave;
-    HRESULT hr;
-
-    while ((hr = stream_next_chunk(stream, &chunk)) == S_OK)
-    {
-        switch (chunk.id)
-        {
-        case FOURCC_LIST:
-            if (FAILED(hr = wave_create(&wave, FOURCC_LIST, FOURCC_wave))) return hr;
-            if (SUCCEEDED(hr = IUnknown_QueryInterface(wave, &IID_IPersistStream, (void **)&persist)))
-            {
-                IPersistStream_Load(persist, stream);
-                IPersistStream_Release(persist);
-            }
-            IUnknown_Release(wave);
-            if (FAILED(hr)) return hr;
-            break;
-        default:
-            FIXME("skipping %s chunk\n", debugstr_fourcc(chunk.id));
-            break;
-        }
-    }
-
-    return SUCCEEDED(hr) ? S_OK : hr;
-}
-
 static HRESULT parse_lins_list(struct collection *This, IStream *stream, struct chunk_entry *parent)
 {
     struct chunk_entry chunk = {.parent = parent};
@@ -339,15 +307,15 @@ static HRESULT parse_ptbl_chunk(struct collection *This, IStream *stream, struct
     return hr;
 }
 
-static HRESULT parse_dls_chunk(struct collection *This, IStream *stream, struct chunk_entry *parent,
-        DMUS_OBJECTDESC *desc)
+static HRESULT parse_dls_chunk(struct collection *This, IStream *stream, struct chunk_entry *parent)
 {
-    DMUS_OBJECTDESC *descriptor = desc ? desc : &This->dmobj.desc;
     struct chunk_entry chunk = {.parent = parent};
     HRESULT hr;
 
-    descriptor->dwValidData = 0;
-    descriptor->dwSize = sizeof(*descriptor);
+    if (FAILED(hr = dmobj_parsedescriptor(stream, parent, &This->dmobj.desc,
+            DMUS_OBJ_NAME_INFO|DMUS_OBJ_VERSION|DMUS_OBJ_OBJECT|DMUS_OBJ_GUID_DLID))
+            || FAILED(hr = stream_reset_chunk_data(stream, parent)))
+        return hr;
 
     while ((hr = stream_next_chunk(stream, &chunk)) == S_OK)
     {
@@ -356,19 +324,19 @@ static HRESULT parse_dls_chunk(struct collection *This, IStream *stream, struct 
         case FOURCC_DLID:
         case FOURCC_VERS:
         case MAKE_IDTYPE(FOURCC_LIST, DMUS_FOURCC_INFO_LIST):
-            hr = stream_chunk_parse_desc(stream, &chunk, descriptor);
+            /* already parsed by dmobj_parsedescriptor */
             break;
 
         case FOURCC_COLH:
-            if (!desc) hr = stream_chunk_get_data(stream, &chunk, &This->header, sizeof(This->header));
+            hr = stream_chunk_get_data(stream, &chunk, &This->header, sizeof(This->header));
             break;
 
         case FOURCC_PTBL:
-            if (!desc) hr = parse_ptbl_chunk(This, stream, &chunk);
+            hr = parse_ptbl_chunk(This, stream, &chunk);
             break;
 
         case MAKE_IDTYPE(FOURCC_LIST, FOURCC_LINS):
-            if (!desc) hr = parse_lins_list(This, stream, &chunk);
+            hr = parse_lins_list(This, stream, &chunk);
             break;
 
         case MAKE_IDTYPE(FOURCC_LIST, FOURCC_WVPL):
@@ -381,12 +349,6 @@ static HRESULT parse_dls_chunk(struct collection *This, IStream *stream, struct 
         }
 
         if (FAILED(hr)) break;
-    }
-
-    if (SUCCEEDED(hr))
-    {
-        descriptor->guidClass = CLSID_DirectMusicCollection;
-        descriptor->dwValidData |= DMUS_OBJ_CLASS;
     }
 
     return hr;
@@ -666,37 +628,77 @@ static HRESULT parse_sfbk_chunk(struct collection *This, IStream *stream, struct
     return hr;
 }
 
-static HRESULT collection_parse_stream(struct dmobject *object, IStream *stream, DMUS_OBJECTDESC *desc)
+static HRESULT WINAPI collection_object_ParseDescriptor(IDirectMusicObject *iface,
+        IStream *stream, DMUS_OBJECTDESC *desc)
 {
-    struct collection *This = CONTAINING_RECORD(object, struct collection, dmobj);
+    struct chunk_entry riff = {0};
+    HRESULT hr;
+
+    TRACE("(%p, %p, %p)\n", iface, stream, desc);
+
+    if (!stream || !desc)
+        return E_POINTER;
+
+    if ((hr = stream_get_chunk(stream, &riff)) != S_OK)
+        return hr;
+    if (riff.id != FOURCC_RIFF || (riff.type != FOURCC_DLS && riff.type != mmioFOURCC('s','f','b','k'))) {
+        TRACE("loading failed: unexpected %s\n", debugstr_chunk(&riff));
+        stream_skip_chunk(stream, &riff);
+        return DMUS_E_NOTADLSCOL;
+    }
+
+    hr = dmobj_parsedescriptor(stream, &riff, desc, DMUS_OBJ_NAME_INFO|DMUS_OBJ_VERSION);
+    if (FAILED(hr))
+        return hr;
+
+    desc->guidClass = CLSID_DirectMusicCollection;
+    desc->dwValidData |= DMUS_OBJ_CLASS;
+
+    TRACE("returning descriptor:\n");
+    dump_DMUS_OBJECTDESC(desc);
+    return S_OK;
+}
+
+static const IDirectMusicObjectVtbl collection_object_vtbl =
+{
+    dmobj_IDirectMusicObject_QueryInterface,
+    dmobj_IDirectMusicObject_AddRef,
+    dmobj_IDirectMusicObject_Release,
+    dmobj_IDirectMusicObject_GetDescriptor,
+    dmobj_IDirectMusicObject_SetDescriptor,
+    collection_object_ParseDescriptor,
+};
+
+static HRESULT WINAPI collection_stream_Load(IPersistStream *iface, IStream *stream)
+{
+    struct collection *This = impl_from_IPersistStream(iface);
     struct chunk_entry chunk = {0};
     HRESULT hr;
+
+    TRACE("(%p, %p)\n", This, stream);
 
     if ((hr = stream_next_chunk(stream, &chunk)) == S_OK)
     {
         switch (MAKE_IDTYPE(chunk.id, chunk.type))
         {
         case MAKE_IDTYPE(FOURCC_RIFF, FOURCC_DLS):
-            hr = parse_dls_chunk(This, stream, &chunk, desc);
+            hr = parse_dls_chunk(This, stream, &chunk);
             break;
 
         case MAKE_IDTYPE(FOURCC_RIFF, mmioFOURCC('s','f','b','k')):
-            hr = parse_sfbk_chunk(This, stream, &chunk, desc);
+            hr = parse_sfbk_chunk(This, stream, &chunk);
             break;
 
         default:
             WARN("Invalid collection chunk %s %s\n", debugstr_fourcc(chunk.id), debugstr_fourcc(chunk.type));
-            hr = DMUS_E_NOTADLSCOL;
+            hr = DMUS_E_UNSUPPORTED_STREAM;
             break;
         }
     }
 
-    if (desc)
-    {
-        TRACE("returning descriptor:\n");
-        dump_DMUS_OBJECTDESC(desc);
-    }
-    else if (TRACE_ON(dmusic))
+    if (FAILED(hr)) return hr;
+
+    if (TRACE_ON(dmusic))
     {
         struct instrument_entry *entry;
         struct wave_entry *wave_entry;
@@ -725,8 +727,20 @@ static HRESULT collection_parse_stream(struct dmobject *object, IStream *stream,
     }
 
     stream_skip_chunk(stream, &chunk);
-    return hr;
+    return S_OK;
 }
+
+static const IPersistStreamVtbl collection_stream_vtbl =
+{
+    dmobj_IPersistStream_QueryInterface,
+    dmobj_IPersistStream_AddRef,
+    dmobj_IPersistStream_Release,
+    unimpl_IPersistStream_GetClassID,
+    unimpl_IPersistStream_IsDirty,
+    collection_stream_Load,
+    unimpl_IPersistStream_Save,
+    unimpl_IPersistStream_GetSizeMax,
+};
 
 HRESULT collection_create(IUnknown **ret_iface)
 {
@@ -737,34 +751,14 @@ HRESULT collection_create(IUnknown **ret_iface)
     collection->IDirectMusicCollection_iface.lpVtbl = &collection_vtbl;
     collection->internal_ref = 1;
     collection->ref = 1;
-    dmobject_init_ex(&collection->dmobj, &CLSID_DirectMusicCollection, (IUnknown *)&collection->IDirectMusicCollection_iface,
-            collection_parse_stream);
+    dmobject_init(&collection->dmobj, &CLSID_DirectMusicCollection,
+            (IUnknown *)&collection->IDirectMusicCollection_iface);
+    collection->dmobj.IDirectMusicObject_iface.lpVtbl = &collection_object_vtbl;
+    collection->dmobj.IPersistStream_iface.lpVtbl = &collection_stream_vtbl;
     list_init(&collection->instruments);
     list_init(&collection->waves);
 
     TRACE("Created DirectMusicCollection %p\n", collection);
     *ret_iface = (IUnknown *)&collection->IDirectMusicCollection_iface;
-    return S_OK;
-}
-
-HRESULT collection_create_default_gm(IDirectMusicCollection **out)
-{
-    fluid_settings_t *fluid_settings = new_fluid_settings();
-    fluid_synth_t *fluid_synth = new_fluid_synth(fluid_settings);
-    int sfont_id = fluid_synth_sfload(fluid_synth, "/usr/share/sounds/sf2/default-GM.sf2", TRUE);
-    fluid_sfont_t *fluid_sfont = fluid_synth_get_sfont(fluid_synth, sfont_id);
-    fluid_preset_t *fluid_preset;
-
-    ERR("%s\n", fluid_sfont_get_name(fluid_sfont));
-
-    fluid_sfont_iteration_start(fluid_sfont);
-    while ((fluid_preset = fluid_sfont_iteration_next(fluid_sfont)))
-    {
-        ERR("%s\n", fluid_preset_get_name(fluid_preset));
-    }
-
-    delete_fluid_synth(fluid_synth);
-    delete_fluid_settings(fluid_settings);
-
     return S_OK;
 }

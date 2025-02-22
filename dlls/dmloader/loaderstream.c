@@ -20,6 +20,7 @@
 #include "dmloader_private.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(dmloader);
+WINE_DECLARE_DEBUG_CHANNEL(dmfileraw);
 
 struct loader_stream
 {
@@ -254,4 +255,418 @@ HRESULT loader_stream_create(IDirectMusicLoader *loader, IStream *stream,
 
     *ret_iface = &obj->IStream_iface;
     return S_OK;
+}
+
+struct file_stream
+{
+    IStream IStream_iface;
+    LONG ref;
+
+    WCHAR path[MAX_PATH];
+    HANDLE file;
+};
+
+static struct file_stream *file_stream_from_IStream(IStream *iface)
+{
+    return CONTAINING_RECORD(iface, struct file_stream, IStream_iface);
+}
+
+static HRESULT WINAPI file_stream_QueryInterface(IStream *iface, REFIID riid, void **ret_iface)
+{
+    struct file_stream *This = file_stream_from_IStream(iface);
+
+    TRACE("(%p, %s, %p)\n", This, debugstr_dmguid(riid), ret_iface);
+
+    if (IsEqualGUID(riid, &IID_IUnknown)
+            || IsEqualGUID(riid, &IID_IStream))
+    {
+        IStream_AddRef(&This->IStream_iface);
+        *ret_iface = &This->IStream_iface;
+        return S_OK;
+    }
+
+    WARN("(%p, %s, %p): not found\n", iface, debugstr_dmguid(riid), ret_iface);
+    *ret_iface = NULL;
+    return E_NOINTERFACE;
+}
+
+static ULONG WINAPI file_stream_AddRef(IStream *iface)
+{
+    struct file_stream *This = file_stream_from_IStream(iface);
+    ULONG ref = InterlockedIncrement(&This->ref);
+    TRACE("(%p): new ref = %lu\n", This, ref);
+    return ref;
+}
+
+static ULONG WINAPI file_stream_Release(IStream *iface)
+{
+    struct file_stream *This = file_stream_from_IStream(iface);
+    ULONG ref = InterlockedDecrement(&This->ref);
+
+    TRACE("(%p): new ref = %lu\n", This, ref);
+
+    if (!ref)
+    {
+        CloseHandle(This->file);
+        free(This);
+    }
+
+    return ref;
+}
+
+static HRESULT WINAPI file_stream_Read(IStream *iface, void *data, ULONG size, ULONG *ret_size)
+{
+    struct file_stream *This = file_stream_from_IStream(iface);
+    DWORD dummy;
+
+    TRACE("(%p, %p, %#lx, %p)\n", This, data, size, ret_size);
+
+    if (!ret_size) ret_size = &dummy;
+    if (!ReadFile(This->file, data, size, ret_size, NULL)) return HRESULT_FROM_WIN32(GetLastError());
+    return *ret_size == size ? S_OK : S_FALSE;
+}
+
+static HRESULT WINAPI file_stream_Write(IStream *iface, const void *data, ULONG size, ULONG *ret_size)
+{
+    struct file_stream *This = file_stream_from_IStream(iface);
+    FIXME("(%p): stub\n", This);
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI file_stream_Seek(IStream *iface, LARGE_INTEGER offset, DWORD method, ULARGE_INTEGER *ret_offset)
+{
+    struct file_stream *This = file_stream_from_IStream(iface);
+    DWORD position;
+
+    TRACE("(%p, %I64d, %#lx, %p)\n", This, offset.QuadPart, method, ret_offset);
+
+    position = SetFilePointer(This->file, offset.u.LowPart, NULL, method);
+    if (position == INVALID_SET_FILE_POINTER) return HRESULT_FROM_WIN32(GetLastError());
+    if (ret_offset) ret_offset->QuadPart = position;
+    return S_OK;
+}
+
+static HRESULT WINAPI file_stream_SetSize(IStream *iface, ULARGE_INTEGER size)
+{
+    struct file_stream *This = file_stream_from_IStream(iface);
+    FIXME("(%p): stub\n", This);
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI file_stream_CopyTo(IStream *iface, IStream *dest, ULARGE_INTEGER size,
+        ULARGE_INTEGER *read_size, ULARGE_INTEGER *write_size)
+{
+    struct file_stream *This = file_stream_from_IStream(iface);
+    FIXME("(%p): stub\n", This);
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI file_stream_Commit(IStream *iface, DWORD flags)
+{
+    struct file_stream *This = file_stream_from_IStream(iface);
+    FIXME("(%p): stub\n", This);
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI file_stream_Revert(IStream *iface)
+{
+    struct file_stream *This = file_stream_from_IStream(iface);
+    FIXME("(%p): stub\n", This);
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI file_stream_LockRegion(IStream *iface, ULARGE_INTEGER offset, ULARGE_INTEGER size, DWORD type)
+{
+    struct file_stream *This = file_stream_from_IStream(iface);
+    FIXME("(%p): stub\n", This);
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI file_stream_UnlockRegion(IStream *iface, ULARGE_INTEGER offset,
+        ULARGE_INTEGER size, DWORD type)
+{
+    struct file_stream *This = file_stream_from_IStream(iface);
+    FIXME("(%p): stub\n", This);
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI file_stream_Stat(IStream *iface, STATSTG *stat, DWORD flags)
+{
+    struct file_stream *This = file_stream_from_IStream(iface);
+    FIXME("(%p): stub\n", This);
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI file_stream_Clone(IStream *iface, IStream **ret_iface)
+{
+    struct file_stream *This = file_stream_from_IStream(iface);
+    HRESULT hr;
+
+    TRACE("(%p, %p)\n", This, ret_iface);
+
+    if (SUCCEEDED(hr = file_stream_create(This->path, ret_iface)))
+    {
+        LARGE_INTEGER position = {0};
+        position.LowPart = SetFilePointer(This->file, 0, NULL, FILE_CURRENT);
+        hr = IStream_Seek(*ret_iface, position, STREAM_SEEK_SET, NULL);
+    }
+
+    return hr;
+}
+
+static const IStreamVtbl file_stream_vtbl =
+{
+    file_stream_QueryInterface,
+    file_stream_AddRef,
+    file_stream_Release,
+    file_stream_Read,
+    file_stream_Write,
+    file_stream_Seek,
+    file_stream_SetSize,
+    file_stream_CopyTo,
+    file_stream_Commit,
+    file_stream_Revert,
+    file_stream_LockRegion,
+    file_stream_UnlockRegion,
+    file_stream_Stat,
+    file_stream_Clone,
+};
+
+HRESULT file_stream_create(const WCHAR *path, IStream **ret_iface)
+{
+    struct file_stream *stream;
+
+    *ret_iface = NULL;
+    if (!(stream = calloc(1, sizeof(*stream)))) return E_OUTOFMEMORY;
+    stream->IStream_iface.lpVtbl = &file_stream_vtbl;
+    stream->ref = 1;
+
+    wcscpy(stream->path, path);
+    stream->file = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
+            OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (stream->file == INVALID_HANDLE_VALUE)
+    {
+        free(stream);
+        return DMUS_E_LOADER_FAILEDOPEN;
+    }
+
+    *ret_iface = &stream->IStream_iface;
+    return S_OK;
+}
+
+static ULONG WINAPI IDirectMusicLoaderResourceStream_IStream_AddRef (LPSTREAM iface);
+
+/*****************************************************************************
+ * IDirectMusicLoaderResourceStream implementation
+ */
+/* Custom : */
+
+static void IDirectMusicLoaderResourceStream_Detach (LPSTREAM iface) {
+	ICOM_THIS_MULTI(IDirectMusicLoaderResourceStream, StreamVtbl, iface);
+	TRACE("(%p)\n", This);
+
+	This->pbMemData = NULL;
+	This->llMemLength = 0;
+}
+
+HRESULT WINAPI IDirectMusicLoaderResourceStream_Attach (LPSTREAM iface, LPBYTE pbMemData, LONGLONG llMemLength, LONGLONG llPos) {
+	ICOM_THIS_MULTI(IDirectMusicLoaderResourceStream, StreamVtbl, iface);
+    
+	TRACE("(%p, %p, %s, %s)\n", This, pbMemData, wine_dbgstr_longlong(llMemLength), wine_dbgstr_longlong(llPos));
+	if (!pbMemData || !llMemLength) {
+		WARN(": invalid pbMemData or llMemLength\n");
+		return E_FAIL;
+	}
+	IDirectMusicLoaderResourceStream_Detach (iface);
+	This->pbMemData = pbMemData;
+	This->llMemLength = llMemLength;
+	This->llPos = llPos;
+	
+    return S_OK;
+}
+
+
+/* IUnknown/IStream part: */
+static HRESULT WINAPI IDirectMusicLoaderResourceStream_IStream_QueryInterface (LPSTREAM iface, REFIID riid, void** ppobj) {
+	ICOM_THIS_MULTI(IDirectMusicLoaderResourceStream, StreamVtbl, iface);
+	
+	TRACE("(%p, %s, %p)\n", This, debugstr_dmguid(riid), ppobj);
+	if (IsEqualIID (riid, &IID_IUnknown) ||
+		IsEqualIID (riid, &IID_IStream)) {
+		*ppobj = &This->StreamVtbl;
+		IDirectMusicLoaderResourceStream_IStream_AddRef ((LPSTREAM)&This->StreamVtbl);
+		return S_OK;
+	}
+
+	WARN(": not found\n");
+	return E_NOINTERFACE;
+}
+
+static ULONG WINAPI IDirectMusicLoaderResourceStream_IStream_AddRef (LPSTREAM iface) {
+	ICOM_THIS_MULTI(IDirectMusicLoaderResourceStream, StreamVtbl, iface);
+	TRACE("(%p): AddRef from %ld\n", This, This->dwRef);
+	return InterlockedIncrement (&This->dwRef);
+}
+
+static ULONG WINAPI IDirectMusicLoaderResourceStream_IStream_Release (LPSTREAM iface) {
+	ICOM_THIS_MULTI(IDirectMusicLoaderResourceStream, StreamVtbl, iface);
+	
+	DWORD dwRef = InterlockedDecrement (&This->dwRef);
+	TRACE("(%p): ReleaseRef to %ld\n", This, dwRef);
+	if (dwRef == 0) {
+		IDirectMusicLoaderResourceStream_Detach (iface);
+		free(This);
+	}
+	
+	return dwRef;
+}
+
+static HRESULT WINAPI IDirectMusicLoaderResourceStream_IStream_Read (LPSTREAM iface, void* pv, ULONG cb, ULONG* pcbRead) {
+	LPBYTE pByte;
+	ICOM_THIS_MULTI(IDirectMusicLoaderResourceStream, StreamVtbl, iface);
+	
+	TRACE_(dmfileraw)("(%p, %p, %#lx, %p)\n", This, pv, cb, pcbRead);
+	if ((This->llPos + cb) > This->llMemLength) {
+		WARN_(dmfileraw)(": requested size out of range\n");
+		return E_FAIL;
+	}
+	
+	pByte = &This->pbMemData[This->llPos];
+	memcpy (pv, pByte, cb);
+	This->llPos += cb; /* move pointer */
+	/* FIXME: error checking would be nice */
+	if (pcbRead) *pcbRead = cb;
+	
+	TRACE_(dmfileraw)(": data (size = %#lx): %s\n", cb, debugstr_an(pv, cb));
+    return S_OK;
+}
+
+static HRESULT WINAPI IDirectMusicLoaderResourceStream_IStream_Seek (LPSTREAM iface, LARGE_INTEGER dlibMove, DWORD dwOrigin, ULARGE_INTEGER* plibNewPosition) {
+	ICOM_THIS_MULTI(IDirectMusicLoaderResourceStream, StreamVtbl, iface);	
+	TRACE_(dmfileraw)("(%p, %s, %s, %p)\n", This, wine_dbgstr_longlong(dlibMove.QuadPart), resolve_STREAM_SEEK(dwOrigin), plibNewPosition);
+	
+	switch (dwOrigin) {
+		case STREAM_SEEK_CUR: {
+			if ((This->llPos + dlibMove.QuadPart) > This->llMemLength) {
+				WARN_(dmfileraw)(": requested offset out of range\n");
+				return E_FAIL;
+			}
+			break;
+		}
+		case STREAM_SEEK_SET: {
+			if (dlibMove.QuadPart > This->llMemLength) {
+				WARN_(dmfileraw)(": requested offset out of range\n");
+				return E_FAIL;
+			}
+			/* set to the beginning of the stream */
+			This->llPos = 0;
+			break;
+		}
+		case STREAM_SEEK_END: {
+			/* TODO: check if this is true... I do think offset should be negative in this case */
+			if (dlibMove.QuadPart > 0) {
+				WARN_(dmfileraw)(": requested offset out of range\n");
+				return E_FAIL;
+			}
+			/* set to the end of the stream */
+			This->llPos = This->llMemLength;
+			break;
+		}
+		default: {
+			ERR_(dmfileraw)(": invalid dwOrigin\n");
+			return E_FAIL;
+		}
+	}
+	/* now simply add */
+	This->llPos += dlibMove.QuadPart;
+
+	if (plibNewPosition) plibNewPosition->QuadPart = This->llPos;
+    	
+    return S_OK;
+}
+
+static HRESULT WINAPI IDirectMusicLoaderResourceStream_IStream_Clone (LPSTREAM iface, IStream** ppstm) {
+	ICOM_THIS_MULTI(IDirectMusicLoaderResourceStream, StreamVtbl, iface);
+	LPSTREAM pOther = NULL;
+	HRESULT result;
+
+	TRACE("(%p, %p)\n", iface, ppstm);
+	result = DMUSIC_CreateDirectMusicLoaderResourceStream ((LPVOID*)&pOther);
+	if (FAILED(result)) return result;
+	
+	IDirectMusicLoaderResourceStream_Attach (pOther, This->pbMemData, This->llMemLength, This->llPos);
+
+	TRACE(": succeeded\n");
+	*ppstm = pOther;
+	return S_OK;
+}
+
+static HRESULT WINAPI IDirectMusicLoaderResourceStream_IStream_Write (LPSTREAM iface, const void* pv, ULONG cb, ULONG* pcbWritten) {
+	ERR(": should not be needed\n");
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI IDirectMusicLoaderResourceStream_IStream_SetSize (LPSTREAM iface, ULARGE_INTEGER libNewSize) {
+	ERR(": should not be needed\n");
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI IDirectMusicLoaderResourceStream_IStream_CopyTo (LPSTREAM iface, IStream* pstm, ULARGE_INTEGER cb, ULARGE_INTEGER* pcbRead, ULARGE_INTEGER* pcbWritten) {
+	ERR(": should not be needed\n");
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI IDirectMusicLoaderResourceStream_IStream_Commit (LPSTREAM iface, DWORD grfCommitFlags) {
+	ERR(": should not be needed\n");
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI IDirectMusicLoaderResourceStream_IStream_Revert (LPSTREAM iface) {
+	ERR(": should not be needed\n");
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI IDirectMusicLoaderResourceStream_IStream_LockRegion (LPSTREAM iface, ULARGE_INTEGER libOffset, ULARGE_INTEGER cb, DWORD dwLockType) {
+	ERR(": should not be needed\n");
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI IDirectMusicLoaderResourceStream_IStream_UnlockRegion (LPSTREAM iface, ULARGE_INTEGER libOffset, ULARGE_INTEGER cb, DWORD dwLockType) {
+	ERR(": should not be needed\n");
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI IDirectMusicLoaderResourceStream_IStream_Stat (LPSTREAM iface, STATSTG* pstatstg, DWORD grfStatFlag) {
+	ERR(": should not be needed\n");
+    return E_NOTIMPL;
+}
+
+static const IStreamVtbl DirectMusicLoaderResourceStream_Stream_Vtbl = {
+	IDirectMusicLoaderResourceStream_IStream_QueryInterface,
+	IDirectMusicLoaderResourceStream_IStream_AddRef,
+	IDirectMusicLoaderResourceStream_IStream_Release,
+	IDirectMusicLoaderResourceStream_IStream_Read,
+	IDirectMusicLoaderResourceStream_IStream_Write,
+	IDirectMusicLoaderResourceStream_IStream_Seek,
+	IDirectMusicLoaderResourceStream_IStream_SetSize,
+	IDirectMusicLoaderResourceStream_IStream_CopyTo,
+	IDirectMusicLoaderResourceStream_IStream_Commit,
+	IDirectMusicLoaderResourceStream_IStream_Revert,
+	IDirectMusicLoaderResourceStream_IStream_LockRegion,
+	IDirectMusicLoaderResourceStream_IStream_UnlockRegion,
+	IDirectMusicLoaderResourceStream_IStream_Stat,
+	IDirectMusicLoaderResourceStream_IStream_Clone
+};
+
+HRESULT DMUSIC_CreateDirectMusicLoaderResourceStream (void** ppobj) {
+	IDirectMusicLoaderResourceStream *obj;
+
+	TRACE("(%p)\n", ppobj);
+
+	*ppobj = NULL;
+	if (!(obj = calloc(1, sizeof(*obj)))) return E_OUTOFMEMORY;
+	obj->StreamVtbl = &DirectMusicLoaderResourceStream_Stream_Vtbl;
+	obj->dwRef = 0; /* will be inited with QueryInterface */
+
+	return IDirectMusicLoaderResourceStream_IStream_QueryInterface ((LPSTREAM)&obj->StreamVtbl, &IID_IStream, ppobj);
 }
