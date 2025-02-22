@@ -1036,7 +1036,7 @@ static NTSTATUS lnxev_device_physical_effect_update(struct unix_device *iface, B
     if ((status = set_effect_type_from_usage(&effect, params->effect_type))) return status;
 
     effect.replay.length = (params->duration == 0xffff ? 0 : params->duration);
-    effect.replay.delay = params->start_delay > 100 ? 0 : params->start_delay;
+    effect.replay.delay = params->start_delay;
     effect.trigger.button = params->trigger_button;
     effect.trigger.interval = params->trigger_repeat_interval;
 
@@ -1133,7 +1133,7 @@ static const struct hid_device_vtbl lnxev_device_vtbl =
 #endif /* HAS_PROPER_INPUT_HEADER */
 
 static void get_device_subsystem_info(struct udev_device *dev, const char *subsystem, const char *devtype,
-                                      struct device_desc *desc, int *bus, char *container)
+                                      struct device_desc *desc, int *bus)
 {
     struct udev_device *parent = NULL;
     const char *ptr, *next, *tmp;
@@ -1147,7 +1147,7 @@ static void get_device_subsystem_info(struct udev_device *dev, const char *subsy
         {
             if ((next = strchr(next, '\n'))) next += 1;
             else next = ptr + strlen(ptr);
-            ERR("%s uevent %s\n", subsystem, debugstr_an(ptr, next - ptr - 1));
+            TRACE("%s uevent %s\n", subsystem, debugstr_an(ptr, next - ptr - 1));
 
             if (!strncmp(ptr, "HID_UNIQ=", 9))
             {
@@ -1161,11 +1161,10 @@ static void get_device_subsystem_info(struct udev_device *dev, const char *subsy
                 if (sscanf(ptr, "HID_NAME=%256[^\n]", buffer) == 1)
                     ntdll_umbstowcs(buffer, strlen(buffer) + 1, desc->product, ARRAY_SIZE(desc->product));
             }
-            if (!strncmp(ptr, "HID_PHYS=", 9))
+            if (!strncmp(ptr, "HID_PHYS=", 9) || !strncmp(ptr, "PHYS=\"", 6))
             {
-                if (!(tmp = strchr(ptr, '/')) || tmp >= next) tmp = next;
-                else if (desc->input == -1) sscanf(tmp, "/input%d\n", &desc->input);
-                lstrcpynA(container, ptr + 9, min(tmp - ptr - 10, MAX_PATH));
+                if (!(tmp = strstr(ptr, "/input")) || tmp >= next) continue;
+                if (desc->input == -1) sscanf(tmp, "/input%d\n", &desc->input);
             }
             if (!strncmp(ptr, "HID_ID=", 7))
             {
@@ -1175,24 +1174,6 @@ static void get_device_subsystem_info(struct udev_device *dev, const char *subsy
 
             if (!strcmp(subsystem, "input"))
             {
-                if (!strncmp(ptr, "UNIQ=", 5))
-                {
-                    if (desc->serialnumber[0]) continue;
-                    if (sscanf(ptr, "UNIQ=\"%256[^\"]\"", buffer) == 1)
-                        ntdll_umbstowcs(buffer, strlen(buffer) + 1, desc->serialnumber, ARRAY_SIZE(desc->serialnumber));
-                }
-                if (!strncmp(ptr, "NAME=", 5))
-                {
-                    if (desc->product[0]) continue;
-                    if (sscanf(ptr, "NAME=\"%256[^\"]\"", buffer) == 1)
-                        ntdll_umbstowcs(buffer, strlen(buffer) + 1, desc->product, ARRAY_SIZE(desc->product));
-                }
-                if (!strncmp(ptr, "PHYS=\"", 6))
-                {
-                    if (!(tmp = strchr(ptr, '/')) || tmp >= next) tmp = next - 1;
-                    else if (desc->input == -1) sscanf(tmp, "/input%d\n", &desc->input);
-                    lstrcpynA(container, ptr + 6, min(tmp - ptr - 7, MAX_PATH));
-                }
                 if (!strncmp(ptr, "PRODUCT=", 8))
                     sscanf(ptr, "PRODUCT=%x/%x/%x/%x\n", bus, &desc->vid, &desc->pid, &desc->version);
             }
@@ -1224,7 +1205,6 @@ static void udev_add_device(struct udev_device *dev, int fd)
     {
         .input = -1,
     };
-    char container[MAX_PATH];
     struct base_device *impl;
     const char *subsystem;
     const char *devnode;
@@ -1244,11 +1224,10 @@ static void udev_add_device(struct udev_device *dev, int fd)
 
     TRACE("udev %s syspath %s\n", debugstr_a(devnode), udev_device_get_syspath(dev));
 
-    get_device_subsystem_info(dev, "hid", NULL, &desc, &bus, container);
-    get_device_subsystem_info(dev, "input", NULL, &desc, &bus, container);
-    get_device_subsystem_info(dev, "usb", "usb_device", &desc, &bus, NULL);
+    get_device_subsystem_info(dev, "hid", NULL, &desc, &bus);
+    get_device_subsystem_info(dev, "input", NULL, &desc, &bus);
+    get_device_subsystem_info(dev, "usb", "usb_device", &desc, &bus);
     if (bus == BUS_BLUETOOTH) desc.is_bluetooth = TRUE;
-    parse_container_id(bus, container, &desc);
 
     subsystem = udev_device_get_subsystem(dev);
     if (!strcmp(subsystem, "hidraw"))
