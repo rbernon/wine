@@ -139,7 +139,7 @@ static inline BOOL rgbquad_equal(const RGBQUAD *a, const RGBQUAD *b)
     return FALSE;
 }
 
-static COLORREF make_rgb_colorref( DC *dc, const struct dib *dib, COLORREF color,
+static COLORREF make_rgb_colorref( DC *dc, const dib_info *dib, COLORREF color,
                                    BOOL *got_pixel, DWORD *pixel )
 {
     *pixel = 0;
@@ -176,7 +176,7 @@ static COLORREF make_rgb_colorref( DC *dc, const struct dib *dib, COLORREF color
  * Otherwise the bg color is mapped to the closest entry in the table and
  * the fg takes the other one.
  */
-DWORD get_pixel_color( DC *dc, const struct dib *dib, COLORREF color, BOOL mono_fixup )
+DWORD get_pixel_color( DC *dc, const dib_info *dib, COLORREF color, BOOL mono_fixup )
 {
     RGBQUAD fg_quad;
     BOOL got_pixel;
@@ -209,7 +209,7 @@ DWORD get_pixel_color( DC *dc, const struct dib *dib, COLORREF color, BOOL mono_
  * there are several fg sources (pen, brush, text) we take as bg the inverse
  * of the relevant fg color (which is always set up correctly).
  */
-static inline void get_color_masks( DC *dc, const struct dib *dib, UINT rop, COLORREF colorref,
+static inline void get_color_masks( DC *dc, const dib_info *dib, UINT rop, COLORREF colorref,
                                     INT bkgnd_mode, rop_mask *fg_mask, rop_mask *bg_mask )
 {
     DWORD color = get_pixel_color( dc, dib, colorref, TRUE );
@@ -665,7 +665,7 @@ static BOOL solid_pen_line(dibdrv_physdev *pdev, POINT *start, POINT *end, DWORD
     return TRUE;
 }
 
-static void solid_line_region( const struct dib *dib, const POINT *start, const struct line_params *params,
+static void solid_line_region( const dib_info *dib, const POINT *start, const struct line_params *params,
                                HRGN region )
 {
     int len, err = params->err_start;
@@ -1790,7 +1790,7 @@ COLORREF dibdrv_SetDCPenColor( PHYSDEV dev, COLORREF color )
  *
  * Fill a number of rectangles with a given pixel color and rop mode
  */
-BOOL fill_with_pixel( DC *dc, struct dib *dib, DWORD pixel, int num, const RECT *rects, INT rop )
+BOOL fill_with_pixel( DC *dc, dib_info *dib, DWORD pixel, int num, const RECT *rects, INT rop )
 {
     rop_mask mask;
 
@@ -1804,8 +1804,8 @@ BOOL fill_with_pixel( DC *dc, struct dib *dib, DWORD pixel, int num, const RECT 
  *
  * Fill a number of rectangles with the solid brush
  */
-static BOOL solid_brush( dibdrv_physdev *pdev, dib_brush *brush, struct dib *dib, int num,
-                         const RECT *rects, const POINT *brush_org, INT rop )
+static BOOL solid_brush(dibdrv_physdev *pdev, dib_brush *brush, dib_info *dib,
+                        int num, const RECT *rects, const POINT *brush_org, INT rop)
 {
     DC *dc = get_physdev_dc( &pdev->dev );
     DWORD color = get_pixel_color( dc, &pdev->dib, brush->colorref, TRUE );
@@ -1835,7 +1835,7 @@ static void free_brush_mask_bits( dib_brush *brush )
 void free_pattern_brush( dib_brush *brush )
 {
     free_brush_mask_bits( brush );
-    free_dib( &brush->dib );
+    free_dib_info( &brush->dib );
 }
 
 static BOOL create_pattern_brush_bits( dib_brush *brush )
@@ -1937,7 +1937,7 @@ static BOOL create_dither_brush_bits(dibdrv_physdev *pdev, dib_brush *brush, BOO
     return TRUE;
 }
 
-static BOOL matching_pattern_format( struct dib *dib, struct dib *pattern )
+static BOOL matching_pattern_format( dib_info *dib, dib_info *pattern )
 {
     if (dib->bit_count != pattern->bit_count) return FALSE;
     if (dib->stride != pattern->stride) return FALSE;
@@ -1964,19 +1964,19 @@ static BOOL select_pattern_brush( dibdrv_physdev *pdev, dib_brush *brush, BOOL *
     char buffer[FIELD_OFFSET( BITMAPINFO, bmiColors[256] )];
     BITMAPINFO *info = (BITMAPINFO *)buffer;
     RGBQUAD color_table[2];
-    struct dib pattern;
+    dib_info pattern;
     BOOL dither = (brush->dib.bit_count == 1) || (pdev->dib.bit_count == 1);
 
     if (brush->pattern.info->bmiHeader.biClrUsed && brush->pattern.usage == DIB_PAL_COLORS)
     {
         copy_bitmapinfo( info, brush->pattern.info );
         fill_color_table_from_pal_colors( info, pdev->dev.hdc );
-        init_dib_from_bitmapinfo( &pattern, info, brush->pattern.bits.ptr );
+        init_dib_info_from_bitmapinfo( &pattern, info, brush->pattern.bits.ptr );
         *needs_reselect = TRUE;
     }
     else
     {
-        init_dib_from_bitmapinfo( &pattern, brush->pattern.info, brush->pattern.bits.ptr );
+        init_dib_info_from_bitmapinfo( &pattern, brush->pattern.info, brush->pattern.bits.ptr );
     }
 
     if (pattern.bit_count == 1 && !pattern.color_table)
@@ -2036,8 +2036,8 @@ static BOOL select_pattern_brush( dibdrv_physdev *pdev, dib_brush *brush, BOOL *
  * Fill a number of rectangles with the pattern brush
  * FIXME: Should we insist l < r && t < b?  Currently we assume this.
  */
-static BOOL pattern_brush( dibdrv_physdev *pdev, dib_brush *brush, struct dib *dib, int num,
-                           const RECT *rects, const POINT *brush_org, INT rop )
+static BOOL pattern_brush(dibdrv_physdev *pdev, dib_brush *brush, dib_info *dib,
+                          int num, const RECT *rects, const POINT *brush_org, INT rop)
 {
     BOOL needs_reselect = FALSE;
 
@@ -2080,8 +2080,8 @@ static BOOL pattern_brush( dibdrv_physdev *pdev, dib_brush *brush, struct dib *d
     return TRUE;
 }
 
-static BOOL null_brush( dibdrv_physdev *pdev, dib_brush *brush, struct dib *dib, int num,
-                        const RECT *rects, const POINT *brush_org, INT rop )
+static BOOL null_brush(dibdrv_physdev *pdev, dib_brush *brush, dib_info *dib,
+                       int num, const RECT *rects, const POINT *brush_org, INT rop)
 {
     return TRUE;
 }

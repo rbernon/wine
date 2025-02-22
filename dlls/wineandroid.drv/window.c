@@ -671,9 +671,9 @@ static void android_surface_destroy( struct window_surface *window_surface )
 
 static const struct window_surface_funcs android_surface_funcs =
 {
-    .set_clip = android_surface_set_clip,
-    .flush = android_surface_flush,
-    .destroy = android_surface_destroy
+    android_surface_set_clip,
+    android_surface_flush,
+    android_surface_destroy
 };
 
 

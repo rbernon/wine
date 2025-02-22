@@ -153,7 +153,7 @@ static struct wayland_shm_buffer *wayland_buffer_queue_get_free_buffer(struct wa
         if (nbuffers < 3)
         {
             shm_buffer = wayland_shm_buffer_create(queue->width, queue->height,
-                                                   WL_SHM_FORMAT_ARGB8888);
+                                                   WL_SHM_FORMAT_XRGB8888);
             if (shm_buffer)
             {
                 /* Buffer events go to their own queue so that we can dispatch
@@ -261,7 +261,7 @@ static void copy_pixel_region(const char *src_pixels, RECT *src_rect,
     {
         const char *src;
         char *dst;
-        int x, y, width_bytes, height;
+        int y, width_bytes, height;
         RECT rc;
 
         TRACE("rect %s\n", wine_dbgstr_rect(rgn_rect));
@@ -278,14 +278,12 @@ static void copy_pixel_region(const char *src_pixels, RECT *src_rect,
         if (width_bytes == src_stride && width_bytes == dst_stride)
         {
             memcpy(dst, src, height * width_bytes);
-            for (x = 3; x < height * width_bytes; x += bpp) dst[x] = 0xff;
             continue;
         }
 
         for (y = 0; y < height; y++)
         {
             memcpy(dst, src, width_bytes);
-            for (x = 3; x < width_bytes; x += bpp) dst[x] = 0xff;
             src += src_stride;
             dst += dst_stride;
         }
@@ -314,34 +312,6 @@ static void wayland_shm_buffer_copy(struct wayland_shm_buffer *src,
     RECT dst_rect = {0, 0, dst->width, dst->height};
     TRACE("src=%p dst=%p\n", src, dst);
     copy_pixel_region(src->map_data, &src_rect, dst->map_data, &dst_rect, region);
-}
-
-/**********************************************************************
- *          wayland_shm_buffer_copy_data
- */
-static void wayland_shm_buffer_copy_shape(struct wayland_shm_buffer *buffer, const RECT *dirty,
-                                          const BITMAPINFO *shape_info, const void *shape_bits)
-{
-    RECT dst_rect = {0, 0, buffer->width, buffer->height};
-    UINT32 *color, shape_stride, color_stride, x, y;
-    const BYTE *shape;
-    RECT rect;
-
-    shape_stride = shape_info->bmiHeader.biSizeImage / abs(shape_info->bmiHeader.biHeight);
-    color_stride = dst_rect.right - dst_rect.left;
-
-    if (!intersect_rect(&rect, &dst_rect, dirty)) return;
-
-    color = (UINT32 *)buffer->map_data + rect.top * color_stride;
-    shape = (const BYTE *)shape_bits + rect.top * shape_stride;
-
-    for (y = rect.top; y < rect.bottom; y++, color += color_stride, shape += shape_stride)
-    {
-        for (x = rect.left; x < rect.right; x++)
-        {
-            if (!(shape[x / 8] & (1 << (7 - (x & 7))))) color[x] = 0;
-        }
-    }
 }
 
 /***********************************************************************
@@ -408,10 +378,9 @@ static BOOL wayland_window_surface_flush(struct window_surface *window_surface, 
     }
 
     wayland_shm_buffer_copy_data(shm_buffer, color_bits, &surface_rect, copy_from_window_region);
-    if (shape_bits) wayland_shm_buffer_copy_shape(shm_buffer, rect, shape_info, shape_bits);
     NtGdiSetRectRgn(shm_buffer->damage_region, 0, 0, 0, 0);
 
-    flushed = set_window_surface_contents(window_surface->hwnd, shm_buffer, dirty);
+    flushed = set_window_surface_contents(window_surface->hwnd, shm_buffer, surface_damage_region);
     wl_display_flush(process_wayland.wl_display);
 
 done:
@@ -433,9 +402,9 @@ static void wayland_window_surface_destroy(struct window_surface *window_surface
 
 static const struct window_surface_funcs wayland_window_surface_funcs =
 {
-    .set_clip = wayland_window_surface_set_clip,
-    .flush = wayland_window_surface_flush,
-    .destroy = wayland_window_surface_destroy,
+    wayland_window_surface_set_clip,
+    wayland_window_surface_flush,
+    wayland_window_surface_destroy
 };
 
 /***********************************************************************

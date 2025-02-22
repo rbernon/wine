@@ -372,23 +372,39 @@ void wayland_surface_clear_role(struct wayland_surface *surface)
  * The buffer is marked as unavailable until committed and subsequently
  * released by the compositor.
  */
-void wayland_surface_present(struct wayland_surface *surface, struct wl_buffer *wl_buffer,
-                             const RECT *buffer_rect, const RECT *dirty)
+void wayland_surface_attach_shm(struct wayland_surface *surface,
+                                struct wayland_shm_buffer *shm_buffer,
+                                HRGN surface_damage_region)
 {
+    RGNDATA *surface_damage;
     int win_width, win_height;
 
-    TRACE("surface=%p wl_buffer=%p buffer_rect=%s dirty=%s\n",
-          surface, wl_buffer, wine_dbgstr_rect(buffer_rect), wine_dbgstr_rect(dirty));
+    TRACE("surface=%p shm_buffer=%p (%dx%d)\n",
+          surface, shm_buffer, shm_buffer->width, shm_buffer->height);
 
-    wl_surface_attach(surface->wl_surface, wl_buffer, 0, 0);
+    shm_buffer->busy = TRUE;
+    wayland_shm_buffer_ref(shm_buffer);
+
+    wl_surface_attach(surface->wl_surface, shm_buffer->wl_buffer, 0, 0);
 
     /* Add surface damage, i.e., which parts of the surface have changed since
      * the last surface commit. Note that this is different from the buffer
      * damage region. */
-    wl_surface_damage_buffer(surface->wl_surface,
-                             dirty->left, dirty->top,
-                             dirty->right - dirty->left,
-                             dirty->bottom - dirty->top);
+    surface_damage = get_region_data(surface_damage_region);
+    if (surface_damage)
+    {
+        RECT *rgn_rect = (RECT *)surface_damage->Buffer;
+        RECT *rgn_rect_end = rgn_rect + surface_damage->rdh.nCount;
+
+        for (;rgn_rect < rgn_rect_end; rgn_rect++)
+        {
+            wl_surface_damage_buffer(surface->wl_surface,
+                                     rgn_rect->left, rgn_rect->top,
+                                     rgn_rect->right - rgn_rect->left,
+                                     rgn_rect->bottom - rgn_rect->top);
+        }
+        free(surface_damage);
+    }
 
     win_width = surface->window.rect.right - surface->window.rect.left;
     win_height = surface->window.rect.bottom - surface->window.rect.top;
@@ -397,8 +413,8 @@ void wayland_surface_present(struct wayland_surface *surface, struct wl_buffer *
      * is partially or completely outside of the wl_buffe.
      * 0 is also an invalid width / height value so use 1x1 instead.
      */
-    win_width = max(1, min(win_width, buffer_rect->right - buffer_rect->left));
-    win_height = max(1, min(win_height, buffer_rect->bottom - buffer_rect->top));
+    win_width = max(1, min(win_width, shm_buffer->width));
+    win_height = max(1, min(win_height, shm_buffer->height));
 
     wp_viewport_set_source(surface->wp_viewport, 0, 0,
                            wl_fixed_from_int(win_width),
@@ -1024,9 +1040,7 @@ void wayland_surface_ensure_contents(struct wayland_surface *surface)
 
     if (wayland_surface_reconfigure(surface))
     {
-        RECT rect = {0, 0, width, height};
-        wayland_shm_buffer_ref(dummy_shm_buffer);
-        wayland_surface_present(surface, dummy_shm_buffer->wl_buffer, &rect, &rect);
+        wayland_surface_attach_shm(surface, dummy_shm_buffer, damage);
         wl_surface_commit(surface->wl_surface);
     }
     else

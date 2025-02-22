@@ -18,7 +18,7 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-struct dib
+typedef struct
 {
     int bit_count, width, height;
     int compression;
@@ -34,7 +34,7 @@ struct dib
     DWORD color_table_size;
 
     const struct primitive_funcs *funcs;
-};
+} dib_info;
 
 typedef struct
 {
@@ -71,10 +71,10 @@ typedef struct dib_brush
     UINT     hatch;
     INT      rop;   /* rop2 last used to create the brush bits */
     COLORREF colorref;
-    struct dib dib;
+    dib_info dib;
     rop_mask_bits masks;
     struct brush_pattern pattern;
-    BOOL (*rects)(struct dibdrv_physdev *pdev, struct dib_brush *brush, struct dib *dib,
+    BOOL (*rects)(struct dibdrv_physdev *pdev, struct dib_brush *brush, dib_info *dib,
                   int num, const RECT *rects, const POINT *brush_org, INT rop);
 } dib_brush;
 
@@ -94,7 +94,7 @@ struct font_intensities
 typedef struct dibdrv_physdev
 {
     struct gdi_physdev dev;
-    struct dib dib;
+    dib_info dib;
     dib_brush brush;
 
     HRGN clip;
@@ -180,37 +180,37 @@ struct stretch_params
 
 typedef struct primitive_funcs
 {
-    void            (* solid_rects)(const struct dib *dib, int num, const RECT *rc, DWORD and, DWORD xor);
-    void             (* solid_line)(const struct dib *dib, const POINT *start, const struct line_params *params,
+    void            (* solid_rects)(const dib_info *dib, int num, const RECT *rc, DWORD and, DWORD xor);
+    void             (* solid_line)(const dib_info *dib, const POINT *start, const struct line_params *params,
                                     DWORD and, DWORD xor);
-    void          (* pattern_rects)(const struct dib *dib, int num, const RECT *rc, const POINT *origin,
-                                    const struct dib *brush, const rop_mask_bits *bits);
-    void              (* copy_rect)(const struct dib *dst, const RECT *rc, const struct dib *src,
+    void          (* pattern_rects)(const dib_info *dib, int num, const RECT *rc, const POINT *origin,
+                                    const dib_info *brush, const rop_mask_bits *bits);
+    void              (* copy_rect)(const dib_info *dst, const RECT *rc, const dib_info *src,
                                     const POINT *origin, int rop2, int overlap);
-    void            (* blend_rects)(const struct dib *dst, int num, const RECT *rc, const struct dib *src,
+    void            (* blend_rects)(const dib_info *dst, int num, const RECT *rc, const dib_info *src,
                                     const POINT *offset, BLENDFUNCTION blend);
-    BOOL          (* gradient_rect)(const struct dib *dib, const RECT *rc, const TRIVERTEX *v, int mode);
-    void              (* mask_rect)(const struct dib *dst, const RECT *rc, const struct dib *src,
+    BOOL          (* gradient_rect)(const dib_info *dib, const RECT *rc, const TRIVERTEX *v, int mode);
+    void              (* mask_rect)(const dib_info *dst, const RECT *rc, const dib_info *src,
                                     const POINT *origin, int rop2);
-    void             (* draw_glyph)(const struct dib *dst, const RECT *rc, const struct dib *glyph,
+    void             (* draw_glyph)(const dib_info *dst, const RECT *rc, const dib_info *glyph,
                                     const POINT *origin, DWORD text_pixel, const struct intensity_range *ranges);
-    void    (* draw_subpixel_glyph)(const struct dib *dst, const RECT *rc, const struct dib *glyph,
+    void    (* draw_subpixel_glyph)(const dib_info *dst, const RECT *rc, const dib_info *glyph,
                                     const POINT *origin, DWORD text_pixel, const struct font_gamma_ramp *gamma_ramp);
-    DWORD             (* get_pixel)(const struct dib *dib, int x, int y);
-    DWORD     (* colorref_to_pixel)(const struct dib *dib, COLORREF color);
-    COLORREF  (* pixel_to_colorref)(const struct dib *dib, DWORD pixel);
-    void             (* convert_to)(struct dib *dst, const struct dib *src, const RECT *src_rect, BOOL dither);
-    void       (* create_rop_masks)(const struct dib *dib, const BYTE *hatch_ptr,
+    DWORD             (* get_pixel)(const dib_info *dib, int x, int y);
+    DWORD     (* colorref_to_pixel)(const dib_info *dib, COLORREF color);
+    COLORREF  (* pixel_to_colorref)(const dib_info *dib, DWORD pixel);
+    void             (* convert_to)(dib_info *dst, const dib_info *src, const RECT *src_rect, BOOL dither);
+    void       (* create_rop_masks)(const dib_info *dib, const BYTE *hatch_ptr,
                                     const rop_mask *fg, const rop_mask *bg, rop_mask_bits *bits);
-    void    (* create_dither_masks)(const struct dib *dib, int rop2, COLORREF color, rop_mask_bits *bits);
-    void            (* stretch_row)(const struct dib *dst_dib, const POINT *dst_start,
-                                    const struct dib *src_dib, const POINT *src_start,
+    void    (* create_dither_masks)(const dib_info *dib, int rop2, COLORREF color, rop_mask_bits *bits);
+    void            (* stretch_row)(const dib_info *dst_dib, const POINT *dst_start,
+                                    const dib_info *src_dib, const POINT *src_start,
                                     const struct stretch_params *params, int mode, BOOL keep_dst);
-    void             (* shrink_row)(const struct dib *dst_dib, const POINT *dst_start,
-                                    const struct dib *src_dib, const POINT *src_start,
+    void             (* shrink_row)(const dib_info *dst_dib, const POINT *dst_start,
+                                    const dib_info *src_dib, const POINT *src_start,
                                     const struct stretch_params *params, int mode, BOOL keep_dst);
-    void               (* halftone)(const struct dib *dst_dib, const struct bitblt_coords *dst,
-                                    const struct dib *src_dib, const struct bitblt_coords *src);
+    void               (* halftone)(const dib_info *dst_dib, const struct bitblt_coords *dst,
+                                    const dib_info *src_dib, const struct bitblt_coords *src);
 } primitive_funcs;
 
 extern const primitive_funcs funcs_8888;
@@ -249,21 +249,21 @@ struct clipped_rects
 
 extern void get_rop_codes(INT rop, struct rop_codes *codes);
 extern void reset_dash_origin(dibdrv_physdev *pdev);
-extern void init_dib_from_bitmapinfo( struct dib *dib, const BITMAPINFO *info, void *bits );
-extern BOOL init_dib_from_bitmapobj( struct dib *dib, BITMAPOBJ *bmp );
-extern void free_dib( struct dib *dib );
+extern void init_dib_info_from_bitmapinfo(dib_info *dib, const BITMAPINFO *info, void *bits);
+extern BOOL init_dib_info_from_bitmapobj(dib_info *dib, BITMAPOBJ *bmp);
+extern void free_dib_info(dib_info *dib);
 extern void free_pattern_brush(dib_brush *brush);
-extern void copy_dib_color_info( struct dib *dst, const struct dib *src );
-extern BOOL convert_dib( struct dib *dst, const struct dib *src );
-extern DWORD get_pixel_color( DC *dc, const struct dib *dib, COLORREF color, BOOL mono_fixup );
-extern int get_dib_rect( const struct dib *dib, RECT *rc );
-extern int clip_rect_to_dib( const struct dib *dib, RECT *rc );
-extern int get_clipped_rects( const struct dib *dib, const RECT *rc, HRGN clip, struct clipped_rects *clip_rects );
+extern void copy_dib_color_info(dib_info *dst, const dib_info *src);
+extern BOOL convert_dib(dib_info *dst, const dib_info *src);
+extern DWORD get_pixel_color( DC *dc, const dib_info *dib, COLORREF color, BOOL mono_fixup );
+extern int get_dib_rect( const dib_info *dib, RECT *rc );
+extern int clip_rect_to_dib( const dib_info *dib, RECT *rc );
+extern int get_clipped_rects( const dib_info *dib, const RECT *rc, HRGN clip, struct clipped_rects *clip_rects );
 extern void add_clipped_bounds( dibdrv_physdev *dev, const RECT *rect, HRGN clip );
 extern int clip_line(const POINT *start, const POINT *end, const RECT *clip,
                      const bres_params *params, POINT *pt1, POINT *pt2);
 extern void release_cached_font( struct cached_font *font );
-extern BOOL fill_with_pixel( DC *dc, struct dib *dib, DWORD pixel, int num, const RECT *rects, INT rop );
+extern BOOL fill_with_pixel( DC *dc, dib_info *dib, DWORD pixel, int num, const RECT *rects, INT rop );
 
 static inline void init_clipped_rects( struct clipped_rects *clip_rects )
 {
@@ -285,7 +285,7 @@ static inline int edge_coord( int y, int x1, int y1, int x2, int y2 )
         return x1 + (y - y1) * (x2 - x1) / (y2 - y1);
 }
 
-static inline const RGBQUAD *get_dib_color_table( const struct dib *dib )
+static inline const RGBQUAD *get_dib_color_table( const dib_info *dib )
 {
     return dib->color_table ? dib->color_table : get_default_color_table( dib->bit_count );
 }
