@@ -3532,88 +3532,6 @@ skip_tests:
     expect_dxgi_manager = NULL;
 }
 
-static void test_source_reader_h264(void)
-{
-    IMFAttributes *attributes;
-    IMFSourceReader *reader;
-    IMFByteStream *stream;
-    DWORD index, flags;
-    LONGLONG timestamp;
-    IMFSample *sample;
-    HRESULT hr;
-
-    stream = get_resource_stream("test.mp4");
-
-    hr = MFCreateAttributes(&attributes, 1);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    hr = MFCreateSourceReaderFromByteStream(stream, attributes, &reader);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    IMFAttributes_Release(attributes);
-    IMFByteStream_Release(stream);
-
-for (;;)
-{
-    hr = IMFSourceReader_ReadSample(reader, 1, 0, &index, &flags, &timestamp, &sample);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(0, "index %#lx\n", index);
-    ok(0, "flags %#lx\n", flags);
-    ok(0, "timestamp %I64d\n", timestamp);
-    ok(0, "sample %p\n", sample);
-    hr = IMFSample_GetSampleTime(sample, &timestamp);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(0, "  time %I64d\n", timestamp);
-    hr = IMFSample_GetSampleDuration(sample, &timestamp);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(0, "  duration %I64d\n", timestamp);
-    hr = IMFSample_GetSampleFlags(sample, &flags);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(0, "  flags %#lx\n", flags);
-    hr = IMFSample_GetBufferCount(sample, &index);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(0, "  count %#lx\n", index);
-    hr = IMFSample_GetTotalLength(sample, &index);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(0, "  length %#lx\n", index);
-{
-    IMFMediaBuffer *buffer;
-    BYTE *data;
-    DWORD len;
-    hr = IMFSample_ConvertToContiguousBuffer(sample, &buffer);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    hr = IMFMediaBuffer_Lock(buffer, &data, NULL, &len);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    do
-    {
-        const unsigned char *ptr = (void *)data, *end = ptr + len;
-        ok(0, "dump %p-%p (%x)\n", (void *)ptr, (void *)end, (int)(end - ptr));
-        for (int i = 0, j; ptr + i < end;)
-        {
-            char buffer[256], *buf = buffer;
-            buf += sprintf(buf, "%08x ", i);
-            for (j = 0; j < 8 && ptr + i + j < end; ++j)
-                buf += sprintf(buf, " %02x", ptr[i + j]);
-            for (; j < 8 && ptr + i + j >= end; ++j)
-                buf += sprintf(buf, "   ");
-            buf += sprintf(buf, " ");
-            for (j = 8; j < 16 && ptr + i + j < end; ++j)
-                buf += sprintf(buf, " %02x", ptr[i + j]);
-            for (; j < 16 && ptr + i + j >= end; ++j)
-                buf += sprintf(buf, "   ");
-            buf += sprintf(buf, "  |");
-            for (j = 0; j < 16 && ptr + i < end; ++j, ++i)
-                buf += sprintf(buf, "%c", ptr[i] >= ' ' && ptr[i] <= '~' ? ptr[i] : '.');
-            buf += sprintf(buf, "|");
-            ok(0, "%s\n", buffer);
-        }
-    }
-    while(0);
-    IMFMediaBuffer_Unlock(buffer);
-    IMFMediaBuffer_Release(buffer);
-}
-    IMFSample_Release(sample);
-}
-}
-
 START_TEST(mfplat)
 {
     HRESULT hr;
@@ -3622,9 +3540,6 @@ START_TEST(mfplat)
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
 
     init_functions();
-
-    test_source_reader_h264();
-    return;
 
     test_factory();
     test_interfaces();

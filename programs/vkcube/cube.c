@@ -474,7 +474,8 @@ VkBool32 VKAPI_CALL debug_messenger_callback(VkDebugUtilsMessageSeverityFlagBits
                                                         const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
                                                         void *pUserData) {
     char prefix[64] = "";
-    char *message;
+    char *message = (char *)malloc(strlen(pCallbackData->pMessage) + 5000);
+    assert(message);
     struct demo *demo = (struct demo *)pUserData;
 
     if (demo->use_break) {
@@ -510,10 +511,6 @@ VkBool32 VKAPI_CALL debug_messenger_callback(VkDebugUtilsMessageSeverityFlagBits
         }
     }
 
-    if (!pCallbackData->pMessage) message = (char *)malloc(5000);
-    else message = (char *)malloc(strlen(pCallbackData->pMessage) + 5000);
-    assert(message);
-
     sprintf(message, "%s - Message Id Number: %d | Message Id Name: %s\n\t%s\n", prefix, pCallbackData->messageIdNumber,
             pCallbackData->pMessageIdName, pCallbackData->pMessage);
     if (pCallbackData->objectCount > 0) {
@@ -546,7 +543,7 @@ VkBool32 VKAPI_CALL debug_messenger_callback(VkDebugUtilsMessageSeverityFlagBits
         }
     }
 
-#if 0
+#ifdef _WIN32
 
     in_callback = true;
     if (!demo->suppress_popups) MessageBoxA(NULL, message, "Alert", MB_OK);
@@ -2969,7 +2966,7 @@ static void demo_init_vk(struct demo *demo) {
 
     // Look for validation layers
     VkBool32 validation_found = 0;
-    if (demo->validate && 0) {
+    if (demo->validate) {
         err = vkEnumerateInstanceLayerProperties(&instance_layer_count, NULL);
         assert(!err);
 
@@ -3164,11 +3161,10 @@ static void demo_init_vk(struct demo *demo) {
         dbg_messenger_create_info.pNext = NULL;
         dbg_messenger_create_info.flags = 0;
         dbg_messenger_create_info.messageSeverity =
-            VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT;
+            VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
         dbg_messenger_create_info.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
                                                 VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-                                                VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT |
-                                                VK_DEBUG_UTILS_MESSAGE_TYPE_DEVICE_ADDRESS_BINDING_BIT_EXT;
+                                                VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
         dbg_messenger_create_info.pfnUserCallback = debug_messenger_callback;
         dbg_messenger_create_info.pUserData = demo;
         inst_info.pNext = &dbg_messenger_create_info;
