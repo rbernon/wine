@@ -494,24 +494,6 @@ static const USAGE_AND_PAGE *what_am_I(struct udev_device *dev, int fd)
 
 static INT count_buttons(int device_fd, BYTE *map)
 {
-    static const UINT gamepad_buttons[] =
-    {
-        BTN_A,
-        BTN_B,
-        BTN_X,
-        BTN_Y,
-        BTN_TL,
-        BTN_TR,
-        BTN_SELECT,
-        BTN_START,
-        BTN_THUMBL,
-        BTN_THUMBR,
-        BTN_MODE,
-        BTN_C,
-        BTN_Z,
-        BTN_TL2,
-        BTN_TR2,
-    };
     int i;
     int button_count = 0;
     BYTE keybits[(KEY_MAX+7)/8];
@@ -522,16 +504,7 @@ static INT count_buttons(int device_fd, BYTE *map)
         return FALSE;
     }
 
-    for (i = 0; i < ARRAY_SIZE(gamepad_buttons); i++)
-    {
-        if (test_bit(keybits, gamepad_buttons[i]))
-        {
-            if (map) map[gamepad_buttons[i]] = button_count;
-            button_count++;
-        }
-    }
-
-    for (i = BTN_DIGI; i < KEY_MAX; i++)
+    for (i = BTN_MISC; i < KEY_MAX; i++)
     {
         if (test_bit(keybits, i))
         {
@@ -565,6 +538,7 @@ static NTSTATUS build_report_descriptor(struct unix_device *iface, struct udev_d
     BYTE absbits[(ABS_MAX+7)/8];
     BYTE relbits[(REL_MAX+7)/8];
     BYTE ffbits[(FF_MAX+7)/8];
+    struct ff_effect effect;
     USAGE_AND_PAGE usage;
     USHORT count = 0;
     USAGE usages[16];
@@ -643,8 +617,21 @@ static NTSTATUS build_report_descriptor(struct unix_device *iface, struct udev_d
     impl->haptic_effect_id = -1;
     for (i = 0; i < ARRAY_SIZE(impl->effect_ids); ++i) impl->effect_ids[i] = -1;
 
-    if (test_bit(ffbits, FF_RUMBLE) && !hid_device_add_haptics(iface))
-        return STATUS_NO_MEMORY;
+    if (test_bit(ffbits, FF_RUMBLE))
+    {
+        effect.id = -1;
+        effect.type = FF_RUMBLE;
+        effect.replay.length = 0;
+        effect.u.rumble.strong_magnitude = 0;
+        effect.u.rumble.weak_magnitude = 0;
+
+        if (ioctl(impl->base.device_fd, EVIOCSFF, &effect) == -1)
+            WARN("couldn't allocate rumble effect for haptics: %d %s\n", errno, strerror(errno));
+        else if (!hid_device_add_haptics(iface))
+            return FALSE;
+        else
+            impl->haptic_effect_id = effect.id;
+    }
 
     for (i = 0; i < FF_MAX; ++i) if (test_bit(ffbits, i)) break;
     if (i != FF_MAX)
@@ -792,7 +779,7 @@ static NTSTATUS lnxev_device_haptics_start(struct unix_device *iface, UINT durat
     effect.u.rumble.strong_magnitude = rumble_intensity;
     effect.u.rumble.weak_magnitude = buzz_intensity;
 
-    if (effect.id == -1 || ioctl(impl->base.device_fd, EVIOCSFF, &effect) == -1)
+    if (ioctl(impl->base.device_fd, EVIOCSFF, &effect) == -1)
     {
         effect.id = -1;
         if (ioctl(impl->base.device_fd, EVIOCSFF, &effect) == 1)

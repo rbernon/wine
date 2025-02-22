@@ -132,7 +132,6 @@ static const struct object_ops named_pipe_ops =
     named_pipe_open_file,         /* open_file */
     no_kernel_obj_list,           /* get_kernel_obj_list */
     no_close_handle,              /* close_handle */
-    NULL,                         /* get_host_ops */
     named_pipe_destroy            /* destroy */
 };
 
@@ -181,7 +180,6 @@ static const struct object_ops pipe_server_ops =
     pipe_server_open_file,        /* open_file */
     no_kernel_obj_list,           /* get_kernel_obj_list */
     async_close_obj_handle,       /* close_handle */
-    NULL,                         /* get_host_ops */
     pipe_server_destroy           /* destroy */
 };
 
@@ -226,7 +224,6 @@ static const struct object_ops pipe_client_ops =
     no_open_file,                 /* open_file */
     no_kernel_obj_list,           /* get_kernel_obj_list */
     async_close_obj_handle,       /* close_handle */
-    NULL,                         /* get_host_ops */
     pipe_end_destroy              /* destroy */
 };
 
@@ -274,7 +271,6 @@ static const struct object_ops named_pipe_device_ops =
     named_pipe_device_open_file,      /* open_file */
     no_kernel_obj_list,               /* get_kernel_obj_list */
     no_close_handle,                  /* close_handle */
-    NULL,                             /* get_host_ops */
     named_pipe_device_destroy         /* destroy */
 };
 
@@ -306,7 +302,6 @@ static const struct object_ops named_pipe_device_file_ops =
     no_open_file,                            /* open_file */
     no_kernel_obj_list,                      /* get_kernel_obj_list */
     no_close_handle,                         /* close_handle */
-    NULL,                                    /* get_host_ops */
     named_pipe_device_file_destroy           /* destroy */
 };
 

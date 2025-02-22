@@ -21,7 +21,6 @@
 #include <stdarg.h>
 #include <stddef.h>
 
-#define COBJMACROS
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
 #include "windef.h"
@@ -31,7 +30,6 @@
 #include "wincrypt.h"
 #include "winreg.h"
 #include "winsvc.h"
-#include "wingdi.h"
 #include "winuser.h"
 #include "winnls.h"
 
@@ -46,6 +44,8 @@
 
 #include "objbase.h"
 
+#define COBJMACROS
+
 #include "initguid.h"
 #include "ddk/wdm.h"
 #include "ddk/hidclass.h"
@@ -59,8 +59,6 @@
 #include "wine/mssign.h"
 
 #include "dinput_test.h"
-
-#define DESKTOP_ALL_ACCESS 0x01ff
 
 HINSTANCE instance;
 BOOL localized; /* object names get translated */
@@ -86,220 +84,6 @@ static HANDLE okfile;
 static HRESULT (WINAPI *pSignerSign)( SIGNER_SUBJECT_INFO *subject, SIGNER_CERT *cert,
                                       SIGNER_SIGNATURE_INFO *signature, SIGNER_PROVIDER_INFO *provider,
                                       const WCHAR *timestamp, CRYPT_ATTRIBUTES *attr, void *sip_data );
-
-#define RIM_INPUT_TYPE_MOUSE     0x01
-#define RIM_INPUT_TYPE_KEYBOARD  0x02
-#define RIM_INPUT_TYPE_HID_PEN   0x04
-#define RIM_INPUT_TYPE_HID_PTP   0x08
-#define RIM_INPUT_TYPE_HID_TCH   0x10
-#define RIM_INPUT_TYPE_HID_GEN   0x20
-
-#define RIM_INPUT_TYPE_HID  (RIM_INPUT_TYPE_HID_PEN | RIM_INPUT_TYPE_HID_PTP | RIM_INPUT_TYPE_HID_TCH)
-#define RIM_INPUT_TYPE_ALL  (RIM_INPUT_TYPE_MOUSE | RIM_INPUT_TYPE_KEYBOARD | RIM_INPUT_TYPE_HID | RIM_INPUT_TYPE_HID_GEN)
-
-typedef struct _RIM_USAGE_ANDPAGE
-{
-    USHORT Usage;
-    USHORT UsagePage;
-} RIM_USAGE_AND_PAGE, *PRIM_USAGE_AND_PAGE;
-
-typedef BOOL (CALLBACK *RIMDEVCHANGECALLBACKPROC)( HANDLE rim_manager, HANDLE rim_device, DWORD device_identity,
-                                                   DWORD code, DWORD device_type, DWORD rim_input_type,
-                                                   USHORT usage, USHORT usage_page, void *context );
-
-typedef struct _RIM_KEYBOARD_ID
-{
-    UCHAR Type;
-    UCHAR Subtype;
-} RIM_KEYBOARD_ID, *PRIM_KEYBOARD_ID;
-
-typedef struct _RIM_KEYBOARD_TYPEMATIC_PARAMETERS
-{
-    USHORT UnitId;
-    USHORT Rate;
-    USHORT Delay;
-} RIM_KEYBOARD_TYPEMATIC_PARAMETERS, *PRIM_KEYBOARD_TYPEMATIC_PARAMETERS;
-
-typedef struct _RIM_KEYBOARD_ATTRIBUTES
-{
-    RIM_KEYBOARD_ID KeyboardIdentifier;
-    USHORT KeyboardMode;
-    USHORT NumberOfFunctionKeys;
-    USHORT NumberOfIndicators;
-    USHORT NumberOfKeysTotal;
-    ULONG InputDataQueueLength;
-    RIM_KEYBOARD_TYPEMATIC_PARAMETERS KeyRepeatMinimum;
-    RIM_KEYBOARD_TYPEMATIC_PARAMETERS KeyRepeatMaximum;
-} RIM_KEYBOARD_ATTRIBUTES, *PRIM_KEYBOARD_ATTRIBUTES;
-
-typedef struct _RIM_MOUSE_ATTRIBUTES
-{
-    USHORT MouseIdentifier;
-    USHORT NumberOfButtons;
-    USHORT SampleRate;
-    ULONG InputDataQueueLength;
-} RIM_MOUSE_ATTRIBUTES, *PRIM_MOUSE_ATTRIBUTES;
-
-typedef struct _RIM_HID_ATTRIBUTES
-{
-    USHORT VendorID;
-    USHORT ProductID;
-    USHORT VersionNumber;
-    LUID AdapterLuid;
-    DWORD VidPnTargetId;
-} RIM_HID_ATTRIBUTES, *PRIM_HID_ATTRIBUTES;
-
-typedef struct _RIM_PNP_INSTANCE_PATH
-{
-    ULONG cbBufferSize;
-    LPVOID pData;
-} RIM_PNP_INSTANCE_PATH;
-
-typedef struct _RIM_POINTER_ATTRIBUTES
-{
-    HANDLE PointerDevice;
-} RIM_POINTER_ATTRIBUTES, *PRIM_POINTER_ATTRIBUTES;
-
-typedef struct _RIM_DEVICE_ATTRIBUTES
-{
-    BOOLEAN IsInjectionDevice;
-} RIM_DEVICE_ATTRIBUTES, *PRIM_DEVICE_ATTRIBUTES;
-
-typedef struct RIM_DEVICE_PROPERTIES
-{
-    DWORD dwDevicePropType;
-    union
-    {
-        RIM_KEYBOARD_ATTRIBUTES keyboard;
-        RIM_MOUSE_ATTRIBUTES mouse;
-        RIM_HID_ATTRIBUTES hid;
-        RIM_PNP_INSTANCE_PATH pnpInstancePath;
-        RIM_POINTER_ATTRIBUTES pointer;
-        RIM_DEVICE_ATTRIBUTES device;
-    };
-} RIMDEVICEPROPERTIES, *PRIMDEVICEPROPERTIES;
-
-typedef struct tagUSAGE_PROPERTIES
-{
-    USHORT level;
-    USHORT page;
-    USHORT usage;
-    INT32 logicalMinimum;
-    INT32 logicalMaximum;
-    USHORT unit;
-    USHORT exponent;
-    BYTE count;
-    INT32 physicalMinimum;
-    INT32 physicalMaximum;
-} USAGE_PROPERTIES, *PUSAGE_PROPERTIES;
-
-typedef struct tagINPUT_INJECTION_VALUE
-{
-    USHORT page;
-    USHORT usage;
-    INT32 value;
-    USHORT index;
-} INPUT_INJECTION_VALUE, *PINPUT_INJECTION_VALUE;
-
-typedef struct _RIMIDE_GENERIC_HID_DEVICE_PROPERTIES
-{
-    USHORT VendorID;
-    USHORT ProductID;
-    USHORT VersionNumber;
-    GUID ContainerID;
-    HANDLE DeviceParent;
-    UCHAR *ReportDescriptor;
-    USHORT ReportDescriptorLength;
-    UCHAR *FeatureReport;
-    USHORT FeatureReportLength;
-} RIMIDE_GENERIC_HID_DEVICE_PROPERTIES, *PRIMIDE_GENERIC_HID_DEVICE_PROPERTIES;
-
-static NTSTATUS (WINAPI *pRIMRegisterForInput)( DWORD input_type, UNICODE_STRING *device_name, DWORD rim_usages_count,
-                                                RIM_USAGE_AND_PAGE *rim_usages, HANDLE pnp_notification_event,
-                                                HANDLE timer, HANDLE auto_repeat_timer, void *context,
-                                                RIMDEVCHANGECALLBACKPROC callback, HANDLE *rim_manager );
-static NTSTATUS (WINAPI *pRIMUnregisterForInput)( HANDLE rim_manager );
-static NTSTATUS (WINAPI *pRIMOnPnpNotification)( HANDLE rim_manager );
-
-static NTSTATUS (WINAPI *pRIMAddInputObserver)( void *buffer, DWORD buffer_size, HANDLE input_ready_event,
-                                                DWORD input_type, DWORD usage_page, DWORD usage,
-                                                DWORD flags, HANDLE *rim_observer );
-static NTSTATUS (WINAPI *pRIMUpdateInputObserverRegistration)( HANDLE rim_observer, DWORD flags,
-                                                               void *buffer, DWORD buffer_size );
-static NTSTATUS (WINAPI *pRIMRemoveInputObserver)( HANDLE rim_observer );
-static NTSTATUS (WINAPI *pRIMObserveNextInput)( HANDLE rim_observer );
-
-static NTSTATUS (WINAPI *pRIMReadInput)( HANDLE rim_manager, void **input_buf, ULONG input_len, HANDLE completion_event,
-                                         HANDLE *rim_device, DWORD *input_type, IO_STATUS_BLOCK *iosb );
-static void (WINAPI *pRIMFreeInputBuffer)( HANDLE rim_manager, void *input_buf );
-static NTSTATUS (WINAPI *pRIMGetDevicePreparsedDataLockfree)( HANDLE rim_device, void *buffer, DWORD *buffer_size );
-static NTSTATUS (WINAPI *pRIMGetDevicePreparsedData)( HANDLE rim_manager, HANDLE rim_device,
-                                                      void *buffer, DWORD *buffer_size );
-static NTSTATUS (WINAPI *pRIMGetDevicePropertiesLockfree)( HANDLE rim_device, RIMDEVICEPROPERTIES *device_properties );
-static NTSTATUS (WINAPI *pRIMGetDeviceProperties)( HANDLE rim_manager, HANDLE rim_device,
-                                                   RIMDEVICEPROPERTIES *device_properties );
-
-static NTSTATUS (WINAPI *pRIMSetExtendedDeviceProperty)( HANDLE rim_device, void *buffer, DWORD buffer_size );
-static NTSTATUS (WINAPI *pRIMQueryDevicePath)( UNICODE_STRING *device_path, HANDLE *rim_device );
-
-static BOOL (WINAPI *pInitializeInputDeviceInjection)( USHORT page, USHORT caUsage,
-                                                       const USAGE_PROPERTIES *usages, ULONG cUsages,
-                                                       HMONITOR monitor, DWORD visual_mode, HANDLE *device );
-static BOOL (WINAPI *pInitializePointerDeviceInjection)( POINTER_INPUT_TYPE type, ULONG contact_count,
-                                                         HMONITOR monitor, DWORD visual_mode, HANDLE *device );
-static BOOL (WINAPI *pInitializePointerDeviceInjectionEx)( POINTER_INPUT_TYPE type, ULONG contact_count,
-                                                           HMONITOR monitor, DWORD visual_mode,
-                                                           DWORD workspace_id, HANDLE *device );
-static BOOL (WINAPI *pInitializeGenericHidInjection)( RIMIDE_GENERIC_HID_DEVICE_PROPERTIES *pDeviceProperties,
-                                                      HANDLE *device );
-static BOOL (WINAPI *pRemoveInjectionDevice)( HANDLE device );
-
-static BOOL (WINAPI *pSetFeatureReportResponse)( HANDLE device, const INPUT_INJECTION_VALUE *input, UINT32 count );
-static BOOL (WINAPI *pInjectDeviceInput)( HANDLE device, const INPUT_INJECTION_VALUE *input, UINT32 count );
-static BOOL (WINAPI *pInjectMouseInput)( const MOUSEINPUT *input, UINT32 count );
-static BOOL (WINAPI *pInjectKeyboardInput)( const KEYBDINPUT *input, UINT32 count );
-static BOOL (WINAPI *pInjectPointerInput)( HANDLE device, const POINTER_TYPE_INFO *pointer_info, UINT32 count );
-static BOOL (WINAPI *pInjectGenericHidInput)( HANDLE device, const UCHAR *report_buf, ULONG report_len );
-
-static BOOL load_rim_functions(void)
-{
-    HMODULE user32 = GetModuleHandleW( L"user32.dll" );
-
-#define LOAD_FUNC(m, f) if (!(p ## f = (void *)GetProcAddress( m, #f ))) goto failed;
-    LOAD_FUNC( user32, RIMRegisterForInput )
-    LOAD_FUNC( user32, RIMUnregisterForInput )
-    LOAD_FUNC( user32, RIMOnPnpNotification )
-    LOAD_FUNC( user32, RIMAddInputObserver )
-    LOAD_FUNC( user32, RIMUpdateInputObserverRegistration )
-    LOAD_FUNC( user32, RIMRemoveInputObserver )
-    LOAD_FUNC( user32, RIMObserveNextInput )
-    LOAD_FUNC( user32, RIMReadInput )
-    LOAD_FUNC( user32, RIMFreeInputBuffer )
-    LOAD_FUNC( user32, RIMGetDevicePreparsedDataLockfree )
-    LOAD_FUNC( user32, RIMGetDevicePreparsedData )
-    LOAD_FUNC( user32, RIMGetDevicePropertiesLockfree )
-    LOAD_FUNC( user32, RIMGetDeviceProperties )
-    LOAD_FUNC( user32, RIMSetExtendedDeviceProperty )
-    LOAD_FUNC( user32, RIMQueryDevicePath )
-    LOAD_FUNC( user32, InitializeInputDeviceInjection )
-    LOAD_FUNC( user32, InitializePointerDeviceInjection )
-    LOAD_FUNC( user32, InitializePointerDeviceInjectionEx )
-    LOAD_FUNC( user32, InitializeGenericHidInjection )
-    LOAD_FUNC( user32, RemoveInjectionDevice )
-    LOAD_FUNC( user32, SetFeatureReportResponse )
-    LOAD_FUNC( user32, InjectDeviceInput )
-    LOAD_FUNC( user32, InjectMouseInput )
-    LOAD_FUNC( user32, InjectKeyboardInput )
-    LOAD_FUNC( user32, InjectPointerInput )
-    LOAD_FUNC( user32, InjectGenericHidInput )
-#undef LOAD_FUNC
-
-    return TRUE;
-
-failed:
-    win_skip( "Failed to load user32.dll functions, skipping tests\n" );
-    return FALSE;
-}
 
 static const WCHAR container_name[] = L"wine_testsign";
 
@@ -686,8 +470,10 @@ void bus_device_stop(void)
     WCHAR path[MAX_PATH], dest[MAX_PATH], *filepart;
     const WCHAR *service_name = L"winetest_bus";
     SC_HANDLE manager, service;
+    char buffer[512];
     HDEVINFO set;
     HANDLE file;
+    DWORD size;
     BOOL ret;
 
     if (!test_data) return;
@@ -724,6 +510,15 @@ void bus_device_stop(void)
     else ok( GetLastError() == ERROR_SERVICE_DOES_NOT_EXIST, "got error %lu\n", GetLastError() );
 
     CloseServiceHandle( manager );
+
+    SetFilePointer( okfile, 0, NULL, FILE_BEGIN );
+    do
+    {
+        ReadFile( okfile, buffer, sizeof(buffer), &size, NULL );
+        printf( "%.*s", (int)size, buffer );
+    } while (size == sizeof(buffer));
+    SetFilePointer( okfile, 0, NULL, FILE_BEGIN );
+    SetEndOfFile( okfile );
 
     InterlockedAdd( &winetest_successes, InterlockedExchange( &test_data->successes, 0 ) );
     winetest_add_failures( InterlockedExchange( &test_data->failures, 0 ) );
@@ -924,8 +719,7 @@ void hid_device_stop( struct hid_device_desc *desc, UINT count )
                            NULL, OPEN_EXISTING, 0, NULL );
     ok( control != INVALID_HANDLE_VALUE, "CreateFile failed, error %lu\n", GetLastError() );
     ret = sync_ioctl( control, IOCTL_WINETEST_REMOVE_DEVICE, desc, sizeof(*desc), NULL, 0, 5000 );
-    ok( ret || (GetLastError() == ERROR_FILE_NOT_FOUND || GetLastError() == ERROR_NO_SUCH_DEVICE),
-        "IOCTL_WINETEST_REMOVE_DEVICE failed, last error %lu\n", GetLastError() );
+    ok( ret || GetLastError() == ERROR_FILE_NOT_FOUND, "IOCTL_WINETEST_REMOVE_DEVICE failed, last error %lu\n", GetLastError() );
     CloseHandle( control );
 
     if (!ret) return;
@@ -2637,15 +2431,6 @@ static void test_hidp( HANDLE file, HANDLE async_file, int report_id, BOOL polle
                 .ret_status = STATUS_SUCCESS,
             },
         };
-        struct hid_expect expect_timestamp[] =
-        {
-            {
-                .code = IOCTL_HID_READ_REPORT,
-                .report_len = caps.InputReportByteLength - (report_id ? 0 : 1),
-                .report_buf = {report_id ? report_id : 0},
-                .timestamp = 1,
-            },
-        };
 
         send_hid_input( file, expect, sizeof(expect) );
 
@@ -2739,38 +2524,6 @@ static void test_hidp( HANDLE file, HANDLE async_file, int report_id, BOOL polle
         ok( ret, "GetOverlappedResult failed, last error %lu\n", GetLastError() );
         ok( value == report_id ? 2 : caps.InputReportByteLength - 1,
             "got length %lu, expected %u\n", value, report_id ? 2 : caps.InputReportByteLength - 1 );
-
-        send_hid_input( file, expect_timestamp, sizeof(expect_timestamp) );
-
-        Sleep( 600 );
-
-        for (i = 0; i < 10; ++i)
-        {
-            LARGE_INTEGER counter, frequency;
-            QueryPerformanceFrequency( &frequency );
-
-            /* drain available input reports */
-            SetLastError( 0xdeadbeef );
-            memset( report, 0, sizeof(report) );
-            while (ReadFile( async_file, report, caps.InputReportByteLength, NULL, &overlapped ))
-            {
-                QueryPerformanceCounter( &counter );
-                counter.QuadPart -= ((LARGE_INTEGER *)(report + (report_id ? 2 : 3)))->QuadPart;
-                ok( 0, "diff %llu ns\n", counter.QuadPart * 1000000000 / frequency.QuadPart );
-                memset( report, 0, sizeof(report) );
-                ResetEvent( overlapped.hEvent );
-            }
-            ok( GetLastError() == ERROR_IO_PENDING, "ReadFile returned error %lu\n", GetLastError() );
-            ret = GetOverlappedResult( async_file, &overlapped, &value, TRUE );
-            ok( ret, "GetOverlappedResult failed, last error %lu\n", GetLastError() );
-            ok( value == caps.InputReportByteLength, "GetOverlappedResult returned length %lu, expected %u\n",
-                value, caps.InputReportByteLength );
-            ResetEvent( overlapped.hEvent );
-
-            QueryPerformanceCounter( &counter );
-            counter.QuadPart -= ((LARGE_INTEGER *)(report + (report_id ? 2 : 3)))->QuadPart;
-            ok( 0, "diff %llu ns\n", counter.QuadPart * 1000000000 / frequency.QuadPart );
-        }
 
         CloseHandle( overlapped.hEvent );
         CloseHandle( overlapped2.hEvent );
@@ -3754,7 +3507,7 @@ done:
     hid_device_stop( &desc, 1 );
 }
 
-void cleanup_registry_keys( const WCHAR *vidpid )
+void cleanup_registry_keys(void)
 {
     static const WCHAR joystick_oem_path[] = L"System\\CurrentControlSet\\Control\\MediaProperties\\"
                                               "PrivateProperties\\Joystick\\OEM";
@@ -3771,19 +3524,19 @@ void cleanup_registry_keys( const WCHAR *vidpid )
        effects from the PID report changes.
     */
     RegCreateKeyExW( HKEY_CURRENT_USER, joystick_oem_path, 0, NULL, 0, KEY_ALL_ACCESS, NULL, &root_key, NULL );
-    RegDeleteTreeW( root_key, vidpid );
+    RegDeleteTreeW( root_key, expect_vidpid_str );
     RegCloseKey( root_key );
 
     RegCreateKeyExW( HKEY_CURRENT_USER, dinput_path, 0, NULL, 0, KEY_ALL_ACCESS, NULL, &root_key, NULL );
-    RegDeleteTreeW( root_key, vidpid );
+    RegDeleteTreeW( root_key, expect_vidpid_str );
     RegCloseKey( root_key );
 
     RegCreateKeyExW( HKEY_LOCAL_MACHINE, joystick_oem_path, 0, NULL, 0, KEY_ALL_ACCESS, NULL, &root_key, NULL );
-    RegDeleteTreeW( root_key, vidpid );
+    RegDeleteTreeW( root_key, expect_vidpid_str );
     RegCloseKey( root_key );
 
     RegCreateKeyExW( HKEY_LOCAL_MACHINE, dinput_path, 0, NULL, 0, KEY_ALL_ACCESS, NULL, &root_key, NULL );
-    RegDeleteTreeW( root_key, vidpid );
+    RegDeleteTreeW( root_key, expect_vidpid_str );
     RegCloseKey( root_key );
 }
 
@@ -3846,42 +3599,8 @@ DWORD WINAPI monitor_thread_proc( void *stop_event )
     return 0;
 }
 
-void run_in_desktop_( const char *file, int line, const char *test_name,
-                      void (*test_func)(void) )
-{
-    STARTUPINFOA startup = {.cb = sizeof(STARTUPINFOA)};
-    PROCESS_INFORMATION info = {0};
-    char cmdline[MAX_PATH * 2];
-    HDESK desktop;
-    char **argv;
-    DWORD ret;
-
-    if (winetest_get_mainargs( &argv ) >= 3)
-    {
-        if (!strcmp( argv[2], test_name )) test_func();
-        return;
-    }
-
-    desktop = CreateDesktopA( "WineTest", NULL, NULL, 0, DESKTOP_ALL_ACCESS, NULL );
-    ok_(file, line)( !!desktop, "CreateDesktopA failed, error %lu\n", GetLastError() );
-
-    startup.lpDesktop = (char *)"WineTest";
-    sprintf( cmdline, "%s %s %s", argv[0], argv[1], test_name );
-    ret = CreateProcessA( NULL, cmdline, NULL, NULL, FALSE, 0, NULL, NULL, &startup, &info );
-    ok_(file, line)( ret, "CreateProcessA failed, error %lu\n", GetLastError() );
-    if (!ret) return;
-
-    wait_child_process( info.hProcess );
-    CloseHandle( info.hThread );
-    CloseHandle( info.hProcess );
-
-    ret = CloseDesktop( desktop );
-    ok_(file, line)( ret, "CloseDesktop failed, error %lu\n", GetLastError() );
-}
-
 void dinput_test_init_( const char *file, int line )
 {
-    const WCHAR *path;
     BOOL is_wow64;
 
     monitor_stop = CreateEventW( NULL, FALSE, FALSE, NULL );
@@ -3920,10 +3639,8 @@ void dinput_test_init_( const char *file, int line )
     test_data->winetest_report_success = winetest_report_success;
     test_data->winetest_debug = winetest_debug;
 
-    if (!strcmp( winetest_platform, "wine" )) path = L"\\??\\C:\\windows\\winetest_dinput_okfile";
-    else path = L"\\??\\Z:\\build-wine\\winetest_dinput_okfile";
-    okfile = CreateFileW( path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
-                          NULL, CREATE_ALWAYS, 0, NULL );
+    okfile = CreateFileW( L"C:\\windows\\winetest_dinput_okfile", GENERIC_READ | GENERIC_WRITE,
+                          FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, 0, NULL );
     ok_(file, line)( okfile != INVALID_HANDLE_VALUE, "failed to create file, error %lu\n", GetLastError() );
 
     subtest_(file, line)( "hid" );
@@ -3940,6 +3657,7 @@ void dinput_test_exit(void)
     UnmapViewOfFile( test_data );
     CloseHandle( test_data_mapping );
     CloseHandle( okfile );
+    DeleteFileW( L"C:\\windows\\winetest_dinput_okfile" );
 
     SetEvent( monitor_stop );
     ret = WaitForSingleObject( monitor_thread, 5000 );
@@ -3959,8 +3677,7 @@ BOOL CALLBACK find_test_device( const DIDEVICEINSTANCEW *devinst, void *context 
     return DIENUM_CONTINUE;
 }
 
-HRESULT dinput_test_create_device_( DWORD version, DIDEVICEINSTANCEW *devinst,
-                                    IDirectInputDevice8W **device, IUnknown **dinput )
+HRESULT dinput_test_create_device( DWORD version, DIDEVICEINSTANCEW *devinst, IDirectInputDevice8W **device )
 {
     IDirectInput8W *di8;
     IDirectInputW *di;
@@ -3989,12 +3706,6 @@ HRESULT dinput_test_create_device_( DWORD version, DIDEVICEINSTANCEW *devinst,
         hr = IDirectInput8_CreateDevice( di8, &expect_guid_product, device, NULL );
         ok( hr == DI_OK, "CreateDevice returned %#lx\n", hr );
 
-        if (dinput)
-        {
-            *dinput = (IUnknown *)di8;
-            IUnknown_AddRef( *dinput );
-        }
-
         ref = IDirectInput8_Release( di8 );
         ok( ref == 0, "Release returned %ld\n", ref );
     }
@@ -4020,12 +3731,6 @@ HRESULT dinput_test_create_device_( DWORD version, DIDEVICEINSTANCEW *devinst,
 
         hr = IDirectInput_CreateDevice( di, &expect_guid_product, (IDirectInputDeviceW **)device, NULL );
         ok( hr == DI_OK, "CreateDevice returned %#lx\n", hr );
-
-        if (dinput)
-        {
-            *dinput = (IUnknown *)di;
-            IUnknown_AddRef( *dinput );
-        }
 
         ref = IDirectInput_Release( di );
         ok( ref == 0, "Release returned %ld\n", ref );
@@ -4413,35 +4118,10 @@ done:
     hid_device_stop( &desc, 2 );
 }
 
-static BOOL CALLBACK rim_callback( HANDLE rim_manager, HANDLE rim_device, DWORD device_identity,
-                                   DWORD code, DWORD device_type, DWORD rim_input_type,
-                                   USHORT usage, USHORT usage_page, void *context )
-{
-    ok( 0, "rim_manager %p, rim_device %p, device_identity %lu, code %lu, device_type %lu, rim_input_type %lu, usage %#x, usage_page %#x, context %p\n",
-        rim_manager, rim_device, device_identity, code, device_type, rim_input_type, usage, usage_page, context );
-    return TRUE;
-}
-
-static void test_rim(void)
-{
-    HANDLE rim_manager;
-    NTSTATUS status;
-
-    if (!load_rim_functions()) return;
-
-    status = pRIMRegisterForInput( RIM_INPUT_TYPE_ALL, NULL, 0, NULL, NULL, NULL, NULL,
-                                   (void *)0xdeadbeef, rim_callback, &rim_manager );
-    ok( !status, "RIMRegisterForInput returned %#lx\n", status );
-
-    status = pRIMUnregisterForInput( rim_manager );
-    ok( !status, "RIMUnregisterForInput returned %#lx\n", status );
-}
-
 START_TEST( hid )
 {
     dinput_test_init();
 
-    test_rim();
     test_bus_driver();
 
     if (!bus_device_start()) goto done;

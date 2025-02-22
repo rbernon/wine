@@ -686,7 +686,7 @@
 @ stdcall GetTitleBarInfo(long ptr) NtUserGetTitleBarInfo
 # @ stub GetTopLevelWindow
 @ stdcall GetTopWindow(long)
-@ stdcall GetTouchInputInfo(long long ptr long) NtUserGetTouchInputInfo
+@ stdcall GetTouchInputInfo(long long ptr long)
 # @ stub GetUnpredictedMessagePos
 @ stdcall GetUpdateRect(long ptr long) NtUserGetUpdateRect
 @ stdcall GetUpdateRgn(long long long) NtUserGetUpdateRgn
@@ -798,7 +798,7 @@
 # @ stub IsThreadDesktopComposited
 # @ stub IsThreadTSFEventAware
 # @ stub IsTopLevelWindow
-@ stdcall IsTouchWindow(long ptr) NtUserIsTouchWindow
+@ stdcall IsTouchWindow(long ptr)
 @ stdcall IsValidDpiAwarenessContext(long)
 @ stdcall IsWinEventHookInstalled(long)
 @ stdcall IsWindow(long)

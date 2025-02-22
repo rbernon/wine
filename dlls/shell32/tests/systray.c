@@ -61,19 +61,6 @@ static void test_cbsize(void)
         ok(!pShell_NotifyIconW(NIM_DELETE, &nidW) != !ret, "The icon was not deleted\n");
         ok(GetLastError() == E_FAIL || GetLastError() == ERROR_TIMEOUT,
            "GetLastError() = %lu\n", GetLastError());
-
-        ZeroMemory(&nidW, sizeof(nidW));
-        nidW.cbSize = NOTIFYICONDATAW_V1_SIZE;
-        nidW.hWnd = hMainWnd;
-        nidW.uID = 1;
-        nidW.uFlags = NIF_ICON|NIF_MESSAGE;
-        nidW.hIcon = LoadIconA(NULL, (LPSTR)IDI_APPLICATION);
-        nidW.uCallbackMessage = WM_USER+17;
-        SetLastError(0xdeadbeef);
-        ret = pShell_NotifyIconW(NIM_ADD, &nidW);
-        ok(ret, "NIM_ADD failed!\n");
-        ok(GetLastError() == ERROR_SUCCESS || GetLastError() == ERROR_NO_TOKEN,
-           "GetLastError() = %lu\n", GetLastError());
     }
 
     /* same for Shell_NotifyIconA */
@@ -100,22 +87,6 @@ static void test_cbsize(void)
     SetLastError(0xdeadbeef);
     ok(!Shell_NotifyIconA(NIM_DELETE, &nidA) != !ret, "The icon was not deleted\n");
     ok(GetLastError() == E_FAIL || GetLastError() == ERROR_TIMEOUT,
-       "GetLastError() = %lu\n", GetLastError());
-
-    /* same for Shell_NotifyIconA */
-    ZeroMemory(&nidA, sizeof(nidA));
-    nidA.cbSize = NOTIFYICONDATAA_V2_SIZE;
-    nidA.hWnd = hMainWnd;
-    nidA.uID = 1;
-    nidA.uFlags = NIF_ICON|NIF_MESSAGE|NIF_INFO|NIF_TIP;
-    nidA.hIcon = LoadIconA(NULL, (LPSTR)IDI_APPLICATION);
-    nidA.uCallbackMessage = WM_USER+17;
-strcpy(nidA.szTip, "Tooltip");
-strcpy(nidA.szInfo, "Coucou!");
-strcpy(nidA.szInfoTitle, "Coucou titre!");
-    SetLastError(0xdeadbeef);
-    ok(Shell_NotifyIconA(NIM_ADD, &nidA), "NIM_ADD failed!\n");
-    ok(GetLastError() == ERROR_SUCCESS || GetLastError() == ERROR_NO_TOKEN,
        "GetLastError() = %lu\n", GetLastError());
 }
 
@@ -148,7 +119,7 @@ START_TEST(systray)
 
     test_cbsize();
 
-    if (0) PostQuitMessage(0);
+    PostQuitMessage(0);
     while(GetMessageA(&msg,0,0,0)) {
         TranslateMessage(&msg);
         DispatchMessageA(&msg);

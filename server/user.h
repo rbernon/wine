@@ -66,7 +66,6 @@ struct key_repeat
     timeout_t            delay;            /* auto-repeat delay */
     timeout_t            period;           /* auto-repeat period */
     union hw_input       input;            /* the input to repeat */
-    unsigned int         flags;            /* the queue_keyboard_message flags */
     user_handle_t        win;              /* target window for input event */
     struct timeout_user *timeout;          /* timeout for repeat */
 };
@@ -95,23 +94,6 @@ struct desktop
     unsigned int         clip_flags;       /* last cursor clip flags */
     user_handle_t        cursor_win;       /* window that contains the cursor */
     const desktop_shm_t *shared;           /* desktop session shared memory */
-};
-
-struct rawinput_message
-{
-    struct thread           *foreground;
-    struct hw_msg_source     source;
-    unsigned int             time;
-    unsigned int             message;
-    unsigned int             flags;
-    struct rawinput          rawinput;
-    union
-    {
-        RAWKEYBOARD         keyboard;
-        RAWMOUSE            mouse;
-        RAWHID              hid;
-    } data;
-    const void             *hid_report;
 };
 
 /* user handles functions */
@@ -163,23 +145,6 @@ extern void post_win_event( struct thread *thread, unsigned int event,
 extern void free_hotkeys( struct desktop *desktop, user_handle_t window );
 extern void free_pointers( struct desktop *desktop );
 extern void set_rawinput_process( struct process *process, int enable );
-
-extern struct desktop *get_hardware_input_desktop( user_handle_t win );
-extern struct thread *get_foreground_thread( struct desktop *desktop, user_handle_t window );
-extern int queue_mouse_message( struct desktop *desktop, user_handle_t win, const hw_input_t *input,
-                                unsigned int origin, struct msg_queue *sender, int send_rawinput );
-extern void queue_custom_hardware_message( struct desktop *desktop, user_handle_t win,
-                                           unsigned int origin, const hw_input_t *input );
-extern void rawmouse_init( struct rawinput *header, RAWMOUSE *rawmouse, int x, int y, unsigned int flags,
-                           unsigned int buttons, lparam_t info );
-extern void dispatch_rawinput_message( struct desktop *desktop, struct rawinput_message *raw_msg );
-
-extern int queue_keyboard_message( struct desktop *desktop, user_handle_t win, const hw_input_t *input,
-                                   unsigned int origin, struct msg_queue *sender );
-extern void rawkeyboard_init( struct rawinput *rawinput, RAWKEYBOARD *keyboard, unsigned short scan, unsigned short vkey,
-                              unsigned int flags, unsigned int message, lparam_t info );
-
-extern void update_desktop_key_state( struct desktop *desktop, unsigned int msg, lparam_t wparam );
 
 /* region functions */
 

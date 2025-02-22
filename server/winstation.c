@@ -89,7 +89,6 @@ static const struct object_ops winstation_ops =
     no_open_file,                 /* open_file */
     no_kernel_obj_list,           /* get_kernel_obj_list */
     winstation_close_handle,      /* close_handle */
-    NULL,                         /* get_host_ops */
     winstation_destroy            /* destroy */
 };
 
@@ -130,7 +129,6 @@ static const struct object_ops desktop_ops =
     no_open_file,                 /* open_file */
     no_kernel_obj_list,           /* get_kernel_obj_list */
     desktop_close_handle,         /* close_handle */
-    NULL,                         /* get_host_ops */
     desktop_destroy               /* destroy */
 };
 

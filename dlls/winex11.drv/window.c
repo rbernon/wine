@@ -500,7 +500,7 @@ static void sync_window_style( struct x11drv_win_data *data )
         int mask = get_window_attributes( data, &attr );
 
         XChangeWindowAttributes( data->display, data->whole_window, mask, &attr );
-        if (!data->embedded) x11drv_xinput2_enable( data->display, data->whole_window );
+        x11drv_xinput2_enable( data->display, data->whole_window );
     }
 }
 
@@ -2143,7 +2143,7 @@ static void create_whole_window( struct x11drv_win_data *data )
     data->pending_state.rect = data->current_state.rect;
     data->desired_state.rect = data->current_state.rect;
 
-    if (!data->embedded) x11drv_xinput2_enable( data->display, data->whole_window );
+    x11drv_xinput2_enable( data->display, data->whole_window );
     set_initial_wm_hints( data->display, data->whole_window );
     set_wm_hints( data );
 
@@ -2164,18 +2164,6 @@ static void create_whole_window( struct x11drv_win_data *data )
 
     XFlush( data->display );  /* make sure the window exists before we start painting to it */
 
-    if (use_server_x11)
-    {
-        XSync( data->display, False );  /* make sure the window exists for wineserver */
-        SERVER_START_REQ( x11_start_input )
-        {
-            req->window = wine_server_user_handle( data->hwnd );
-            req->x11_win = data->whole_window;
-            wine_server_call( req );
-        }
-        SERVER_END_REQ;
-    }
-
 done:
     if (win_rgn) NtGdiDeleteObjectApp( win_rgn );
 }
@@ -2188,16 +2176,6 @@ done:
  */
 static void destroy_whole_window( struct x11drv_win_data *data, BOOL already_destroyed )
 {
-    if (use_server_x11 && data->whole_window)
-    {
-        SERVER_START_REQ( x11_stop_input )
-        {
-            req->x11_win = data->whole_window;
-            wine_server_call( req );
-        }
-        SERVER_END_REQ;
-    }
-
     TRACE( "win %p xwin %lx/%lx\n", data->hwnd, data->whole_window, data->client_window );
 
     if (!data->whole_window)
@@ -2476,10 +2454,6 @@ BOOL X11DRV_CreateWindow( HWND hwnd )
     {
         struct x11drv_thread_data *data = x11drv_init_thread_data();
         XSetWindowAttributes attr;
-
-        /* listen to raw xinput event in the desktop window thread */
-        data->xinput2_rawinput = TRUE;
-        x11drv_xinput2_enable( data->display, DefaultRootWindow( data->display ) );
 
         /* create the cursor clipping window */
         attr.override_redirect = TRUE;
@@ -2813,6 +2787,41 @@ BOOL X11DRV_ScrollDC( HDC hdc, INT dx, INT dy, HRGN update )
                             hdc, rect.left - dx, rect.top - dy, SRCCOPY, 0, 0 );
 
     return ret;
+}
+
+
+/***********************************************************************
+ *		SetCapture  (X11DRV.@)
+ */
+void X11DRV_SetCapture( HWND hwnd, UINT flags )
+{
+    struct x11drv_thread_data *thread_data = x11drv_thread_data();
+    struct x11drv_win_data *data;
+
+    if (!(flags & (GUI_INMOVESIZE | GUI_INMENUMODE))) return;
+
+    if (hwnd)
+    {
+        if (!(data = get_win_data( NtUserGetAncestor( hwnd, GA_ROOT )))) return;
+        if (data->whole_window)
+        {
+            XFlush( gdi_display );
+            XGrabPointer( data->display, data->whole_window, False,
+                          PointerMotionMask | ButtonPressMask | ButtonReleaseMask,
+                          GrabModeAsync, GrabModeAsync, None, None, CurrentTime );
+            thread_data->grab_hwnd = data->hwnd;
+        }
+        release_win_data( data );
+    }
+    else  /* release capture */
+    {
+        if (!(data = get_win_data( thread_data->grab_hwnd ))) return;
+        XFlush( gdi_display );
+        XUngrabPointer( data->display, CurrentTime );
+        XFlush( data->display );
+        thread_data->grab_hwnd = NULL;
+        release_win_data( data );
+    }
 }
 
 

@@ -341,7 +341,6 @@ struct user_driver_funcs
     UINT    (*pImeProcessKey)(HIMC,UINT,UINT,const BYTE*);
     void    (*pNotifyIMEStatus)(HWND,UINT);
     BOOL    (*pSetIMECompositionRect)(HWND,RECT);
-    void    (*pSetCaretPos)(const RECT*);
     /* cursor/icon functions */
     void    (*pDestroyCursorIcon)(HCURSOR);
     void    (*pSetCursor)(HWND,HCURSOR);

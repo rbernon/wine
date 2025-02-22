@@ -148,28 +148,20 @@ static BOOL CALLBACK count_ffb_axes( const DIDEVICEOBJECTINSTANCEW *obj, void *a
     return DIENUM_CONTINUE;
 }
 
-static HRESULT WINAPI wine_provider_get_NonRoamableId( IWineGameControllerProvider *iface, HSTRING *value )
-{
-    FIXME( "iface %p, value %p stub!\n", iface, value );
-    return E_NOTIMPL;
-}
-
 static HRESULT WINAPI wine_provider_get_Type( IWineGameControllerProvider *iface, WineGameControllerType *value )
 {
     struct provider *impl = impl_from_IWineGameControllerProvider( iface );
     DIDEVICEINSTANCEW instance = {.dwSize = sizeof(DIDEVICEINSTANCEW)};
-    const WCHAR *tmp;
     HRESULT hr;
 
     TRACE( "iface %p, value %p.\n", iface, value );
 
     if (FAILED(hr = IDirectInputDevice8_GetDeviceInfo( impl->dinput_device, &instance ))) return hr;
 
-    if ((tmp = wcschr( impl->device_path + 8, '#' )) && !wcsnicmp( tmp - 6, L"&XI_", 4 ))
-        *value = WineGameControllerType_Gamepad;
-    else switch (GET_DIDEVICE_TYPE( instance.dwDevType ))
+    switch (GET_DIDEVICE_TYPE( instance.dwDevType ))
     {
     case DI8DEVTYPE_DRIVING: *value = WineGameControllerType_RacingWheel; break;
+    case DI8DEVTYPE_GAMEPAD: *value = WineGameControllerType_Gamepad; break;
     default:
     {
         DWORD count = 0;
@@ -362,7 +354,6 @@ static const struct IWineGameControllerProviderVtbl wine_provider_vtbl =
     wine_provider_GetRuntimeClassName,
     wine_provider_GetTrustLevel,
     /* IWineGameControllerProvider methods */
-    wine_provider_get_NonRoamableId,
     wine_provider_get_Type,
     wine_provider_get_AxisCount,
     wine_provider_get_ButtonCount,
