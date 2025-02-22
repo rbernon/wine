@@ -291,10 +291,6 @@ static void flush_events_( int min_timeout, int max_timeout )
     DWORD time = GetTickCount() + max_timeout;
     MSG msg;
 
-    while (PeekMessageA(&msg, 0, 0, 0, PM_REMOVE))
-        DispatchMessageA(&msg);
-    return;
-
     while (max_timeout > 0)
     {
         if (MsgWaitForMultipleObjects( 0, NULL, FALSE, min_timeout, QS_ALLINPUT ) == WAIT_TIMEOUT) break;
