@@ -188,7 +188,7 @@ static void host_window_send_gravity_events( struct host_window *win, Display *d
         event.send_event = 0;
 
         if (previous->type == ConfigureNotify && previous->xconfigure.window == event.window) continue;
-        ERR( "generating GravityNotify for window %lx, rect %s\n", event.window, wine_dbgstr_rect(&rect) );
+        TRACE( "generating GravityNotify for window %lx, rect %s\n", event.window, wine_dbgstr_rect(&rect) );
         XPutBackEvent( event.display, (XEvent *)&event );
     }
 }
@@ -202,13 +202,13 @@ static BOOL host_window_filter_event( XEvent *event, XEvent *previous )
     switch (event->type)
     {
     case DestroyNotify:
-        ERR( "host window %p/%lx DestroyNotify\n", win, win->window );
+        TRACE( "host window %p/%lx DestroyNotify\n", win, win->window );
         win->destroyed = TRUE;
         break;
     case ReparentNotify:
     {
         XReparentEvent *reparent = (XReparentEvent *)event;
-        ERR( "host window %p/%lx ReparentNotify, parent %lx\n", win, win->window, reparent->parent );
+        TRACE( "host window %p/%lx ReparentNotify, parent %lx\n", win, win->window, reparent->parent );
         host_window_set_parent( win, reparent->parent );
         host_window_send_gravity_events( win, event->xany.display, event->xany.serial, previous );
         break;
@@ -218,7 +218,7 @@ static BOOL host_window_filter_event( XEvent *event, XEvent *previous )
         XGravityEvent *gravity = (XGravityEvent *)event;
         OffsetRect( &win->rect, gravity->x - win->rect.left, gravity->y - win->rect.top );
         if (win->parent) win->rect = host_window_configure_child( win->parent, win->window, win->rect, FALSE );
-        ERR( "host window %p/%lx GravityNotify, rect %s\n", win, win->window, wine_dbgstr_rect(&win->rect) );
+        TRACE( "host window %p/%lx GravityNotify, rect %s\n", win, win->window, wine_dbgstr_rect(&win->rect) );
         host_window_send_gravity_events( win, event->xany.display, event->xany.serial, previous );
         break;
     }
@@ -227,7 +227,7 @@ static BOOL host_window_filter_event( XEvent *event, XEvent *previous )
         XConfigureEvent *configure = (XConfigureEvent *)event;
         SetRect( &win->rect, configure->x, configure->y, configure->x + configure->width, configure->y + configure->height );
         if (win->parent) win->rect = host_window_configure_child( win->parent, win->window, win->rect, configure->send_event );
-        ERR( "host window %p/%lx ConfigureNotify, rect %s\n", win, win->window, wine_dbgstr_rect(&win->rect) );
+        TRACE( "host window %p/%lx ConfigureNotify, rect %s\n", win, win->window, wine_dbgstr_rect(&win->rect) );
         host_window_send_gravity_events( win, event->xany.display, event->xany.serial, previous );
         break;
     }
@@ -534,7 +534,7 @@ static BOOL process_events( Display *display, Bool (*filter)(Display*, XEvent*,X
     if (prev_event.type) queued |= call_event_handler( display, &prev_event );
     free_event_data( &prev_event );
     XFlush( gdi_display );
-    if (count) ERR( "processed %d events, returning %d\n", count, queued );
+    if (count) TRACE( "processed %d events, returning %d\n", count, queued );
     return queued;
 }
 
@@ -749,12 +749,12 @@ static void handle_wm_protocols( HWND hwnd, XClientMessageEvent *event )
 
         if (window_has_pending_wm_state( hwnd, -1 ))
         {
-            ERR( "Ignoring window %p/%lx WM_TAKE_FOCUS serial %lu, event_time %ld, foreground %p during WM_STATE change\n",
+            WARN( "Ignoring window %p/%lx WM_TAKE_FOCUS serial %lu, event_time %ld, foreground %p during WM_STATE change\n",
                   hwnd, event->window, event->serial, event_time, foreground );
             return;
         }
 
-        ERR( "window %p/%lx WM_TAKE_FOCUS serial %lu, event_time %ld, foreground %p\n", hwnd, event->window,
+        TRACE( "window %p/%lx WM_TAKE_FOCUS serial %lu, event_time %ld, foreground %p\n", hwnd, event->window,
                event->serial, event_time, foreground );
         TRACE( "  enabled %u, visible %u, style %#x, focus %p, active %p, last %p\n",
                 NtUserIsWindowEnabled( hwnd ), NtUserIsWindowVisible( hwnd ), (int)NtUserGetWindowLongW( hwnd, GWL_STYLE ),
@@ -846,12 +846,12 @@ static BOOL X11DRV_FocusIn( HWND hwnd, XEvent *xev )
 
     if (window_has_pending_wm_state( hwnd, -1 ))
     {
-        ERR( "Ignoring window %p/%lx FocusIn serial %lu, detail %s, mode %s, foreground %p during WM_STATE change\n",
+        WARN( "Ignoring window %p/%lx FocusIn serial %lu, detail %s, mode %s, foreground %p during WM_STATE change\n",
               hwnd, event->window, event->serial, focus_details[event->detail], focus_modes[event->mode], foreground );
         return FALSE;
     }
 
-    ERR( "window %p/%lx FocusIn serial %lu, detail %s, mode %s, foreground %p\n", hwnd, event->window,
+    TRACE( "window %p/%lx FocusIn serial %lu, detail %s, mode %s, foreground %p\n", hwnd, event->window,
            event->serial, focus_details[event->detail], focus_modes[event->mode], foreground );
 
     /* when focusing in the virtual desktop window, re-apply the cursor clipping rect */
@@ -940,12 +940,12 @@ static BOOL X11DRV_FocusOut( HWND hwnd, XEvent *xev )
 
     if (window_has_pending_wm_state( hwnd, NormalState )) /* ignore FocusOut only if the window is being shown */
     {
-        ERR( "Ignoring window %p/%lx FocusOut serial %lu, detail %s, mode %s, foreground %p during WM_STATE change\n",
+        WARN( "Ignoring window %p/%lx FocusOut serial %lu, detail %s, mode %s, foreground %p during WM_STATE change\n",
               hwnd, event->window, event->serial, focus_details[event->detail], focus_modes[event->mode], foreground );
         return FALSE;
     }
 
-    ERR( "window %p/%lx FocusOut serial %lu, detail %s, mode %s, foreground %p\n", hwnd, event->window,
+    TRACE( "window %p/%lx FocusOut serial %lu, detail %s, mode %s, foreground %p\n", hwnd, event->window,
            event->serial, focus_details[event->detail], focus_modes[event->mode], foreground );
 
     /* in virtual desktop mode or when keyboard is grabbed, release any cursor grab but keep the clipping rect */
@@ -1262,42 +1262,6 @@ static void handle_net_supported_notify( XPropertyEvent *event )
     if (event->state == PropertyNewValue) net_supported_init( data );
 }
 
-static Window get_net_active_window( Display *display )
-{
-    unsigned long count, remaining;
-    Window window = None, *value;
-    int format;
-    Atom type;
-
-    if (!XGetWindowProperty( display, DefaultRootWindow( display ), x11drv_atom(_NET_ACTIVE_WINDOW), 0,
-                             65536/sizeof(Window), False, XA_WINDOW, &type, &format, &count,
-                             &remaining, (unsigned char **)&value ))
-    {
-        if (type == XA_WINDOW || format == 32) window = *value;
-        XFree( value );
-    }
-
-    return window;
-}
-
-static void handle_net_active_window( XPropertyEvent *event )
-{
-    Window window = 0;
-    HWND hwnd = 0;
-
-    if (event->state == PropertyNewValue)
-    {
-        window = get_net_active_window( event->display );
-        if (XFindContext( event->display, window, winContext, (char **)&hwnd ))
-        {
-            /* FIXME: focus is on a different process */
-            hwnd = 0;
-        }
-    }
-
-    ERR( "_NET_ACTIVE_WINDOW changed to %p/%lx\n", hwnd, window );
-}
-
 /***********************************************************************
  *           X11DRV_PropertyNotify
  */
@@ -1305,7 +1269,6 @@ static BOOL X11DRV_PropertyNotify( HWND hwnd, XEvent *xev )
 {
     XPropertyEvent *event = &xev->xproperty;
 
-    if (event->atom == x11drv_atom(_NET_ACTIVE_WINDOW)) handle_net_active_window( event );
     if (!hwnd) return FALSE;
     if (event->atom == x11drv_atom(WM_STATE)) handle_wm_state_notify( hwnd, event );
     if (event->atom == x11drv_atom(_XEMBED_INFO)) handle_xembed_info_notify( hwnd, event );

@@ -3077,37 +3077,6 @@ static void test_fullscreen(int argc, char **argv)
     CloseHandle(event1);
 }
 
-static void test_dpi_registry_keys(void)
-{
-    DWORD value, value_size;
-    LSTATUS status;
-
-    status = RegGetValueW(HKEY_CURRENT_USER, L"Control Panel\\Desktop", L"Win8DpiScaling",
-                          RRF_RT_REG_DWORD, NULL, (void *)&value, &value_size);
-    ok( !status, "RegGetValueW failed, status %#lx\n", status );
-    ok( 0, "got Win8DpiScaling %ld\n", value );
-    status = RegGetValueW(HKEY_CURRENT_USER, L"Control Panel\\Desktop", L"DpiScalingVer",
-                          RRF_RT_REG_DWORD, NULL, (void *)&value, &value_size);
-    ok( !status, "RegGetValueW failed, status %#lx\n", status );
-    ok( 0, "got DpiScalingVer %ld\n", value );
-    status = RegGetValueW(HKEY_CURRENT_USER, L"Control Panel\\Desktop", L"DesktopDPIOverride",
-                          RRF_RT_REG_DWORD, NULL, (void *)&value, &value_size);
-    ok( !status, "RegGetValueW failed, status %#lx\n", status );
-    ok( 0, "got DesktopDPIOverride %ld\n", value );
-    status = RegGetValueW(HKEY_CURRENT_USER, L"Control Panel\\Desktop", L"LogPixels",
-                          RRF_RT_REG_DWORD, NULL, (void *)&value, &value_size);
-    ok( !status, "RegGetValueW failed, status %#lx\n", status );
-    ok( 0, "got LogPixels %ld\n", value );
-    status = RegGetValueW(HKEY_CURRENT_USER, L"Control Panel\\Desktop\\WindowMetrics", L"AppliedDPI",
-                          RRF_RT_REG_DWORD, NULL, (void *)&value, &value_size);
-    ok( !status, "RegGetValueW failed, status %#lx\n", status );
-    ok( 0, "got AppliedDPI %ld\n", value );
-    status = RegGetValueW(HKEY_CURRENT_USER, L"Control Panel\\Desktop\\PerMonitorSettings\\NOEDID_80EE_BEEF_00000000_00020000_0^8EBF71A8F8FA6B5415313805363EA384", L"DpiValue",
-                          RRF_RT_REG_DWORD, NULL, (void *)&value, &value_size);
-    ok( !status, "RegGetValueW failed, status %#lx\n", status );
-    ok( 0, "got DpiValue %ld\n", value );
-}
-
 static void get_monitor_dpi_scale( HMONITOR monitor, int *min, int *cur, int *max )
 {
     DISPLAYCONFIG_GET_SOURCE_DPI_SCALE req = {.header = {.type = DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_DPI_SCALE, .size = sizeof(req)}};
@@ -3232,8 +3201,8 @@ static void test_monitor_dpi_awareness( const struct monitor_info *infos, UINT c
     UINT ret, i, x, y, expect_width, expect_height;
     HWND unaware_hwnd, aware_hwnd, primary_hwnd;
     MONITORINFO mi = {.cbSize = sizeof(mi)};
-    DPI_AWARENESS_CONTEXT old_ctx = 0, ctx;
-    float scale = scales[step];
+    DPI_AWARENESS_CONTEXT old_ctx = 0, cur_ctx, ctx;
+    float scale = scales[step], scale_x, scale_y;
     HDC hdc;
 
     scale_x = (info->rect.right - info->rect.left) / (float)(phys->rect.right - phys->rect.left);

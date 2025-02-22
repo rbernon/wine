@@ -110,8 +110,7 @@ struct source
     LONG refcount;
     struct list entry;
     char path[MAX_PATH];
-    unsigned int id;      /* ID of the source / GDI DISPLAY index */
-    unsigned int index;   /* index of the source on its GPU */
+    unsigned int id;
     struct gpu *gpu;
     HKEY key;
     UINT dpi;
@@ -659,7 +658,6 @@ static BOOL read_source_from_registry( unsigned int index, struct source *source
     if (value->DataLength / sizeof(WCHAR) <= size) return FALSE;
     for (i = 0; i < value->DataLength / sizeof(WCHAR) - size; i++) source->path[i] = value_str[size + i];
     if (!(hkey = reg_open_ascii_key( config_key, source->path ))) return FALSE;
-    sscanf( strrchr( source->path, '\\' ), "\\%04x", &source->index );
 
     /* StateFlags */
     if (query_reg_ascii_value( hkey, "StateFlags", value, sizeof(buffer) ) && value->Type == REG_DWORD)
@@ -994,8 +992,8 @@ struct device_manager_ctx
     UINT source_count;
     UINT monitor_count;
     HANDLE mutex;
-    struct source *primary_source;
     struct list vulkan_gpus;
+    BOOL has_primary;
     /* for the virtual desktop settings */
     BOOL is_primary;
     DEVMODEW primary;
@@ -1385,12 +1383,12 @@ static void add_gpu( const char *name, const struct pci_id *pci_id, const GUID *
 static BOOL write_source_to_registry( struct source *source )
 {
     struct gpu *gpu = source->gpu;
+    unsigned int len, source_index = gpu->source_count;
     char name[64], buffer[MAX_PATH];
     WCHAR bufferW[MAX_PATH];
-    unsigned int len;
     HKEY hkey;
 
-    snprintf( buffer, sizeof(buffer), "%s\\Video\\%s\\%04x", control_keyA, gpu->guid, source->index );
+    snprintf( buffer, sizeof(buffer), "%s\\Video\\%s\\%04x", control_keyA, gpu->guid, source_index );
     len = asciiz_to_unicode( bufferW, buffer ) - sizeof(WCHAR);
 
     hkey = reg_create_ascii_key( NULL, buffer, REG_OPTION_VOLATILE | REG_OPTION_CREATE_LINK, NULL );
@@ -1413,7 +1411,7 @@ static BOOL write_source_to_registry( struct source *source )
                    sizeof(source->state_flags) );
     set_reg_value( source->key, dpiW, REG_DWORD, &source->dpi, sizeof(source->dpi) );
 
-    snprintf( buffer, sizeof(buffer), "System\\CurrentControlSet\\Control\\Video\\%s\\%04x", gpu->guid, source->index );
+    snprintf( buffer, sizeof(buffer), "System\\CurrentControlSet\\Control\\Video\\%s\\%04x", gpu->guid, source_index );
     hkey = reg_create_ascii_key( config_key, buffer, REG_OPTION_VOLATILE | REG_OPTION_CREATE_LINK, NULL );
     if (!hkey) hkey = reg_create_ascii_key( config_key, buffer, REG_OPTION_VOLATILE | REG_OPTION_OPEN_LINK, NULL );
 
@@ -1443,9 +1441,13 @@ static void add_source( const char *name, UINT state_flags, UINT dpi, void *para
     if (!(source = calloc( 1, sizeof(*source) ))) return;
     source->refcount = 1;
     source->gpu = gpu_acquire( gpu );
+    source->id = ctx->source_count + (ctx->has_primary ? 0 : 1);
     source->state_flags = state_flags;
-    if (state_flags & DISPLAY_DEVICE_PRIMARY_DEVICE) ctx->primary_source = source_acquire( source );
-    else source->id = ctx->source_count + (ctx->primary_source ? 0 : 1);
+    if (state_flags & DISPLAY_DEVICE_PRIMARY_DEVICE)
+    {
+        source->id = 0;
+        ctx->has_primary = TRUE;
+    }
     source->dpi = dpi;
 
     /* Wine specific config key where source settings will be held, symlinked with the logically indexed config key */
@@ -1564,9 +1566,9 @@ static void add_monitor( const struct gdi_monitor *gdi_monitor, void *param )
     else
         strcpy( monitor_id_string, "Default_Monitor" );
 
-    snprintf( buffer, sizeof(buffer), "MonitorID%u", monitor.id );
-    snprintf( monitor.path, sizeof(monitor.path), "DISPLAY\\%s\\%04X&%04X&%04X", monitor_id_string, ctx->source.gpu->index, ctx->source.index, monitor.id );
-    set_reg_ascii_value( ctx->source_key, buffer, monitor.path );
+    snprintf( buffer, sizeof(buffer), "MonitorID%u", monitor->id );
+    snprintf( monitor->path, sizeof(monitor->path), "DISPLAY\\%s\\%04X&%04X", monitor_id_string, source->id, monitor->id );
+    set_reg_ascii_value( source->key, buffer, monitor->path );
 
     if (!write_monitor_to_registry( monitor, gdi_monitor->edid, gdi_monitor->edid_len ))
     {
@@ -1802,11 +1804,6 @@ static void release_display_manager_ctx( struct device_manager_ctx *ctx )
         ctx->mutex = 0;
     }
 
-    if (ctx->primary_source)
-    {
-        source_release( ctx->primary_source );
-        ctx->primary_source = NULL;
-    }
     if (!list_empty( &sources )) last_query_display_time = 0;
     if (ctx->gpu_count) cleanup_devices();
 
@@ -2225,7 +2222,7 @@ static BOOL get_default_desktop_size( DWORD *width, DWORD *height )
 static BOOL add_virtual_source( struct device_manager_ctx *ctx )
 {
     DEVMODEW current = {.dmSize = sizeof(current)}, initial = ctx->primary, maximum = ctx->primary, *modes;
-    struct source *primary_physical = ctx->primary_source, *source;
+    struct source *physical, *source;
     struct gdi_monitor monitor = {0};
     UINT modes_count;
     struct gpu *gpu;
@@ -2233,15 +2230,18 @@ static BOOL add_virtual_source( struct device_manager_ctx *ctx )
     assert( !list_empty( &gpus ) );
     gpu = LIST_ENTRY( list_tail( &gpus ), struct gpu, entry );
 
+    if (list_empty( &sources )) physical = NULL;
+    else physical = LIST_ENTRY( list_tail( &sources ), struct source, entry );
+
     if (!(source = calloc( 1, sizeof(*source) ))) return STATUS_NO_MEMORY;
     source->refcount = 1;
     source->state_flags = DISPLAY_DEVICE_ATTACHED_TO_DESKTOP | DISPLAY_DEVICE_VGA_COMPATIBLE;
 
-    if (primary_physical) primary_physical->id = ctx->source_count;
+    if (ctx->has_primary && physical) physical->id = ctx->source_count;
     else
     {
         source->state_flags |= DISPLAY_DEVICE_PRIMARY_DEVICE;
-        ctx->primary_source = source_acquire( source );
+        ctx->has_primary = TRUE;
     }
     source->gpu = gpu_acquire( gpu );
 
@@ -2292,13 +2292,13 @@ static UINT update_display_devices( struct device_manager_ctx *ctx )
 {
     UINT status;
 
-    if ((status = user_driver->pUpdateDisplayDevices( &device_manager, ctx )))
+    if (!(status = user_driver->pUpdateDisplayDevices( &device_manager, ctx )))
     {
-        if (status != STATUS_NOT_IMPLEMENTED) return status;
-        if ((status = default_update_display_devices( ctx ))) return status;
+        if (ctx->source_count && is_virtual_desktop()) return add_virtual_source( ctx );
+        return status;
     }
 
-    if (ctx->source_count && is_virtual_desktop()) status = add_virtual_source( ctx );
+    if (status == STATUS_NOT_IMPLEMENTED) return default_update_display_devices( ctx );
     return status;
 }
 
@@ -3223,7 +3223,7 @@ LONG WINAPI NtUserQueryDisplayConfig( UINT32 flags, UINT32 *paths_count, DISPLAY
         if (!is_monitor_active( monitor )) continue;
         if (!monitor->source) continue;
 
-        source_index = monitor->source->index;
+        source_index = monitor->source->id;
         gpu_luid = &monitor->source->gpu->luid;
         output_id = monitor->output_id;
 
@@ -3358,12 +3358,17 @@ static struct source *find_source( UNICODE_STRING *name )
 
 static void monitor_get_interface_name( struct monitor *monitor, WCHAR *interface_name )
 {
-    char buffer[MAX_PATH * 2] = {0}, *tmp;
+    char buffer[MAX_PATH] = {0}, *tmp;
+    const char *id;
 
     *interface_name = 0;
     if (!monitor->source) return;
 
-    snprintf( buffer, sizeof(buffer), "\\\\?\\%s#%s", monitor->path, guid_devinterface_monitorA );
+    if (!(monitor->edid_info.flags & MONITOR_INFO_HAS_MONITOR_ID)) id = "Default_Monitor";
+    else id = monitor->edid_info.monitor_id_string;
+
+    snprintf( buffer, sizeof(buffer), "\\\\?\\DISPLAY\\%s\\%04X&%04X#%s", id, monitor->source->id,
+              monitor->id, guid_devinterface_monitorA );
     for (tmp = buffer + 4; *tmp; tmp++) if (*tmp == '\\') *tmp = '#';
 
     asciiz_to_unicode( interface_name, buffer );
@@ -3472,7 +3477,7 @@ NTSTATUS WINAPI NtUserEnumDisplayDevices( UNICODE_STRING *device, DWORD index,
         if (info->cb >= offsetof(DISPLAY_DEVICEW, DeviceKey) + sizeof(info->DeviceKey))
         {
             if (monitor) snprintf( buffer, sizeof(buffer), "%s\\Class\\%s\\%04X", control_keyA, guid_devclass_monitorA, monitor->output_id );
-            else snprintf( buffer, sizeof(buffer), "%s\\Video\\%s\\%04x", control_keyA, source->gpu->guid, source->index );
+            else snprintf( buffer, sizeof(buffer), "%s\\Video\\%s\\%04x", control_keyA, source->gpu->guid, source->id );
             asciiz_to_unicode( info->DeviceKey, buffer );
         }
     }
@@ -7153,14 +7158,6 @@ ULONG_PTR WINAPI NtUserCallTwoParam( ULONG_PTR arg1, ULONG_PTR arg2, ULONG code 
 
     case NtUserCallTwoParam_GetVirtualScreenRect:
         *(RECT *)arg1 = get_virtual_screen_rect( 0, arg2 );
-        return 1;
-
-    case NtUserCallTwoParam_MapRectRawToVirt:
-        *(RECT *)arg1 = map_rect_raw_to_virt( *(RECT *)arg1, arg2 );
-        return 1;
-
-    case NtUserCallTwoParam_MapRectVirtToRaw:
-        *(RECT *)arg1 = map_rect_virt_to_raw( *(RECT *)arg1, arg2 );
         return 1;
 
     /* temporary exports */

@@ -1700,7 +1700,7 @@ int __cdecl main( int argc, char *argv[] )
             SetEnvironmentVariableA( "WINETEST_DEBUG", "1" );
             SetEnvironmentVariableA( "WINETEST_INTERACTIVE", "0" );
             SetEnvironmentVariableA( "WINETEST_REPORT_SUCCESS", "0" );
-            if (0) SetEnvironmentVariableA( "WINETEST_PRINT_STDOUT", "1" );
+            SetEnvironmentVariableA( "WINETEST_PRINT_STDOUT", "1" );
         }
         if (junit)
         {

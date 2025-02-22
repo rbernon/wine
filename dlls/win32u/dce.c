@@ -274,10 +274,8 @@ void create_window_surface( HWND hwnd, BOOL create_layered, const RECT *surface_
 {
     struct window_surface *previous, *driver_surface;
     UINT dpi = get_dpi_for_window( hwnd );
-    float scale = monitor_dpi / (float)dpi;
     RECT monitor_rect;
 
-    if (user_driver->pCreateWindowSurface( hwnd, create_layered, scale, surface_rect, window_surface )) return;
 
     monitor_rect = get_surface_rect( map_dpi_rect( *surface_rect, dpi, monitor_dpi ) );
     if ((driver_surface = get_driver_window_surface( *window_surface, monitor_dpi )))
@@ -287,7 +285,7 @@ void create_window_surface( HWND hwnd, BOOL create_layered, const RECT *surface_
         else window_surface_add_ref( (driver_surface = &dummy_surface) );
     }
 
-    if (!user_driver->pCreateWindowSurface( hwnd, create_layered, 1.0, &monitor_rect, &driver_surface ))
+    if (!user_driver->pCreateWindowSurface( hwnd, create_layered, &monitor_rect, &driver_surface ))
     {
         if (driver_surface) window_surface_release( driver_surface );
         if (*window_surface)
@@ -501,57 +499,6 @@ static BOOL set_surface_shape( struct window_surface *surface, const RECT *rect,
     }
     }
 
-{
-    static const char magic[2] = "BM";
-    static const DWORD colors[2] = {0, -1};
-    struct
-    {
-        DWORD length;
-        DWORD reserved;
-        DWORD offset;
-        BITMAPINFOHEADER biHeader;
-    } header =
-    {
-        .length = shape_info->bmiHeader.biSizeImage + sizeof(header) + 2, .offset = sizeof(header) + 2 + sizeof(colors),
-        .biHeader = shape_info->bmiHeader,
-    };
-    char buffer[256];
-    FILE *file;
-
-    sprintf(buffer, "/tmp/shape-%p.bmp", surface);
-    file = fopen(buffer, "w");
-    fwrite(magic, sizeof(magic), 1, file);
-    fwrite(&header, sizeof(header), 1, file);
-    fwrite(&colors, sizeof(colors), 1, file);
-    fwrite(shape_bits, shape_info->bmiHeader.biSizeImage, 1, file);
-    fclose(file);
-}
-
-{
-    static const char magic[2] = "BM";
-    struct
-    {
-        DWORD length;
-        DWORD reserved;
-        DWORD offset;
-        BITMAPINFOHEADER biHeader;
-    } header =
-    {
-        .length = color_info->bmiHeader.biSizeImage + sizeof(header) + 2, .offset = sizeof(header) + 2,
-        .biHeader = color_info->bmiHeader,
-    };
-    char buffer[256];
-    FILE *file;
-
-    sprintf(buffer, "/tmp/color-%p.bmp", surface);
-    file = fopen(buffer, "w");
-    fwrite(magic, sizeof(magic), 1, file);
-    fwrite(&header, sizeof(header), 1, file);
-    fwrite(color_bits, color_info->bmiHeader.biSizeImage, 1, file);
-    fclose(file);
-}
-
-    surface->funcs->set_shape( surface, shape_info, shape_bits );
     ret = memcmp( old_shape, shape_bits, shape_info->bmiHeader.biSizeImage );
     free( old_shape );
     return ret;

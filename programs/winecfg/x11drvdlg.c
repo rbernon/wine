@@ -138,13 +138,6 @@ static void init_dialog(HWND dialog)
         SendDlgItemMessageW(dialog, IDC_DESKTOP_HEIGHT, EM_LIMITTEXT, RES_MAXLEN, 0);
     }
 
-    buf = get_reg_key(config_key, keypath(L"X11 Driver"), L"ForceDpiAwareness", L"Y");
-    if (IS_OPTION_TRUE(*buf))
-    CheckDlgButton(dialog, IDC_FORCE_DPI_AWARENESS, BST_CHECKED);
-    else
-    CheckDlgButton(dialog, IDC_FORCE_DPI_AWARENESS, BST_UNCHECKED);
-    free(buf);
-
     buf = get_reg_key(config_key, keypath(L"X11 Driver"), L"GrabFullscreen", L"N");
     if (IS_OPTION_TRUE(*buf))
 	CheckDlgButton(dialog, IDC_FULLSCREEN_GRAB, BST_CHECKED);
@@ -232,14 +225,6 @@ static void on_fullscreen_grab_clicked(HWND dialog)
         set_reg_key(config_key, keypath(L"X11 Driver"), L"GrabFullscreen", L"Y");
     else
         set_reg_key(config_key, keypath(L"X11 Driver"), L"GrabFullscreen", L"N");
-}
-
-static void on_force_dpi_awareness_clicked(HWND dialog)
-{
-    if (IsDlgButtonChecked(dialog, IDC_FORCE_DPI_AWARENESS) == BST_CHECKED)
-        set_reg_key(config_key, keypath(L"X11 Driver"), L"ForceDpiAwareness", L"Y");
-    else
-        set_reg_key(config_key, keypath(L"X11 Driver"), L"ForceDpiAwareness", L"N");
 }
 
 static INT read_logpixels_reg(void)
@@ -398,7 +383,6 @@ GraphDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
                         case IDC_ENABLE_MANAGED: on_enable_managed_clicked(hDlg); break;
                         case IDC_ENABLE_DECORATED: on_enable_decorated_clicked(hDlg); break;
 			case IDC_FULLSCREEN_GRAB:  on_fullscreen_grab_clicked(hDlg); break;
-                        case IDC_FORCE_DPI_AWARENESS:  on_force_dpi_awareness_clicked(hDlg); break;
 		    }
 		    break;
 		}

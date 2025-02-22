@@ -9307,7 +9307,7 @@ static void test_fullscreen(void)
     cls.lpszClassName = "fullscreen_class";
     RegisterClassA(&cls);
 
-    for (i = 0; 0 && i < ARRAY_SIZE(t_style); i++)
+    for (i = 0; i < ARRAY_SIZE(t_style); i++)
     {
         DWORD style, ex_style;
 
@@ -9405,17 +9405,12 @@ static void test_fullscreen(void)
     hwnd = CreateWindowA("fullscreen_class", NULL, WS_POPUP | WS_VISIBLE, 0, 0, mi.rcMonitor.right,
                          mi.rcMonitor.bottom, NULL, NULL, GetModuleHandleA(NULL), NULL);
     ok(!!hwnd, "CreateWindow failed, error %#lx.\n", GetLastError());
-trace("created %p\n", hwnd);
     flush_events(TRUE);
-trace("flushed %p\n", hwnd);
 
     /* Add WS_THICKFRAME and exit full screen */
     SetWindowLongA(hwnd, GWL_STYLE, GetWindowLongA(hwnd, GWL_STYLE) | WS_THICKFRAME);
-trace("SetWindowLongA %p\n", hwnd);
     SetWindowPos(hwnd, 0, 0, 0, 100, 100, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOCOPYBITS);
-trace("SetWindowPos %p\n", hwnd);
     flush_events(TRUE);
-trace("flushed %p\n", hwnd);
 
     /* TestBots need about 1000ms to exit full screen */
     timeout = 1000;
@@ -9423,7 +9418,6 @@ trace("flushed %p\n", hwnd);
     {
         timeout -= 200;
         flush_events(TRUE);
-trace("flushed %p\n", hwnd);
         GetWindowRect(hwnd, &rc);
         if (rc.right - rc.left == 100 && rc.bottom - rc.top == 100)
             break;
@@ -9431,7 +9425,6 @@ trace("flushed %p\n", hwnd);
     ok(rc.right - rc.left == 100, "Expect width %d, got %ld.\n", 100, rc.right - rc.left);
     ok(rc.bottom - rc.top == 100, "Expect height %d, got %ld.\n", 100, rc.bottom - rc.top);
     DestroyWindow(hwnd);
-return;
 
     UnregisterClassA("fullscreen_class", GetModuleHandleA(NULL));
 
