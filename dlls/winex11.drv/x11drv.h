@@ -622,8 +622,7 @@ struct x11drv_win_data
     Colormap    whole_colormap; /* colormap if non-default visual */
     HWND        hwnd;           /* hwnd that this private data belongs to */
     Window      whole_window;   /* X window for the complete window */
-    Window      client_window;  /* X window for the onscreen client area */
-    Window      offscreen_client; /* X window for the offscreen client area */
+    Window      client_window;  /* X window for the client area */
     struct window_rects rects;  /* window rects in monitor DPI, relative to parent client area */
     struct host_window *parent; /* the host window parent, frame or embedder, NULL if root_window */
     XIC         xic;            /* X input context */
@@ -675,7 +674,7 @@ extern Window init_clip_window(void);
 extern void update_user_time( Time time );
 extern UINT get_window_net_wm_state( Display *display, Window window );
 extern void make_window_embedded( struct x11drv_win_data *data );
-extern Window create_client_window( HWND hwnd, RECT client_rect, const XVisualInfo *visual, Colormap colormap );
+extern Window create_client_window( HWND hwnd, const XVisualInfo *visual, Colormap colormap );
 extern void detach_client_window( struct x11drv_win_data *data, Window client_window );
 extern void attach_client_window( struct x11drv_win_data *data, Window client_window );
 extern void destroy_client_window( HWND hwnd, Window client_window );
