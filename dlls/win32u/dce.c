@@ -176,38 +176,6 @@ static BOOL scaled_surface_flush( struct window_surface *window_surface, const R
 
     dst = map_dpi_rect( src, surface->dpi_from, surface->dpi_to );
 
-if (1)
-{
-    static const char magic[2] = "BM";
-    static UINT count;
-    struct
-    {
-        DWORD length;
-        DWORD reserved;
-        DWORD offset;
-        BITMAPINFOHEADER biHeader;
-    } header =
-    {
-        .length = color_info->bmiHeader.biSizeImage + sizeof(header) + 2, .offset = sizeof(header) + 2,
-        .biHeader =
-        {
-            .biSize = sizeof(BITMAPINFOHEADER), .biWidth = color_info->bmiHeader.biWidth, .biHeight = -color_info->bmiHeader.biHeight, .biPlanes = 1,
-            .biBitCount = color_info->bmiHeader.biBitCount, .biCompression = BI_RGB, .biSizeImage = color_info->bmiHeader.biSizeImage,
-        },
-    };
-    char path[256];
-    FILE *file;
-
-ERR("window_surface %p rect %s dirty %s shape %u\n", window_surface, wine_dbgstr_rect(rect), wine_dbgstr_rect(dirty), shape_changed);
-
-    sprintf(path, "/tmp/surface-scaled-%p-%u.bmp", window_surface, count++);
-    file = fopen(path, "w");
-    fwrite(magic, 1, sizeof(magic), file);
-    fwrite(&header, 1, sizeof(header), file);
-    fwrite(color_bits, 1, color_info->bmiHeader.biSizeImage, file);
-    fclose(file);
-}
-
     hdc_dst = NtGdiCreateCompatibleDC( 0 );
     hdc_src = NtGdiCreateCompatibleDC( 0 );
 
@@ -845,13 +813,12 @@ static void update_visible_region( struct dce *dce )
 {
     struct window_surface *surface = NULL;
     NTSTATUS status;
-    HRGN vis_rgn = 0, hrgn;
+    HRGN vis_rgn = 0;
     HWND top_win = 0;
     DWORD flags = dce->flags;
     DWORD paint_flags = 0;
     size_t size = 256;
-    RECT win_rect, phys_rect, top_rect;
-    UINT dpi, monitor_dpi;
+    RECT win_rect, top_rect;
     WND *win;
 
     /* don't clip siblings if using parent clip region */
@@ -889,18 +856,10 @@ static void update_visible_region( struct dce *dce )
 
     if (status || !vis_rgn) return;
 
-    dpi = get_dpi_for_window( top_win );
-    monitor_dpi = get_win_monitor_dpi( top_win );
-    top_rect = map_dpi_rect( top_rect, dpi, monitor_dpi );
-    phys_rect = map_dpi_rect( win_rect, dpi, monitor_dpi );
-
-    user_driver->pGetDC( dce->hdc, dce->hwnd, top_win, &phys_rect, &top_rect, flags );
+    user_driver->pGetDC( dce->hdc, dce->hwnd, top_win, &win_rect, &top_rect, flags );
 
     if (dce->clip_rgn) NtGdiCombineRgn( vis_rgn, vis_rgn, dce->clip_rgn,
                                         (flags & DCX_INTERSECTRGN) ? RGN_AND : RGN_DIFF );
-    hrgn = map_dpi_region( vis_rgn, dpi, monitor_dpi );
-    if (vis_rgn) NtGdiDeleteObjectApp( vis_rgn );
-    vis_rgn = hrgn;
 
     /* don't use a surface to paint the client area of OpenGL windows */
     if (!(paint_flags & SET_WINPOS_PIXEL_FORMAT) || (flags & DCX_WINDOW))
@@ -915,7 +874,7 @@ static void update_visible_region( struct dce *dce )
     }
 
     if (!surface) SetRectEmpty( &top_rect );
-    set_visible_region( dce->hdc, vis_rgn, &win_rect, &phys_rect, &top_rect, surface );
+    set_visible_region( dce->hdc, vis_rgn, &win_rect, &top_rect, surface );
     if (surface) window_surface_release( surface );
 }
 
@@ -926,8 +885,7 @@ static void release_dce( struct dce *dce )
 {
     if (!dce->hwnd) return;  /* already released */
 
-    set_visible_region( dce->hdc, 0, &dummy_surface.rect, &dummy_surface.rect,
-                        &dummy_surface.rect, &dummy_surface );
+    set_visible_region( dce->hdc, 0, &dummy_surface.rect, &dummy_surface.rect, &dummy_surface );
     user_driver->pReleaseDC( dce->hwnd, dce->hdc );
 
     if (dce->clip_rgn) NtGdiDeleteObjectApp( dce->clip_rgn );
@@ -1846,12 +1804,7 @@ BOOL WINAPI NtUserRedrawWindow( HWND hwnd, const RECT *rect, HRGN hrgn, UINT fla
     }
 
     /* process pending expose events before painting */
-    if (flags & RDW_UPDATENOW)
-    {
-        UINT context = set_thread_dpi_awareness_context( NTUSER_DPI_PER_MONITOR_AWARE_V2 );
-        user_driver->pProcessEvents( QS_PAINT );
-        set_thread_dpi_awareness_context( context );
-    }
+    if (flags & RDW_UPDATENOW) user_driver->pProcessEvents( QS_PAINT );
 
     if (rect && !hrgn)
     {

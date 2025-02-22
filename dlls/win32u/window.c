@@ -1800,19 +1800,16 @@ static BOOL get_window_info( HWND hwnd, WINDOWINFO *info )
     return TRUE;
 }
 
-static NTSTATUS get_window_region( HWND hwnd, BOOL surface, HRGN *region, RECT *visible, UINT dpi )
+static NTSTATUS get_window_region( HWND hwnd, BOOL surface, HRGN *region, RECT *visible )
 {
-    UINT i, window_dpi = get_dpi_for_window( hwnd );
     NTSTATUS status;
     RGNDATA *data;
     size_t size = 256;
-    RECT *rects;
 
     *region = 0;
     do
     {
         if (!(data = malloc( FIELD_OFFSET( RGNDATA, Buffer[size] )))) return STATUS_NO_MEMORY;
-        rects = (RECT *)data->Buffer;
 
         SERVER_START_REQ( get_window_region )
         {
@@ -1828,9 +1825,8 @@ static NTSTATUS get_window_region( HWND hwnd, BOOL surface, HRGN *region, RECT *
                     data->rdh.iType    = RDH_RECTANGLES;
                     data->rdh.nCount   = reply_size / sizeof(RECT);
                     data->rdh.nRgnSize = reply_size;
-                    for (i = 0; i < data->rdh.nCount; i++) rects[i] = map_dpi_rect( rects[i], window_dpi, dpi );
                     *region = NtGdiExtCreateRegion( NULL, data->rdh.dwSize + data->rdh.nRgnSize, data );
-                    *visible = map_dpi_rect( wine_server_get_rect( reply->visible_rect ), window_dpi, dpi );
+                    *visible = wine_server_get_rect( reply->visible_rect );
                 }
             }
             else size = reply->total_size;
@@ -1846,7 +1842,7 @@ static NTSTATUS get_window_region( HWND hwnd, BOOL surface, HRGN *region, RECT *
 /***********************************************************************
  *           update_surface_region
  */
-static void update_surface_region( HWND hwnd, UINT dpi )
+static void update_surface_region( HWND hwnd )
 {
     WND *win = get_win_ptr( hwnd );
     HRGN region, shape = 0;
@@ -1855,7 +1851,7 @@ static void update_surface_region( HWND hwnd, UINT dpi )
     if (!win || win == WND_DESKTOP || win == WND_OTHER_PROCESS) return;
     if (!win->surface) goto done;
 
-    if (get_window_region( hwnd, FALSE, &shape, &visible, dpi )) goto done;
+    if (get_window_region( hwnd, FALSE, &shape, &visible )) goto done;
     if (shape)
     {
         region = NtGdiCreateRectRgn( 0, 0, visible.right - visible.left, visible.bottom - visible.top );
@@ -1865,7 +1861,7 @@ static void update_surface_region( HWND hwnd, UINT dpi )
     }
     window_surface_set_shape( win->surface, shape );
 
-    if (get_window_region( hwnd, TRUE, &region, &visible, dpi )) goto done;
+    if (get_window_region( hwnd, TRUE, &region, &visible )) goto done;
     if (!region) window_surface_set_clip( win->surface, shape );
     else
     {
@@ -2277,14 +2273,14 @@ static BOOL expose_window_surface( HWND hwnd, UINT flags, const RECT *rect, UINT
 /*******************************************************************
  *           NtUserGetWindowRgnEx (win32u.@)
  */
-int WINAPI NtUserGetWindowRgnEx( HWND hwnd, HRGN hrgn, UINT dpi )
+int WINAPI NtUserGetWindowRgnEx( HWND hwnd, HRGN hrgn, UINT unk )
 {
     NTSTATUS status;
     int ret = ERROR;
     HRGN win_rgn;
     RECT visible;
 
-    if ((status = get_window_region( hwnd, FALSE, &win_rgn, &visible, get_thread_dpi() )))
+    if ((status = get_window_region( hwnd, FALSE, &win_rgn, &visible )))
     {
         set_ntstatus( status );
         return ERROR;

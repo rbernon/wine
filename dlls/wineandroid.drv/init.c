@@ -57,7 +57,7 @@ typedef struct
     struct gdi_physdev dev;
 } ANDROID_PDEVICE;
 
-static const struct gdi_dc_funcs android_gdi_dc_funcs;
+static const struct user_driver_funcs android_drv_funcs;
 
 
 /******************************************************************************
@@ -222,7 +222,7 @@ static BOOL ANDROID_CreateDC( PHYSDEV *pdev, LPCWSTR device, LPCWSTR output, con
 
     if (!physdev) return FALSE;
 
-    push_dc_driver( pdev, &physdev->dev, &android_gdi_dc_funcs );
+    push_dc_driver( pdev, &physdev->dev, &android_drv_funcs.dc_funcs );
     return TRUE;
 }
 
@@ -236,7 +236,7 @@ static BOOL ANDROID_CreateCompatibleDC( PHYSDEV orig, PHYSDEV *pdev )
 
     if (!physdev) return FALSE;
 
-    push_dc_driver( pdev, &physdev->dev, &android_gdi_dc_funcs );
+    push_dc_driver( pdev, &physdev->dev, &android_drv_funcs.dc_funcs );
     return TRUE;
 }
 
@@ -303,22 +303,13 @@ static struct opengl_funcs *ANDROID_wine_get_wgl_driver( UINT version )
 }
 
 
-static const struct gdi_dc_funcs android_gdi_dc_funcs =
-{
-    .pCreateCompatibleDC = ANDROID_CreateCompatibleDC,
-    .pCreateDC = ANDROID_CreateDC,
-    .pDeleteDC = ANDROID_DeleteDC,
-    .priority = GDI_PRIORITY_GRAPHICS_DRV,
-    .name = "android",
-};
-
-static const struct gdi_dc_funcs *ANDROID_wine_get_gdi_driver( UINT version )
-{
-    return &android_gdi_dc_funcs;
-}
-
 static const struct user_driver_funcs android_drv_funcs =
 {
+    .dc_funcs.pCreateCompatibleDC = ANDROID_CreateCompatibleDC,
+    .dc_funcs.pCreateDC = ANDROID_CreateDC,
+    .dc_funcs.pDeleteDC = ANDROID_DeleteDC,
+    .dc_funcs.priority = GDI_PRIORITY_GRAPHICS_DRV,
+
     .pGetKeyNameText = ANDROID_GetKeyNameText,
     .pMapVirtualKeyEx = ANDROID_MapVirtualKeyEx,
     .pVkKeyScanEx = ANDROID_VkKeyScanEx,
@@ -337,7 +328,6 @@ static const struct user_driver_funcs android_drv_funcs =
     .pWindowPosChanging = ANDROID_WindowPosChanging,
     .pCreateWindowSurface = ANDROID_CreateWindowSurface,
     .pWindowPosChanged = ANDROID_WindowPosChanged,
-    .pwine_get_gdi_driver = ANDROID_wine_get_gdi_driver,
     .pwine_get_wgl_driver = ANDROID_wine_get_wgl_driver,
 };
 

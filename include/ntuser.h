@@ -870,7 +870,7 @@ W32KAPI BOOL    WINAPI NtUserGetUpdateRect( HWND hwnd, RECT *rect, BOOL erase );
 W32KAPI DWORD   WINAPI NtUserGetWindowContextHelpId( HWND hwnd );
 W32KAPI HDC     WINAPI NtUserGetWindowDC( HWND hwnd );
 W32KAPI BOOL    WINAPI NtUserGetWindowPlacement( HWND hwnd, WINDOWPLACEMENT *placement );
-W32KAPI int     WINAPI NtUserGetWindowRgnEx( HWND hwnd, HRGN hrgn, UINT dpi );
+W32KAPI int     WINAPI NtUserGetWindowRgnEx( HWND hwnd, HRGN hrgn, UINT unk );
 W32KAPI BOOL    WINAPI NtUserHideCaret( HWND hwnd );
 W32KAPI BOOL    WINAPI NtUserHiliteMenuItem( HWND hwnd, HMENU handle, UINT item, UINT hilite );
 W32KAPI NTSTATUS WINAPI NtUserInitializeClientPfnArrays( const ntuser_client_func_ptr *client_procsA,

@@ -884,7 +884,7 @@ static BOOL xrandr14_get_gpus( struct x11drv_gpu **new_gpus, int *count, BOOL ge
         gpus[i].id = provider_resources->providers[i];
         if (get_properties)
         {
-            if (1 || !get_gpu_properties_from_vulkan( &gpus[i], provider_info, gpus, i ))
+            if (!get_gpu_properties_from_vulkan( &gpus[i], provider_info, gpus, i ))
                 gpus[i].name = strdup( provider_info->name );
             /* FIXME: Add an alternate method of getting PCI IDs, for systems that don't support Vulkan */
         }

@@ -531,7 +531,6 @@ static void sync_empty_window_shape( struct x11drv_win_data *data, struct window
 static void sync_window_region( struct x11drv_win_data *data, HRGN win_region )
 {
 #ifdef HAVE_LIBXSHAPE
-    UINT dpi = get_win_monitor_dpi( data->hwnd );
     HRGN hrgn = win_region;
 
     if (!data->whole_window) return;
@@ -541,7 +540,7 @@ static void sync_window_region( struct x11drv_win_data *data, HRGN win_region )
     if (hrgn == (HRGN)1)  /* hack: win_region == 1 means retrieve region from server */
     {
         if (!(hrgn = NtGdiCreateRectRgn( 0, 0, 0, 0 ))) return;
-        if (NtUserGetWindowRgnEx( data->hwnd, hrgn, dpi ) == ERROR) /* FIXME DPI */
+        if (NtUserGetWindowRgnEx( data->hwnd, hrgn, 0 ) == ERROR)
         {
             NtGdiDeleteObjectApp( hrgn );
             hrgn = 0;
@@ -2130,7 +2129,6 @@ Window create_client_window( HWND hwnd, const XVisualInfo *visual, Colormap colo
  */
 static void create_whole_window( struct x11drv_win_data *data )
 {
-    UINT dpi = get_win_monitor_dpi( data->hwnd );
     int cx, cy, mask;
     XSetWindowAttributes attr;
     WCHAR text[1024];
@@ -2147,7 +2145,7 @@ static void create_whole_window( struct x11drv_win_data *data )
     }
 
     if ((win_rgn = NtGdiCreateRectRgn( 0, 0, 0, 0 )) &&
-        NtUserGetWindowRgnEx( data->hwnd, win_rgn, dpi ) == ERROR) /* FIXME DPI */
+        NtUserGetWindowRgnEx( data->hwnd, win_rgn, 0 ) == ERROR)
     {
         NtGdiDeleteObjectApp( win_rgn );
         win_rgn = 0;

@@ -97,7 +97,7 @@ BOOL X11DRV_CreateDesktop( const WCHAR *name, UINT width, UINT height )
 
 BOOL is_desktop_fullscreen(void)
 {
-    RECT primary_rect = NtUserGetPrimaryMonitorRect(); /* FIXME DPI */
+    RECT primary_rect = NtUserGetPrimaryMonitorRect();
     return (primary_rect.right - primary_rect.left == host_primary_rect.right - host_primary_rect.left &&
             primary_rect.bottom - primary_rect.top == host_primary_rect.bottom - host_primary_rect.top);
 }
