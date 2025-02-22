@@ -1,4 +1,0 @@
-STATICLIB = libsoftintrin.a
-
-SOURCES = \
-	softintrin.c

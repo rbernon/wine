@@ -3548,8 +3548,7 @@ static void output_import_lib( struct makefile *make, unsigned int arch )
     output( "\n" );
 
     add_install_rule( make, make->importlib, arch, name,
-                      strmake( delay_load_flags[arch] ? "d%s%s.lib" : "d%slib%s.a",
-                               arch_install_dirs[arch], make->importlib ));
+                      strmake( "d%slib%s.a", arch_install_dirs[arch], make->importlib ));
 }
 
 
@@ -3603,13 +3602,8 @@ static void output_static_lib( struct makefile *make, unsigned int arch )
     if (!arch) output_filenames_obj_dir( make, make->unixobj_files );
     output( "\n" );
     if (!make->extlib)
-    {
-        char *basename = strdup( make->staticlib + 3 );
-        basename[strlen(basename) - 2] = 0;
         add_install_rule( make, make->staticlib, arch, name,
-                          delay_load_flags[arch] ? strmake( "d%s%s.lib", arch_install_dirs[arch], basename )
-                                                 : strmake( "d%s%s", arch_install_dirs[arch], make->staticlib ));
-    }
+                          strmake( "d%s%s", arch_install_dirs[arch], make->staticlib ));
 }
 
 
