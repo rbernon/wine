@@ -1926,45 +1926,6 @@ static void monitor_get_info( struct monitor *monitor, MONITORINFO *info, UINT d
     }
 }
 
-/* display_lock mutex must be held */
-static struct source *find_primary_source(void)
-{
-    struct source *source;
-
-    LIST_FOR_EACH_ENTRY(source, &sources, struct source, entry)
-        if (source->state_flags & DISPLAY_DEVICE_PRIMARY_DEVICE)
-            return source;
-
-    WARN( "Failed to find primary source.\n" );
-    return NULL;
-}
-
-/* display_lock mutex must be held */
-static void update_primary_source_offset(void)
-{
-    struct source *primary = NULL, *source;
-    struct monitor *monitor;
-
-    if (!(primary = find_primary_source()))
-    {
-        WARN( "Failed to find primary source\n" );
-        return;
-    }
-
-    LIST_FOR_EACH_ENTRY( source, &sources, struct source, entry )
-    {
-        source->current.dmPosition.x -= primary->current.dmPosition.x;
-        source->current.dmPosition.y -= primary->current.dmPosition.y;
-        source->physical.dmPosition.x -= primary->physical.dmPosition.x;
-        source->physical.dmPosition.y -= primary->physical.dmPosition.y;
-    }
-
-    LIST_FOR_EACH_ENTRY( monitor, &monitors, struct monitor, entry )
-    {
-        OffsetRect( &monitor->rc_work, -primary->current.dmPosition.x, -primary->current.dmPosition.y );
-    }
-}
-
 /* display_lock must be held */
 static void set_winstation_monitors( BOOL increment )
 {
@@ -2167,7 +2128,6 @@ static BOOL update_display_cache_from_registry( UINT64 serial )
     if ((ret = !list_empty( &sources ) && !list_empty( &monitors )))
         last_query_display_time = key.LastWriteTime.QuadPart;
 
-    update_primary_source_offset();
     set_winstation_monitors( FALSE );
     release_display_device_init_mutex( mutex );
     return ret;
@@ -2352,7 +2312,6 @@ static void commit_display_devices( struct device_manager_ctx *ctx )
         add_gpu( gpu->name, &gpu->pci_id, &gpu->uuid, ctx );
     }
 
-    update_primary_source_offset();
     set_winstation_monitors( TRUE );
 }
 
@@ -3347,6 +3306,19 @@ static struct source *find_source_by_index( UINT index )
         if (index == source->id) return source;
 
     WARN( "Failed to find source with id %u.\n", index );
+    return NULL;
+}
+
+/* display_lock mutex must be held */
+static struct source *find_primary_source(void)
+{
+    struct source *source;
+
+    LIST_FOR_EACH_ENTRY(source, &sources, struct source, entry)
+        if (source->state_flags & DISPLAY_DEVICE_PRIMARY_DEVICE)
+            return source;
+
+    WARN( "Failed to find primary source.\n" );
     return NULL;
 }
 

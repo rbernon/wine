@@ -90,40 +90,6 @@ static void test_cbsize(void)
        "GetLastError() = %lu\n", GetLastError());
 }
 
-static LRESULT WINAPI window_proc( HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam )
-{
-    if (msg > WM_USER)
-    {
-        if (lParam == WM_LBUTTONDOWN)
-        {
-            NOTIFYICONDATAA nidA = {.cbSize = NOTIFYICONDATAA_V1_SIZE};
-            nidA.hWnd = hMainWnd;
-            nidA.uID = msg - WM_USER + 1;
-            nidA.uFlags = NIF_ICON|NIF_MESSAGE;
-            nidA.hIcon = LoadIconA(NULL, (LPSTR)IDI_APPLICATION);
-            nidA.uCallbackMessage = msg + 1;
-            SetLastError(0xdeadbeef);
-            ok(Shell_NotifyIconA(NIM_ADD, &nidA), "NIM_ADD failed!\n");
-            ok(GetLastError() == ERROR_SUCCESS || GetLastError() == ERROR_NO_TOKEN,
-               "GetLastError() = %lu\n", GetLastError());
-        }
-        if (lParam == WM_RBUTTONDOWN)
-        {
-            NOTIFYICONDATAA nidA = {.cbSize = NOTIFYICONDATAA_V1_SIZE};
-            nidA.hWnd = hMainWnd;
-            nidA.uID = msg - WM_USER;
-            SetLastError(0xdeadbeef);
-            ok(Shell_NotifyIconA(NIM_DELETE, &nidA), "NIM_DELETE failed!\n");
-            ok(GetLastError() == ERROR_SUCCESS || GetLastError() == ERROR_NO_TOKEN,
-               "GetLastError() = %lu\n", GetLastError());
-        }
-
-        ok( 0, "hwnd %p msg %#x wparam %#Ix lparam %#Ix\n", hwnd, msg, wParam, lParam );
-    }
-
-    return DefWindowProcA( hwnd, msg, wParam, lParam );
-}
-
 START_TEST(systray)
 {
     WNDCLASSA wc;
@@ -143,32 +109,13 @@ START_TEST(systray)
     wc.hbrBackground = GetSysColorBrush(COLOR_WINDOW);
     wc.lpszMenuName = NULL;
     wc.lpszClassName = "MyTestWnd";
-    wc.lpfnWndProc = window_proc;
+    wc.lpfnWndProc = DefWindowProcA;
     RegisterClassA(&wc);
 
     hMainWnd = CreateWindowExA(0, "MyTestWnd", "Blah", WS_OVERLAPPEDWINDOW,
       CW_USEDEFAULT, CW_USEDEFAULT, 680, 260, NULL, NULL, GetModuleHandleA(NULL), 0);
     GetClientRect(hMainWnd, &rc);
     ShowWindow(hMainWnd, SW_SHOW);
-
-
-{
-    NOTIFYICONDATAA nidA = {.cbSize = NOTIFYICONDATAA_V1_SIZE};
-    nidA.hWnd = hMainWnd;
-    nidA.uID = 1;
-    nidA.uFlags = NIF_ICON|NIF_MESSAGE;
-    nidA.hIcon = LoadIconA(NULL, (LPSTR)IDI_APPLICATION);
-    nidA.uCallbackMessage = WM_USER + 1;
-    SetLastError(0xdeadbeef);
-    ok(Shell_NotifyIconA(NIM_ADD, &nidA), "NIM_ADD failed!\n");
-    ok(GetLastError() == ERROR_SUCCESS || GetLastError() == ERROR_NO_TOKEN,
-       "GetLastError() = %lu\n", GetLastError());
-
-    while(GetMessageA(&msg,0,0,0)) {
-        TranslateMessage(&msg);
-        DispatchMessageA(&msg);
-    }
-}
 
     test_cbsize();
 

@@ -115,7 +115,7 @@ static void wayland_vulkan_surface_detach(HWND hwnd, void *private)
 {
 }
 
-static void wayland_vulkan_surface_update(HWND hwnd, void *private, BOOL size_only)
+static void wayland_vulkan_surface_update(HWND hwnd, void *private)
 {
 }
 

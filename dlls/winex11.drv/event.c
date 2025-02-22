@@ -595,17 +595,7 @@ DWORD EVENT_x11_time_to_win32_time(Time time)
 static inline BOOL can_activate_window( HWND hwnd )
 {
     LONG style = NtUserGetWindowLongW( hwnd, GWL_STYLE );
-    struct x11drv_win_data *data;
     RECT rect;
-
-    if ((data = get_win_data( hwnd )))
-    {
-        style = style & ~(WS_VISIBLE | WS_MINIMIZE | WS_MAXIMIZE);
-        if (data->current_state.wm_state != WithdrawnState) style |= WS_VISIBLE;
-        if (data->current_state.wm_state == IconicState) style |= WS_MINIMIZE;
-        if (data->current_state.net_wm_state & (1 << NET_WM_STATE_MAXIMIZED)) style |= WS_MAXIMIZE;
-        release_win_data( data );
-    }
 
     if (!(style & WS_VISIBLE)) return FALSE;
     if ((style & (WS_POPUP|WS_CHILD)) == WS_CHILD) return FALSE;
@@ -701,6 +691,8 @@ static void handle_wm_protocols( HWND hwnd, XClientMessageEvent *event )
 
     if (protocol == x11drv_atom(WM_DELETE_WINDOW))
     {
+        update_user_time( event_time );
+
         if (hwnd == NtUserGetDesktopWindow())
         {
             /* The desktop window does not have a close button that we can
@@ -755,7 +747,7 @@ static void handle_wm_protocols( HWND hwnd, XClientMessageEvent *event )
     {
         HWND last_focus = x11drv_thread_data()->last_focus, foreground = NtUserGetForegroundWindow();
 
-        if (window_has_pending_wm_state( hwnd, -1 ) || !window_should_take_focus( hwnd, foreground, event_time ))
+        if (window_has_pending_wm_state( hwnd, -1 ))
         {
             WARN( "Ignoring window %p/%lx WM_TAKE_FOCUS serial %lu, event_time %ld, foreground %p during WM_STATE change\n",
                   hwnd, event->window, event->serial, event_time, foreground );
@@ -770,8 +762,16 @@ static void handle_wm_protocols( HWND hwnd, XClientMessageEvent *event )
 
         if (can_activate_window(hwnd))
         {
-            set_focus( event->display, hwnd, event_time );
-            return;
+            /* simulate a mouse click on the menu to find out
+             * whether the window wants to be activated */
+            LRESULT ma = send_message( hwnd, WM_MOUSEACTIVATE,
+                                       (WPARAM)NtUserGetAncestor( hwnd, GA_ROOT ),
+                                       MAKELONG( HTMENU, WM_LBUTTONDOWN ) );
+            if (ma != MA_NOACTIVATEANDEAT && ma != MA_NOACTIVATE)
+            {
+                set_focus( event->display, hwnd, event_time );
+                return;
+            }
         }
         else if (hwnd == NtUserGetDesktopWindow())
         {
@@ -839,13 +839,10 @@ static BOOL X11DRV_FocusIn( HWND hwnd, XEvent *xev )
 {
     HWND foreground = NtUserGetForegroundWindow();
     XFocusChangeEvent *event = &xev->xfocus;
-    struct x11drv_win_data *data;
     BOOL was_grabbed;
 
     if (event->detail == NotifyPointer) return FALSE;
-    if (!(data = get_win_data( hwnd ))) return FALSE;
-    data->has_focus = 1;
-    release_win_data( data );
+    if (!hwnd) return FALSE;
 
     if (window_has_pending_wm_state( hwnd, -1 ))
     {
@@ -927,7 +924,6 @@ static BOOL X11DRV_FocusOut( HWND hwnd, XEvent *xev )
 {
     HWND foreground = NtUserGetForegroundWindow();
     XFocusChangeEvent *event = &xev->xfocus;
-    struct x11drv_win_data *data;
 
     if (event->detail == NotifyPointer)
     {
@@ -940,9 +936,7 @@ static BOOL X11DRV_FocusOut( HWND hwnd, XEvent *xev )
         }
         return TRUE;
     }
-    if (!(data = get_win_data( hwnd ))) return FALSE;
-    data->has_focus = 0;
-    release_win_data( data );
+    if (!hwnd) return FALSE;
 
     if (window_has_pending_wm_state( hwnd, NormalState )) /* ignore FocusOut only if the window is being shown */
     {
@@ -974,7 +968,7 @@ static BOOL X11DRV_Expose( HWND hwnd, XEvent *xev )
     RECT rect, abs_rect;
     POINT pos;
     struct x11drv_win_data *data;
-    UINT flags = RDW_INVALIDATE | RDW_FRAME | RDW_ALLCHILDREN;
+    UINT flags = RDW_INVALIDATE | RDW_ERASE | RDW_FRAME | RDW_ALLCHILDREN;
 
     TRACE( "win %p (%lx) %d,%d %dx%d\n",
            hwnd, event->window, event->x, event->y, event->width, event->height );
@@ -1014,7 +1008,6 @@ static BOOL X11DRV_Expose( HWND hwnd, XEvent *xev )
 
     release_win_data( data );
 
-    if (hwnd == NtUserGetDesktopWindow()) flags |= RDW_ERASE;
     NtUserExposeWindowSurface( hwnd, flags, &rect, NtUserGetWinMonitorDpi( hwnd, MDT_RAW_DPI ) );
     return TRUE;
 }
@@ -1211,21 +1204,6 @@ static int get_window_xembed_info( Display *display, Window window )
     return ret;
 }
 
-static void get_window_mwm_hints( Display *display, Window window, MwmHints *hints )
-{
-    unsigned long count, remaining;
-    MwmHints *value;
-    int format;
-    Atom type;
-
-    if (!XGetWindowProperty( display, window, x11drv_atom(_MOTIF_WM_HINTS), 0, 65535, False, x11drv_atom(_MOTIF_WM_HINTS),
-                             &type, &format, &count, &remaining, (unsigned char **)&value ))
-    {
-        if (type == x11drv_atom(_MOTIF_WM_HINTS) && get_property_size( format, count ) >= sizeof(*value))
-            *hints = *value;
-        XFree( value );
-    }
-}
 
 /***********************************************************************
  *           handle_wm_state_notify
@@ -1239,7 +1217,7 @@ static void handle_wm_state_notify( HWND hwnd, XPropertyEvent *event )
 
     if (!(data = get_win_data( hwnd ))) return;
     if (event->state == PropertyNewValue) value = get_window_wm_state( event->display, event->window );
-    window_wm_state_notify( data, event->serial, value, event->time );
+    window_wm_state_notify( data, event->serial, value );
     release_win_data( data );
 
     NtUserPostMessage( hwnd, WM_WINE_WINDOW_STATE_CHANGED, 0, 0 );
@@ -1252,7 +1230,7 @@ static void handle_xembed_info_notify( HWND hwnd, XPropertyEvent *event )
 
     if (!(data = get_win_data( hwnd ))) return;
     if (event->state == PropertyNewValue) value = get_window_xembed_info( event->display, event->window );
-    window_wm_state_notify( data, event->serial, value ? NormalState : WithdrawnState, event->time );
+    window_wm_state_notify( data, event->serial, value ? NormalState : WithdrawnState );
     release_win_data( data );
 }
 
@@ -1267,17 +1245,6 @@ static void handle_net_wm_state_notify( HWND hwnd, XPropertyEvent *event )
     release_win_data( data );
 
     NtUserPostMessage( hwnd, WM_WINE_WINDOW_STATE_CHANGED, 0, 0 );
-}
-
-static void handle_mwm_hints_notify( HWND hwnd, XPropertyEvent *event )
-{
-    struct x11drv_win_data *data;
-    MwmHints hints = {0};
-
-    if (!(data = get_win_data( hwnd ))) return;
-    if (event->state == PropertyNewValue) get_window_mwm_hints( event->display, event->window, &hints );
-    window_mwm_hints_notify( data, event->serial, &hints );
-    release_win_data( data );
 }
 
 static void handle_net_supported_notify( XPropertyEvent *event )
@@ -1306,7 +1273,6 @@ static BOOL X11DRV_PropertyNotify( HWND hwnd, XEvent *xev )
     if (event->atom == x11drv_atom(WM_STATE)) handle_wm_state_notify( hwnd, event );
     if (event->atom == x11drv_atom(_XEMBED_INFO)) handle_xembed_info_notify( hwnd, event );
     if (event->atom == x11drv_atom(_NET_WM_STATE)) handle_net_wm_state_notify( hwnd, event );
-    if (event->atom == x11drv_atom(_MOTIF_WM_HINTS)) handle_mwm_hints_notify( hwnd, event );
     if (event->atom == x11drv_atom(_NET_SUPPORTED)) handle_net_supported_notify( event );
 
     return TRUE;

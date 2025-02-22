@@ -92,7 +92,6 @@ struct vulkan_func
 void *wine_vk_get_device_proc_addr(const char *name);
 void *wine_vk_get_phys_dev_proc_addr(const char *name);
 void *wine_vk_get_instance_proc_addr(const char *name);
-void *wine_xr_get_instance_proc_addr(const char *name);
 
 struct vk_callback_funcs
 {
@@ -170,49 +169,6 @@ struct is_available_device_function_params
     VkDevice device;
     const char *name;
 };
-
-
-struct openxr_client_object
-{
-    UINT64 unix_handle;
-};
-
-struct XrInstance_T
-{
-    struct openxr_client_object obj;
-};
-
-struct XrSession_T
-{
-    struct openxr_client_object obj;
-};
-
-struct XrSwapchain_T
-{
-    struct openxr_client_object obj;
-};
-
-struct XrSpace_T
-{
-    struct openxr_client_object obj;
-};
-
-struct XrActionSet_T
-{
-    struct openxr_client_object obj;
-};
-
-struct XrAction_T
-{
-    struct openxr_client_object obj;
-};
-
-struct is_available_xr_instance_function_params
-{
-    XrInstance instance;
-    const char *name;
-};
-
 
 #define UNIX_CALL(code, params) WINE_UNIX_CALL(unix_ ## code, params)
 

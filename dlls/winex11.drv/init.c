@@ -194,25 +194,6 @@ static HFONT X11DRV_SelectFont( PHYSDEV dev, HFONT hfont, UINT *aa_flags )
     return dev->funcs->pSelectFont( dev, hfont, aa_flags );
 }
 
-static const char *debugstr_region( HRGN hrgn )
-{
-    char buffer[1024], *buf = buffer;
-    DWORD i, size;
-    RGNDATA *data = NULL;
-    RECT *rect;
-
-    if (!hrgn) return wine_dbg_sprintf( "(null)" );
-    if (!(size = NtGdiGetRegionData( hrgn, 0, NULL ))) return wine_dbg_sprintf( "(error)" );
-    if (!(data = malloc( size ))) return wine_dbg_sprintf( "(error)" );
-    NtGdiGetRegionData( hrgn, size, data );
-    buf += sprintf( buf, "%d:", (int)data->rdh.nCount );
-    for (i = 0, rect = (RECT *)data->Buffer; i < data->rdh.nCount; i++, rect++)
-        buf += sprintf( buf,  " %s", wine_dbgstr_rect( rect ));
-    free( data );
-
-    return wine_dbg_sprintf( "%s", buffer );
-}
-
 static BOOL needs_client_window_clipping( HWND hwnd )
 {
     RECT rect, client;
@@ -229,28 +210,15 @@ static BOOL needs_client_window_clipping( HWND hwnd )
         ret = NtGdiGetRandomRgn( hdc, region, SYSRGN );
         if (ret > 0 && (ret = NtGdiGetRgnBox( region, &rect )) < NULLREGION) ret = 0;
         if (ret == SIMPLEREGION && EqualRect( &rect, &client )) ret = 0;
+        NtGdiDeleteObjectApp( region );
     }
     NtUserReleaseDC( hwnd, hdc );
 
-ERR("hwnd %p client %s region %s ret %u\n", hwnd, wine_dbgstr_rect(&client), debugstr_region(region), ret);
-    if (region) NtGdiDeleteObjectApp( region );
     return ret > 0;
 }
 
 BOOL needs_offscreen_rendering( HWND hwnd, BOOL known_child )
 {
-    UINT style = NtUserGetWindowLongW( hwnd, GWL_STYLE );
-    struct x11drv_win_data *data;
-    BOOL needs_offscreen;
-
-    if (!(data = get_win_data( hwnd ))) needs_offscreen = TRUE; /* window is in a different process */
-    else
-    {
-        needs_offscreen = (style & WS_VISIBLE) && !(style & WS_MINIMIZE) && !is_window_rect_mapped( &data->rects.visible );
-        release_win_data( data );
-    }
-    if (needs_offscreen) return needs_offscreen;
-
     if (NtUserGetDpiForWindow( hwnd ) != NtUserGetWinMonitorDpi( hwnd, MDT_RAW_DPI )) return TRUE; /* needs DPI scaling */
     if (NtUserGetAncestor( hwnd, GA_PARENT ) != NtUserGetDesktopWindow()) return TRUE; /* child window, needs compositing */
     if (NtUserGetWindowRelative( hwnd, GW_CHILD ) || known_child) return needs_client_window_clipping( hwnd ); /* window has children, needs compositing */
@@ -424,7 +392,7 @@ static const struct user_driver_funcs x11drv_funcs =
     .dc_funcs.pExtFloodFill = X11DRV_ExtFloodFill,
     .dc_funcs.pFillPath = X11DRV_FillPath,
     .dc_funcs.pGetDeviceCaps = X11DRV_GetDeviceCaps,
-    .dc_funcs.pGetDeviceGammaRamp = fs_hack_get_gamma_ramp,
+    .dc_funcs.pGetDeviceGammaRamp = X11DRV_GetDeviceGammaRamp,
     .dc_funcs.pGetICMProfile = X11DRV_GetICMProfile,
     .dc_funcs.pGetImage = X11DRV_GetImage,
     .dc_funcs.pGetNearestColor = X11DRV_GetNearestColor,
@@ -448,7 +416,7 @@ static const struct user_driver_funcs x11drv_funcs =
     .dc_funcs.pSetDCBrushColor = X11DRV_SetDCBrushColor,
     .dc_funcs.pSetDCPenColor = X11DRV_SetDCPenColor,
     .dc_funcs.pSetDeviceClipping = X11DRV_SetDeviceClipping,
-    .dc_funcs.pSetDeviceGammaRamp = fs_hack_set_gamma_ramp,
+    .dc_funcs.pSetDeviceGammaRamp = X11DRV_SetDeviceGammaRamp,
     .dc_funcs.pSetPixel = X11DRV_SetPixel,
     .dc_funcs.pStretchBlt = X11DRV_StretchBlt,
     .dc_funcs.pStrokeAndFillPath = X11DRV_StrokeAndFillPath,

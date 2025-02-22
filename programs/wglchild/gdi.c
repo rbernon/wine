@@ -76,8 +76,6 @@ static void draw_window( HDC hdc, RECT *rect )
 
     SelectObject( hdc, old_pen );
     SelectObject( hdc, old_brush );
-    DeleteObject( pen );
-    DeleteObject( brush );
 }
 
 static void DrawRectangles( HWND hwnd )
@@ -104,8 +102,6 @@ void gdi_draw_layered( HWND hwnd )
     UINT i;
 
     GetWindowRect( hwnd, &window_rect );
-    dst_pos = *(POINT *)&window_rect.left;
-
     OffsetRect( &window_rect, -window_rect.left, -window_rect.top );
     size.cx = window_rect.right;
     size.cy = window_rect.bottom;

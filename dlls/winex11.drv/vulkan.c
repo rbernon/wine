@@ -96,14 +96,13 @@ static VkResult X11DRV_vulkan_surface_create( HWND hwnd, VkInstance instance, Vk
         ERR("Failed to allocate vulkan surface for hwnd=%p\n", hwnd);
         return VK_ERROR_OUT_OF_HOST_MEMORY;
     }
-    NtUserGetClientRect( hwnd, &surface->rect, NtUserGetDpiForWindow( hwnd ) );
-
-    if (!(surface->window = create_client_window( hwnd, surface->rect, &default_visual, default_colormap )))
+    if (!(surface->window = create_client_window( hwnd, &default_visual, default_colormap )))
     {
         ERR("Failed to allocate client window for hwnd=%p\n", hwnd);
         free( surface );
         return VK_ERROR_OUT_OF_HOST_MEMORY;
     }
+    NtUserGetClientRect( hwnd, &surface->rect, NtUserGetDpiForWindow( hwnd ) );
 
     info.window = surface->window;
     if (pvkCreateXlibSurfaceKHR( instance, &info, NULL /* allocator */, handle ))
@@ -209,21 +208,21 @@ static void vulkan_surface_update_offscreen( HWND hwnd, struct x11drv_vulkan_sur
     }
 }
 
-static void X11DRV_vulkan_surface_update( HWND hwnd, void *private, BOOL size_only )
+static void X11DRV_vulkan_surface_update( HWND hwnd, void *private )
 {
     struct x11drv_vulkan_surface *surface = private;
 
-    TRACE( "%p %p %u\n", hwnd, private, size_only );
+    TRACE( "%p %p\n", hwnd, private );
 
     vulkan_surface_update_size( hwnd, surface );
-    if (!size_only) vulkan_surface_update_offscreen( hwnd, surface );
-    XFlush( gdi_display );
+    vulkan_surface_update_offscreen( hwnd, surface );
 }
 
 static void X11DRV_vulkan_surface_presented( HWND hwnd, void *private, VkResult result )
 {
     struct x11drv_vulkan_surface *surface = private;
     HWND toplevel = NtUserGetAncestor( hwnd, GA_ROOT );
+    struct x11drv_win_data *data;
     RECT rect_dst, rect;
     Drawable window;
     HRGN region;
@@ -234,8 +233,18 @@ static void X11DRV_vulkan_surface_presented( HWND hwnd, void *private, VkResult 
 
     if (!surface->offscreen) return;
     if (!(hdc = NtUserGetDCEx( hwnd, 0, DCX_CACHE | DCX_USESTYLE ))) return;
-    window = get_onscreen_drawable( hwnd, toplevel, &rect_dst );
+    window = X11DRV_get_whole_window( toplevel );
     region = get_dc_monitor_region( hwnd, hdc );
+
+    NtUserGetClientRect( hwnd, &rect_dst, NtUserGetWinMonitorDpi( hwnd, MDT_RAW_DPI ) );
+    NtUserMapWindowPoints( hwnd, toplevel, (POINT *)&rect_dst, 2, NtUserGetWinMonitorDpi( hwnd, MDT_RAW_DPI ) );
+
+    if ((data = get_win_data( toplevel )))
+    {
+        OffsetRect( &rect_dst, data->rects.client.left - data->rects.visible.left,
+                    data->rects.client.top - data->rects.visible.top );
+        release_win_data( data );
+    }
 
     if (get_dc_drawable( surface->hdc_dst, &rect ) != window || !EqualRect( &rect, &rect_dst ))
         set_dc_drawable( surface->hdc_dst, window, &rect_dst, IncludeInferiors );

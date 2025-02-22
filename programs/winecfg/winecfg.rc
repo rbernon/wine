@@ -175,9 +175,7 @@ BEGIN
     CONTROL     "Allow the window manager to &decorate the windows",IDC_ENABLE_DECORATED,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,15,32,230,10
     CONTROL     "Allow the &window manager to control the windows",IDC_ENABLE_MANAGED,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,15,44,230,10
     CONTROL     "&Emulate a virtual desktop",IDC_ENABLE_DESKTOP,"Button",
-                BS_AUTOCHECKBOX | WS_TABSTOP,15,56,100,10
-    CONTROL     "&with a taskbar",IDC_ENABLE_SHELL,"Button",
-                BS_AUTOCHECKBOX | WS_TABSTOP,120,56,100,10,WS_DISABLED
+                BS_AUTOCHECKBOX | WS_TABSTOP,15,56,230,10
     LTEXT       "Desktop &size:",IDC_DESKTOP_SIZE,15,70,64,16,WS_DISABLED
     LTEXT       "#msgctxt#do not translate#X",IDC_DESKTOP_BY,129,70,8,8,WS_DISABLED
     EDITTEXT    IDC_DESKTOP_WIDTH,84,68,40,12,ES_AUTOHSCROLL | ES_NUMBER | WS_DISABLED

@@ -61,12 +61,10 @@ static void update_gui_for_desktop_mode(HWND dialog)
 {
     WCHAR *buf, *bufindex;
     const WCHAR *desktop_name = current_app ? current_app : L"Default";
-    WCHAR buffer[MAX_PATH];
 
     WINE_TRACE("\n");
     updating_ui = TRUE;
 
-    swprintf( buffer, ARRAY_SIZE(buffer), L"Explorer\\Desktops\\%s", desktop_name );
     buf = get_reg_key(config_key, L"Explorer\\Desktops", desktop_name, NULL);
     if (buf && (bufindex = wcschr(buf, 'x')))
     {
@@ -83,11 +81,7 @@ static void update_gui_for_desktop_mode(HWND dialog)
     /* do we have desktop mode enabled? */
     if (reg_key_exists(config_key, keypath(L"Explorer"), L"Desktop"))
     {
-        BOOL enable_shell = get_reg_key_dword(config_key, buffer, L"EnableShell", 0);
-        CheckDlgButton(dialog, IDC_ENABLE_DESKTOP, BST_CHECKED);
-        CheckDlgButton(dialog, IDC_ENABLE_SHELL, enable_shell ? BST_CHECKED : BST_UNCHECKED);
-        if (enable_shell) enable(IDC_ENABLE_SHELL);
-        else enable(IDC_ENABLE_SHELL);
+	CheckDlgButton(dialog, IDC_ENABLE_DESKTOP, BST_CHECKED);
         enable(IDC_DESKTOP_WIDTH);
         enable(IDC_DESKTOP_HEIGHT);
         enable(IDC_DESKTOP_SIZE);
@@ -96,8 +90,6 @@ static void update_gui_for_desktop_mode(HWND dialog)
     else
     {
 	CheckDlgButton(dialog, IDC_ENABLE_DESKTOP, BST_UNCHECKED);
-    CheckDlgButton(dialog, IDC_ENABLE_SHELL, BST_UNCHECKED);
-    disable(IDC_ENABLE_SHELL);
 	disable(IDC_DESKTOP_WIDTH);
 	disable(IDC_DESKTOP_HEIGHT);
 	disable(IDC_DESKTOP_SIZE);
@@ -190,9 +182,6 @@ static void set_from_desktop_edits(HWND dialog)
     swprintf( buffer, ARRAY_SIZE(buffer), L"%ux%u", w, h );
     set_reg_key(config_key, L"Explorer\\Desktops", desktop_name, buffer);
     set_reg_key(config_key, keypath(L"Explorer"), L"Desktop", desktop_name);
-
-    swprintf( buffer, ARRAY_SIZE(buffer), L"Explorer\\Desktops\\%s", desktop_name );
-    set_reg_key_dword(config_key, buffer, L"EnableShell", IsDlgButtonChecked(dialog, IDC_ENABLE_SHELL) == BST_CHECKED);
 
     free(width);
     free(height);
@@ -391,7 +380,6 @@ GraphDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		    SendMessageW(GetParent(hDlg), PSM_CHANGED, 0, 0);
 		    switch(LOWORD(wParam)) {
 			case IDC_ENABLE_DESKTOP: on_enable_desktop_clicked(hDlg); break;
-                        case IDC_ENABLE_SHELL: on_enable_desktop_clicked(hDlg); break;
                         case IDC_ENABLE_MANAGED: on_enable_managed_clicked(hDlg); break;
                         case IDC_ENABLE_DECORATED: on_enable_decorated_clicked(hDlg); break;
 			case IDC_FULLSCREEN_GRAB:  on_fullscreen_grab_clicked(hDlg); break;
