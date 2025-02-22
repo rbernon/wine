@@ -103,8 +103,10 @@ struct video_decoder
     struct wg_transform_attrs wg_transform_attrs;
     struct wg_sample_queue *wg_sample_queue;
 
-    IUnknown *device_manager;
     IMFVideoSampleAllocatorEx *allocator;
+    BOOL allocator_initialized;
+    IMFTransform *copier;
+    IMFMediaBuffer *temp_buffer;
 
     DMO_MEDIA_TYPE dmo_input_type;
     DMO_MEDIA_TYPE dmo_output_type;
@@ -115,46 +117,6 @@ struct video_decoder
 static inline struct video_decoder *impl_from_IUnknown(IUnknown *iface)
 {
     return CONTAINING_RECORD(iface, struct video_decoder, IUnknown_inner);
-}
-
-static HRESULT video_decoder_init_allocator(struct video_decoder *decoder)
-{
-    IMFVideoSampleAllocatorEx *allocator;
-    UINT32 count;
-    HRESULT hr;
-
-    if (decoder->allocator)
-        return S_OK;
-
-    if (FAILED(hr = MFCreateVideoSampleAllocatorEx(&IID_IMFVideoSampleAllocatorEx, (void **)&allocator)))
-        return hr;
-    if (FAILED(IMFAttributes_GetUINT32(decoder->attributes, &MF_SA_MINIMUM_OUTPUT_SAMPLE_COUNT, &count)))
-        count = 2;
-    if (FAILED(hr = IMFVideoSampleAllocatorEx_SetDirectXManager(allocator, decoder->device_manager))
-            || FAILED(hr = IMFVideoSampleAllocatorEx_InitializeSampleAllocatorEx(allocator, count, max(count + 2, 10),
-            decoder->output_attributes, decoder->output_type)))
-    {
-        IMFVideoSampleAllocatorEx_Release(allocator);
-        return hr;
-    }
-
-    decoder->allocator = allocator;
-    return S_OK;
-}
-
-static HRESULT video_decoder_uninit_allocator(struct video_decoder *decoder)
-{
-    HRESULT hr;
-
-    if (!decoder->allocator)
-        return S_OK;
-
-    if (SUCCEEDED(hr = IMFVideoSampleAllocatorEx_UninitializeSampleAllocator(decoder->allocator)))
-        hr = IMFVideoSampleAllocatorEx_SetDirectXManager(decoder->allocator, NULL);
-    IMFVideoSampleAllocatorEx_Release(decoder->allocator);
-    decoder->allocator = NULL;
-
-    return hr;
 }
 
 static HRESULT WINAPI unknown_QueryInterface(IUnknown *iface, REFIID iid, void **out)
@@ -203,9 +165,10 @@ static ULONG WINAPI unknown_Release(IUnknown *iface)
 
     if (!refcount)
     {
-        video_decoder_uninit_allocator(decoder);
-        if (decoder->device_manager)
-            IUnknown_Release(decoder->device_manager);
+        IMFTransform_Release(decoder->copier);
+        IMFVideoSampleAllocatorEx_Release(decoder->allocator);
+        if (decoder->temp_buffer)
+            IMFMediaBuffer_Release(decoder->temp_buffer);
         if (decoder->wg_transform)
             wg_transform_destroy(decoder->wg_transform);
         if (decoder->input_type)
@@ -368,79 +331,131 @@ static HRESULT try_create_wg_transform(struct video_decoder *decoder, IMFMediaTy
     return wg_transform_create_mf(decoder->input_type, output_type, &decoder->wg_transform_attrs, &decoder->wg_transform);
 }
 
-static HRESULT media_type_from_video_format(const MFVIDEOFORMAT *format, UINT32 format_size, IMFMediaType **media_type)
+static HRESULT create_output_media_type(struct video_decoder *decoder, const GUID *subtype,
+        IMFMediaType *output_type, IMFMediaType **media_type)
 {
+    IMFMediaType *default_type = decoder->output_type, *stream_type = output_type ? output_type : decoder->stream_type;
+    MFVideoArea default_aperture = {{0}}, aperture;
+    IMFVideoMediaType *video_type;
+    LONG default_stride, stride;
+    UINT32 value, width, height;
+    UINT64 ratio;
     HRESULT hr;
 
-    if (FAILED(hr = MFCreateMediaType(media_type)))
-        *media_type = NULL;
-    else if (FAILED(hr = MFInitMediaTypeFromMFVideoFormat(*media_type, format, format_size)))
-    {
-        IMFMediaType_Release(*media_type);
-        *media_type = NULL;
-    }
-
-    return hr;
-}
-
-static BOOL is_mf_video_area_empty(const MFVideoArea *area)
-{
-    return !area->OffsetX.value && !area->OffsetY.value && !area->Area.cx && !area->Area.cy;
-}
-
-static HRESULT create_output_media_type(struct video_decoder *decoder, const GUID *subtype, IMFMediaType **media_type)
-{
-    MFVideoArea default_aperture = {{0}};
-    MFVIDEOFORMAT *format;
-    UINT32 format_size;
-    UINT32 value;
-    HRESULT hr;
-
-    if (FAILED(hr = MFCreateMFVideoFormatFromMFMediaType(decoder->stream_type, &format, &format_size)))
+    if (FAILED(hr = MFCreateVideoMediaTypeFromSubtype(subtype, &video_type)))
         return hr;
 
-    if (!format->videoInfo.dwWidth || !format->videoInfo.dwHeight)
-    {
-        format->videoInfo.dwWidth = 1920;
-        format->videoInfo.dwHeight = 1080;
-    }
+    if (FAILED(IMFMediaType_GetUINT64(stream_type, &MF_MT_FRAME_SIZE, &ratio)))
+        ratio = (UINT64)1920 << 32 | 1080;
+    if (FAILED(hr = IMFVideoMediaType_SetUINT64(video_type, &MF_MT_FRAME_SIZE, ratio)))
+        goto done;
+    width = ratio >> 32;
+    height = ratio;
 
-    if (!format->videoInfo.FramesPerSecond.Numerator || !format->videoInfo.FramesPerSecond.Denominator)
-    {
-        format->videoInfo.FramesPerSecond.Numerator = 30000;
-        format->videoInfo.FramesPerSecond.Denominator = 1001;
-    }
-    if (!format->videoInfo.PixelAspectRatio.Numerator || !format->videoInfo.PixelAspectRatio.Denominator)
-    {
-        format->videoInfo.PixelAspectRatio.Numerator = 1;
-        format->videoInfo.PixelAspectRatio.Denominator = 1;
-    }
-    if (!format->videoInfo.InterlaceMode)
-        format->videoInfo.InterlaceMode = MFVideoInterlace_MixedInterlaceOrProgressive;
+    default_aperture.Area.cx = width;
+    default_aperture.Area.cy = height;
 
-    default_aperture.Area.cx = format->videoInfo.dwWidth;
-    default_aperture.Area.cy = format->videoInfo.dwHeight;
+    if (FAILED(IMFMediaType_GetUINT64(stream_type, &MF_MT_FRAME_RATE, &ratio)))
+        ratio = (UINT64)30000 << 32 | 1001;
+    if (FAILED(hr = IMFVideoMediaType_SetUINT64(video_type, &MF_MT_FRAME_RATE, ratio)))
+        goto done;
 
-    if (is_mf_video_area_empty(&format->videoInfo.MinimumDisplayAperture))
-        format->videoInfo.MinimumDisplayAperture = default_aperture;
-    if (is_mf_video_area_empty(&format->videoInfo.GeometricAperture))
-        format->videoInfo.GeometricAperture = default_aperture;
-    if (is_mf_video_area_empty(&format->videoInfo.PanScanAperture))
-        format->videoInfo.PanScanAperture = default_aperture;
+    if (FAILED(IMFMediaType_GetUINT64(stream_type, &MF_MT_PIXEL_ASPECT_RATIO, &ratio)))
+        ratio = (UINT64)1 << 32 | 1;
+    if (FAILED(hr = IMFVideoMediaType_SetUINT64(video_type, &MF_MT_PIXEL_ASPECT_RATIO, ratio)))
+        goto done;
 
-    format->guidFormat = *subtype;
-    hr = media_type_from_video_format(format, format_size, media_type);
-    CoTaskMemFree(format);
+    if (!output_type || FAILED(IMFMediaType_GetUINT32(output_type, &MF_MT_SAMPLE_SIZE, &value)))
+        hr = MFCalculateImageSize(subtype, width, height, &value);
+    if (FAILED(hr) || FAILED(hr = IMFVideoMediaType_SetUINT32(video_type, &MF_MT_SAMPLE_SIZE, value)))
+        goto done;
 
-    if (!decoder->output_type || FAILED(IMFMediaType_GetUINT32(decoder->output_type, &MF_MT_VIDEO_ROTATION, &value)))
+    /* WMV decoder uses positive stride by default, and enforces it for YUV formats,
+     * accepts negative stride for RGB if specified */
+    if (FAILED(hr = MFGetStrideForBitmapInfoHeader(subtype->Data1, width, &default_stride)))
+        goto done;
+    if (!output_type || FAILED(IMFMediaType_GetUINT32(output_type, &MF_MT_DEFAULT_STRIDE, (UINT32 *)&stride)))
+        stride = abs(default_stride);
+    else if (default_stride > 0)
+        stride = abs(stride);
+    if (FAILED(hr) || FAILED(hr = IMFVideoMediaType_SetUINT32(video_type, &MF_MT_DEFAULT_STRIDE, stride)))
+        goto done;
+
+    if (!output_type || FAILED(IMFMediaType_GetUINT32(output_type, &MF_MT_VIDEO_NOMINAL_RANGE, (UINT32 *)&value)))
+        value = MFNominalRange_Wide;
+    if (FAILED(hr = IMFVideoMediaType_SetUINT32(video_type, &MF_MT_VIDEO_NOMINAL_RANGE, value)))
+        goto done;
+
+    if (!default_type || FAILED(IMFMediaType_GetUINT32(default_type, &MF_MT_INTERLACE_MODE, &value)))
+        value = MFVideoInterlace_MixedInterlaceOrProgressive;
+    if (FAILED(hr = IMFVideoMediaType_SetUINT32(video_type, &MF_MT_INTERLACE_MODE, value)))
+        goto done;
+
+    if (!default_type || FAILED(IMFMediaType_GetUINT32(default_type, &MF_MT_ALL_SAMPLES_INDEPENDENT, &value)))
+        value = 1;
+    if (FAILED(hr = IMFVideoMediaType_SetUINT32(video_type, &MF_MT_ALL_SAMPLES_INDEPENDENT, value)))
+        goto done;
+
+    if (!default_type || FAILED(IMFMediaType_GetUINT32(default_type, &MF_MT_VIDEO_ROTATION, &value)))
         value = 0;
-    if (SUCCEEDED(hr) && FAILED(hr = IMFMediaType_SetUINT32(*media_type, &MF_MT_VIDEO_ROTATION, value)))
+    if (FAILED(hr = IMFVideoMediaType_SetUINT32(video_type, &MF_MT_VIDEO_ROTATION, value)))
+        goto done;
+
+    if (!default_type || FAILED(IMFMediaType_GetUINT32(default_type, &MF_MT_FIXED_SIZE_SAMPLES, &value)))
+        value = 1;
+    if (FAILED(hr = IMFVideoMediaType_SetUINT32(video_type, &MF_MT_FIXED_SIZE_SAMPLES, value)))
+        goto done;
+
+    if (FAILED(IMFMediaType_GetBlob(stream_type, &MF_MT_MINIMUM_DISPLAY_APERTURE, (BYTE *)&aperture, sizeof(aperture), &value)))
+        aperture = default_aperture;
+    if (FAILED(hr = IMFVideoMediaType_SetBlob(video_type, &MF_MT_MINIMUM_DISPLAY_APERTURE, (BYTE *)&aperture, sizeof(aperture))))
+        goto done;
+
+    if (FAILED(IMFMediaType_GetBlob(stream_type, &MF_MT_GEOMETRIC_APERTURE, (BYTE *)&aperture, sizeof(aperture), &value)))
+        aperture = default_aperture;
+    if (FAILED(hr = IMFVideoMediaType_SetBlob(video_type, &MF_MT_GEOMETRIC_APERTURE, (BYTE *)&aperture, sizeof(aperture))))
+        goto done;
+
+    if (FAILED(IMFMediaType_GetBlob(stream_type, &MF_MT_PAN_SCAN_APERTURE, (BYTE *)&aperture, sizeof(aperture), &value)))
+        aperture = default_aperture;
+    if (FAILED(hr = IMFVideoMediaType_SetBlob(video_type, &MF_MT_PAN_SCAN_APERTURE, (BYTE *)&aperture, sizeof(aperture))))
+        goto done;
+
+done:
+    if (SUCCEEDED(hr))
+        *media_type = (IMFMediaType *)video_type;
+    else
     {
-        IMFMediaType_Release(*media_type);
+        IMFVideoMediaType_Release(video_type);
         *media_type = NULL;
     }
 
     return hr;
+}
+
+static HRESULT init_allocator(struct video_decoder *decoder)
+{
+    HRESULT hr;
+
+    if (decoder->allocator_initialized)
+        return S_OK;
+
+    if (FAILED(hr = IMFTransform_SetInputType(decoder->copier, 0, decoder->output_type, 0)))
+        return hr;
+    if (FAILED(hr = IMFTransform_SetOutputType(decoder->copier, 0, decoder->output_type, 0)))
+        return hr;
+
+    if (FAILED(hr = IMFVideoSampleAllocatorEx_InitializeSampleAllocatorEx(decoder->allocator, 10, 10,
+            decoder->attributes, decoder->output_type)))
+        return hr;
+    decoder->allocator_initialized = TRUE;
+    return S_OK;
+}
+
+static void uninit_allocator(struct video_decoder *decoder)
+{
+    IMFVideoSampleAllocatorEx_UninitializeSampleAllocator(decoder->allocator);
+    decoder->allocator_initialized = FALSE;
 }
 
 static HRESULT WINAPI transform_QueryInterface(IMFTransform *iface, REFIID iid, void **out)
@@ -573,7 +588,7 @@ static HRESULT WINAPI transform_GetOutputAvailableType(IMFTransform *iface, DWOR
         return MF_E_TRANSFORM_TYPE_NOT_SET;
     if (index >= decoder->output_type_count)
         return MF_E_NO_MORE_TYPES;
-    return create_output_media_type(decoder, decoder->output_types[index], type);
+    return create_output_media_type(decoder, decoder->output_types[index], NULL, type);
 }
 
 static HRESULT update_output_info_size(struct video_decoder *decoder, UINT32 width, UINT32 height)
@@ -768,8 +783,6 @@ static HRESULT WINAPI transform_GetInputCurrentType(IMFTransform *iface, DWORD i
 static HRESULT WINAPI transform_GetOutputCurrentType(IMFTransform *iface, DWORD id, IMFMediaType **type)
 {
     struct video_decoder *decoder = impl_from_IMFTransform(iface);
-    MFVIDEOFORMAT *format;
-    UINT32 format_size;
     GUID subtype;
     HRESULT hr;
 
@@ -779,13 +792,7 @@ static HRESULT WINAPI transform_GetOutputCurrentType(IMFTransform *iface, DWORD 
         return MF_E_TRANSFORM_TYPE_NOT_SET;
     if (FAILED(hr = IMFMediaType_GetGUID(decoder->output_type, &MF_MT_SUBTYPE, &subtype)))
         return hr;
-
-    if (FAILED(hr = MFCreateMFVideoFormatFromMFMediaType(decoder->output_type, &format, &format_size)))
-        return hr;
-    hr = media_type_from_video_format(format, format_size, type);
-    CoTaskMemFree(format);
-
-    return hr;
+    return create_output_media_type(decoder, &subtype, decoder->output_type, type);
 }
 
 static HRESULT WINAPI transform_GetInputStatus(IMFTransform *iface, DWORD id, DWORD *flags)
@@ -829,19 +836,14 @@ static HRESULT WINAPI transform_ProcessMessage(IMFTransform *iface, MFT_MESSAGE_
     switch (message)
     {
     case MFT_MESSAGE_SET_D3D_MANAGER:
-        if (FAILED(hr = video_decoder_uninit_allocator(decoder)))
+        if (FAILED(hr = IMFVideoSampleAllocatorEx_SetDirectXManager(decoder->allocator, (IUnknown *)param)))
             return hr;
 
-        if (decoder->device_manager)
-        {
-            decoder->output_info.dwFlags &= ~MFT_OUTPUT_STREAM_PROVIDES_SAMPLES;
-            IUnknown_Release(decoder->device_manager);
-        }
-        if ((decoder->device_manager = (IUnknown *)param))
-        {
-            IUnknown_AddRef(decoder->device_manager);
+        uninit_allocator(decoder);
+        if (param)
             decoder->output_info.dwFlags |= MFT_OUTPUT_STREAM_PROVIDES_SAMPLES;
-        }
+        else
+            decoder->output_info.dwFlags &= ~MFT_OUTPUT_STREAM_PROVIDES_SAMPLES;
         return S_OK;
 
     case MFT_MESSAGE_COMMAND_DRAIN:
@@ -878,6 +880,36 @@ static HRESULT WINAPI transform_ProcessInput(IMFTransform *iface, DWORD id, IMFS
     return wg_transform_push_mf(decoder->wg_transform, sample, decoder->wg_sample_queue);
 }
 
+static HRESULT output_sample(struct video_decoder *decoder, IMFSample **out, IMFSample *src_sample)
+{
+    MFT_OUTPUT_DATA_BUFFER output[1];
+    IMFSample *sample;
+    DWORD status;
+    HRESULT hr;
+
+    if (FAILED(hr = init_allocator(decoder)))
+    {
+        ERR("Failed to initialize allocator, hr %#lx.\n", hr);
+        return hr;
+    }
+    if (FAILED(hr = IMFVideoSampleAllocatorEx_AllocateSample(decoder->allocator, &sample)))
+        return hr;
+
+    if (FAILED(hr = IMFTransform_ProcessInput(decoder->copier, 0, src_sample, 0)))
+    {
+        IMFSample_Release(sample);
+        return hr;
+    }
+    output[0].pSample = sample;
+    if (FAILED(hr = IMFTransform_ProcessOutput(decoder->copier, 0, 1, output, &status)))
+    {
+        IMFSample_Release(sample);
+        return hr;
+    }
+    *out = sample;
+    return S_OK;
+}
+
 static HRESULT handle_stream_type_change(struct video_decoder *decoder)
 {
     UINT64 frame_size, frame_rate;
@@ -899,7 +931,7 @@ static HRESULT handle_stream_type_change(struct video_decoder *decoder)
         return hr;
     if (FAILED(hr = update_output_info_size(decoder, frame_size >> 32, frame_size)))
         return hr;
-    video_decoder_uninit_allocator(decoder);
+    uninit_allocator(decoder);
 
     return MF_E_TRANSFORM_STREAM_CHANGE;
 }
@@ -910,9 +942,10 @@ static HRESULT WINAPI transform_ProcessOutput(IMFTransform *iface, DWORD flags, 
     struct video_decoder *decoder = impl_from_IMFTransform(iface);
     UINT32 sample_size;
     LONGLONG duration;
-    IMFSample *output_sample;
+    IMFSample *sample;
     UINT64 frame_size, frame_rate;
     GUID subtype;
+    DWORD size;
     HRESULT hr;
 
     TRACE("iface %p, flags %#lx, count %lu, samples %p, status %p.\n", iface, flags, count, samples, status);
@@ -924,6 +957,9 @@ static HRESULT WINAPI transform_ProcessOutput(IMFTransform *iface, DWORD flags, 
         return MF_E_TRANSFORM_TYPE_NOT_SET;
 
     *status = samples->dwStatus = 0;
+    if (!(sample = samples->pSample) && !(decoder->output_info.dwFlags & MFT_OUTPUT_STREAM_PROVIDES_SAMPLES))
+        return E_INVALIDARG;
+
     if (FAILED(hr = IMFMediaType_GetGUID(decoder->output_type, &MF_MT_SUBTYPE, &subtype)))
         return hr;
     if (FAILED(hr = IMFMediaType_GetUINT64(decoder->output_type, &MF_MT_FRAME_SIZE, &frame_size)))
@@ -933,19 +969,27 @@ static HRESULT WINAPI transform_ProcessOutput(IMFTransform *iface, DWORD flags, 
 
     if (decoder->output_info.dwFlags & MFT_OUTPUT_STREAM_PROVIDES_SAMPLES)
     {
-        if (FAILED(hr = video_decoder_init_allocator(decoder)))
+        if (decoder->temp_buffer)
+        {
+            if (FAILED(IMFMediaBuffer_GetMaxLength(decoder->temp_buffer, &size)) || size < sample_size)
+            {
+                IMFMediaBuffer_Release(decoder->temp_buffer);
+                decoder->temp_buffer = NULL;
+            }
+        }
+        if (!decoder->temp_buffer && FAILED(hr = MFCreateMemoryBuffer(sample_size, &decoder->temp_buffer)))
             return hr;
-        if (FAILED(hr = IMFVideoSampleAllocatorEx_AllocateSample(decoder->allocator, &output_sample)))
+        if (FAILED(hr = MFCreateSample(&sample)))
             return hr;
-    }
-    else
-    {
-        if (!(output_sample = samples->pSample))
-            return E_INVALIDARG;
-        IMFSample_AddRef(output_sample);
+        if (FAILED(hr = IMFSample_AddBuffer(sample, decoder->temp_buffer)))
+        {
+            IMFSample_Release(sample);
+            return hr;
+        }
     }
 
-    if (SUCCEEDED(hr = wg_transform_read_mf(decoder->wg_transform, output_sample, sample_size, &samples->dwStatus)))
+    if (SUCCEEDED(hr = wg_transform_read_mf(decoder->wg_transform, sample,
+            sample_size, &samples->dwStatus)))
     {
         wg_sample_queue_flush(decoder->wg_sample_queue, false);
 
@@ -953,9 +997,9 @@ static HRESULT WINAPI transform_ProcessOutput(IMFTransform *iface, DWORD flags, 
             frame_rate = (UINT64)30000 << 32 | 1001;
 
         duration = (UINT64)10000000 * (UINT32)frame_rate / (frame_rate >> 32);
-        if (FAILED(IMFSample_SetSampleTime(output_sample, decoder->sample_time)))
+        if (FAILED(IMFSample_SetSampleTime(sample, decoder->sample_time)))
             WARN("Failed to set sample time\n");
-        if (FAILED(IMFSample_SetSampleDuration(output_sample, duration)))
+        if (FAILED(IMFSample_SetSampleDuration(sample, duration)))
             WARN("Failed to set sample duration\n");
         decoder->sample_time += duration;
     }
@@ -967,13 +1011,13 @@ static HRESULT WINAPI transform_ProcessOutput(IMFTransform *iface, DWORD flags, 
         hr = handle_stream_type_change(decoder);
     }
 
-    if (SUCCEEDED(hr) && decoder->output_info.dwFlags & MFT_OUTPUT_STREAM_PROVIDES_SAMPLES)
+    if (decoder->output_info.dwFlags & MFT_OUTPUT_STREAM_PROVIDES_SAMPLES)
     {
-        samples->pSample = output_sample;
-        IMFSample_AddRef(output_sample);
+        if (hr == S_OK && FAILED(hr = output_sample(decoder, &samples->pSample, sample)))
+            ERR("Failed to output sample, hr %#lx.\n", hr);
+        IMFSample_Release(sample);
     }
 
-    IMFSample_Release(output_sample);
     return hr;
 }
 
@@ -1152,6 +1196,7 @@ static HRESULT WINAPI media_object_SetInputType(IMediaObject *iface, DWORD index
 {
     struct video_decoder *decoder = impl_from_IMediaObject(iface);
     IMFMediaType *media_type;
+    unsigned int i;
 
     TRACE("iface %p, index %lu, type %p, flags %#lx.\n", iface, index, type, flags);
 
@@ -1175,6 +1220,12 @@ static HRESULT WINAPI media_object_SetInputType(IMediaObject *iface, DWORD index
     }
 
     if (!IsEqualGUID(&type->majortype, &MEDIATYPE_Video))
+        return DMO_E_TYPE_NOT_ACCEPTED;
+
+    for (i = 0; i < decoder->input_type_count; ++i)
+        if (IsEqualGUID(&type->subtype, get_dmo_subtype(decoder->input_types[i])))
+            break;
+    if (i == decoder->input_type_count)
         return DMO_E_TYPE_NOT_ACCEPTED;
 
     if (FAILED(MFCreateMediaTypeFromRepresentation(AM_MEDIA_TYPE_REPRESENTATION,
@@ -1576,6 +1627,10 @@ static HRESULT video_decoder_create_with_types(const GUID *const *input_types, U
         goto failed;
     if (FAILED(hr = wg_sample_queue_create(&decoder->wg_sample_queue)))
         goto failed;
+    if (FAILED(hr = MFCreateVideoSampleAllocatorEx(&IID_IMFVideoSampleAllocatorEx, (void **)&decoder->allocator)))
+        goto failed;
+    if (FAILED(hr = MFCreateSampleCopierMFT(&decoder->copier)))
+        goto failed;
 
     decoder->wg_transform_attrs.input_queue_length = 15;
 
@@ -1584,6 +1639,10 @@ static HRESULT video_decoder_create_with_types(const GUID *const *input_types, U
     return S_OK;
 
 failed:
+    if (decoder->allocator)
+        IMFVideoSampleAllocatorEx_Release(decoder->allocator);
+    if (decoder->wg_sample_queue)
+        wg_sample_queue_destroy(decoder->wg_sample_queue);
     if (decoder->output_attributes)
         IMFAttributes_Release(decoder->output_attributes);
     if (decoder->attributes)
@@ -1722,10 +1781,28 @@ static const GUID *const wmv_decoder_output_types[] =
 
 HRESULT wmv_decoder_create(IUnknown *outer, IUnknown **out)
 {
+    const MFVIDEOFORMAT output_format =
+    {
+        .dwSize = sizeof(MFVIDEOFORMAT),
+        .videoInfo = {.dwWidth = 1920, .dwHeight = 1080},
+        .guidFormat = MFVideoFormat_I420,
+    };
+    const MFVIDEOFORMAT input_format =
+    {
+        .dwSize = sizeof(MFVIDEOFORMAT),
+        .videoInfo = {.dwWidth = 1920, .dwHeight = 1080},
+        .guidFormat = MFVideoFormat_WMV3,
+    };
     struct video_decoder *decoder;
     HRESULT hr;
 
     TRACE("outer %p, out %p.\n", outer, out);
+
+    if (FAILED(hr = check_video_transform_support(&input_format, &output_format)))
+    {
+        ERR_(winediag)("GStreamer doesn't support WMV decoding, please install appropriate plugins\n");
+        return hr;
+    }
 
     if (FAILED(hr = video_decoder_create_with_types(wmv_decoder_input_types, ARRAY_SIZE(wmv_decoder_input_types),
             wmv_decoder_output_types, ARRAY_SIZE(wmv_decoder_output_types), outer, &decoder)))

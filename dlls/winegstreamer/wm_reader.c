@@ -1473,10 +1473,7 @@ static HRESULT init_stream(struct wm_reader *reader)
     HRESULT hr;
     WORD i;
 
-    /* 32-bit GStreamer ORC cannot efficiently convert I420 to RGBA, use OpenGL converter
-     * in that case but keep the usual codepath otherwise.
-     */
-    if (!(wg_parser = wg_parser_create(WG_PARSER_DECODEBIN, FALSE, sizeof(void *) == 4)))
+    if (!(wg_parser = wg_parser_create(FALSE)))
         return E_OUTOFMEMORY;
 
     reader->wg_parser = wg_parser;
@@ -1506,7 +1503,7 @@ static HRESULT init_stream(struct wm_reader *reader)
     {
         struct wm_stream *stream = &reader->streams[i];
 
-        stream->wg_stream = wg_parser_get_stream(reader->wg_parser, reader->stream_count - i - 1);
+        stream->wg_stream = wg_parser_get_stream(reader->wg_parser, i);
         stream->reader = reader;
         stream->index = i;
         stream->selection = WMT_ON;
@@ -1582,7 +1579,7 @@ static HRESULT reinit_stream(struct wm_reader *reader, bool read_compressed)
     wg_parser_destroy(reader->wg_parser);
     reader->wg_parser = 0;
 
-    if (!(wg_parser = wg_parser_create(WG_PARSER_DECODEBIN, read_compressed, sizeof(void *) == 4 && !read_compressed)))
+    if (!(wg_parser = wg_parser_create(read_compressed)))
         return E_OUTOFMEMORY;
 
     reader->wg_parser = wg_parser;
@@ -1607,7 +1604,7 @@ static HRESULT reinit_stream(struct wm_reader *reader, bool read_compressed)
         struct wm_stream *stream = &reader->streams[i];
         struct wg_format format;
 
-        stream->wg_stream = wg_parser_get_stream(reader->wg_parser, reader->stream_count - i - 1);
+        stream->wg_stream = wg_parser_get_stream(reader->wg_parser, i);
         stream->reader = reader;
         wg_parser_stream_get_current_format(stream->wg_stream, &format);
         if (stream->selection == WMT_ON)
@@ -1724,7 +1721,7 @@ static HRESULT wm_reader_read_stream_sample(struct wm_reader *reader, struct wg_
     HRESULT hr;
     BYTE *data;
 
-    if (!(stream = wm_reader_get_stream_by_stream_number(reader, reader->stream_count - buffer->stream)))
+    if (!(stream = wm_reader_get_stream_by_stream_number(reader, buffer->stream + 1)))
         return E_INVALIDARG;
 
     TRACE("Got buffer for '%s' stream %p.\n", get_major_type_string(stream->format.major_type), stream);
@@ -1992,8 +1989,7 @@ static HRESULT WINAPI reader_GetNextSample(IWMSyncReader2 *iface,
     if (!stream_number && !output_number && !ret_stream_number)
         return E_INVALIDARG;
 
-    if (reader->outer == &reader->IUnknown_inner)
-        EnterCriticalSection(&reader->cs);
+    EnterCriticalSection(&reader->cs);
 
     if (!stream_number)
         stream = NULL;
@@ -2020,7 +2016,7 @@ static HRESULT WINAPI reader_GetNextSample(IWMSyncReader2 *iface,
         }
 
         if (SUCCEEDED(hr) && SUCCEEDED(hr = wm_reader_read_stream_sample(reader, &wg_buffer, sample, pts, duration, flags)))
-            stream_number = reader->stream_count - wg_buffer.stream;
+            stream_number = wg_buffer.stream + 1;
     }
 
     if (stream && hr == NS_E_NO_MORE_SAMPLES)
@@ -2031,8 +2027,7 @@ static HRESULT WINAPI reader_GetNextSample(IWMSyncReader2 *iface,
     if (ret_stream_number && (hr == S_OK || stream_number))
         *ret_stream_number = stream_number;
 
-    if (reader->outer == &reader->IUnknown_inner)
-        LeaveCriticalSection(&reader->cs);
+    LeaveCriticalSection(&reader->cs);
     return hr;
 }
 
@@ -2513,11 +2508,8 @@ static HRESULT WINAPI reader_SetReadStreamSamples(IWMSyncReader2 *iface, WORD st
         return E_INVALIDARG;
     }
 
-    if (stream->read_compressed != compressed)
-    {
-        stream->read_compressed = compressed;
-        reinit_stream(reader, compressed);
-    }
+    stream->read_compressed = compressed;
+    reinit_stream(reader, compressed);
 
     LeaveCriticalSection(&reader->cs);
     return S_OK;

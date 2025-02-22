@@ -203,13 +203,6 @@ struct wg_parser_buffer
 };
 C_ASSERT(sizeof(struct wg_parser_buffer) == 32);
 
-typedef UINT32 wg_parser_type;
-enum wg_parser_type
-{
-    WG_PARSER_DECODEBIN,
-    WG_PARSER_URIDECODEBIN,
-};
-
 typedef UINT64 wg_parser_t;
 typedef UINT64 wg_parser_stream_t;
 typedef UINT64 wg_transform_t;
@@ -226,7 +219,6 @@ struct wg_parser_create_params
 {
     wg_parser_t parser;
     UINT8 output_compressed;
-    UINT8 use_opengl;
     UINT8 err_on;
     UINT8 warn_on;
 };

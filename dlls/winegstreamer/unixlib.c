@@ -28,9 +28,10 @@
 #include <stdarg.h>
 #include <stdio.h>
 
-#define GLIB_VERSION_MIN_REQUIRED GLIB_VERSION_2_30
 #include <gst/gst.h>
-#include <gst/gl/gl.h>
+#include <gst/video/video.h>
+#include <gst/audio/audio.h>
+#include <gst/tag/tag.h>
 
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
@@ -47,8 +48,6 @@
 GST_DEBUG_CATEGORY(wine);
 
 static UINT thread_count;
-
-GstGLDisplay *gl_display;
 
 GstStreamType stream_type_from_caps(GstCaps *caps)
 {
@@ -262,9 +261,6 @@ static ULONG popcount(ULONG val)
 NTSTATUS wg_init_gstreamer(void *arg)
 {
     struct wg_init_gstreamer_params *params = arg;
-    static GstGLContext *gl_context;
-
-    struct wg_init_gstreamer_params *params = arg;
     char arg0[] = "wine";
     char arg1[] = "--gst-disable-registry-fork";
     char *args[] = {arg0, arg1, NULL};
@@ -273,29 +269,12 @@ NTSTATUS wg_init_gstreamer(void *arg)
     GError *err;
     DWORD_PTR process_mask;
 
-    const char *e;
-
-    if ((e = getenv("WINE_GST_REGISTRY_DIR")))
-    {
-        char gst_reg[PATH_MAX];
-#if defined(__x86_64__)
-        const char *arch = "/registry.x86_64.bin";
-#elif defined(__i386__)
-        const char *arch = "/registry.i386.bin";
-#else
-#error Bad arch
-#endif
-        strcpy(gst_reg, e);
-        strcat(gst_reg, arch);
-        setenv("GST_REGISTRY_1_0", gst_reg, 1);
-    }
-
     if (params->trace_on)
-        setenv("GST_DEBUG", "WINE:9,protonmediaconverter:9,4", FALSE);
+        setenv("GST_DEBUG", "WINE:9,4", FALSE);
     if (params->warn_on)
-        setenv("GST_DEBUG", "WINE:3,protonmediaconverter:3,3", FALSE);
+        setenv("GST_DEBUG", "3", FALSE);
     if (params->err_on)
-        setenv("GST_DEBUG", "WINE:1,protonmediaconverter:1,1", FALSE);
+        setenv("GST_DEBUG", "1", FALSE);
     setenv("GST_DEBUG_NO_COLOR", "1", FALSE);
 
     /* GStreamer installs a temporary SEGV handler when it loads plugins
@@ -322,29 +301,6 @@ NTSTATUS wg_init_gstreamer(void *arg)
 
     GST_INFO("GStreamer library version %s; wine built with %d.%d.%d.",
             gst_version_string(), GST_VERSION_MAJOR, GST_VERSION_MINOR, GST_VERSION_MICRO);
-
-    if (!(gl_display = gst_gl_display_new()))
-        GST_ERROR("Failed to create OpenGL display");
-    else
-    {
-        GError *error = NULL;
-        gboolean ret;
-
-        GST_OBJECT_LOCK(gl_display);
-        ret = gst_gl_display_create_context(gl_display, NULL, &gl_context, &error);
-        GST_OBJECT_UNLOCK(gl_display);
-        g_clear_error(&error);
-
-        if (ret)
-            gst_gl_display_add_context(gl_display, gl_context);
-        else
-        {
-            GST_ERROR("Failed to create OpenGL context");
-            gst_object_unref(gl_display);
-            gl_display = NULL;
-        }
-    }
-
     return STATUS_SUCCESS;
 }
 

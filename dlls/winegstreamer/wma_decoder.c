@@ -30,6 +30,7 @@
 #include "wine/debug.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(wmadec);
+WINE_DECLARE_DEBUG_CHANNEL(winediag);
 
 static const GUID *const wma_decoder_input_types[] =
 {
@@ -503,18 +504,7 @@ static HRESULT WINAPI transform_ProcessEvent(IMFTransform *iface, DWORD id, IMFM
 
 static HRESULT WINAPI transform_ProcessMessage(IMFTransform *iface, MFT_MESSAGE_TYPE message, ULONG_PTR param)
 {
-    struct wma_decoder *decoder = impl_from_IMFTransform(iface);
-
-    TRACE("iface %p, message %#x, param %p.\n", iface, message, (void *)param);
-
-    if (!decoder->wg_transform)
-        return MF_E_TRANSFORM_TYPE_NOT_SET;
-
-    if (message == MFT_MESSAGE_COMMAND_DRAIN)
-        return wg_transform_drain(decoder->wg_transform);
-
-    FIXME("Ignoring message %#x.\n", message);
-
+    FIXME("iface %p, message %#x, param %p stub!\n", iface, message, (void *)param);
     return S_OK;
 }
 
@@ -719,6 +709,7 @@ static HRESULT WINAPI media_object_SetInputType(IMediaObject *iface, DWORD index
         const DMO_MEDIA_TYPE *type, DWORD flags)
 {
     struct wma_decoder *decoder = impl_from_IMediaObject(iface);
+    unsigned int i;
 
     TRACE("iface %p, index %lu, type %p, flags %#lx.\n", iface, index, type, flags);
 
@@ -744,6 +735,12 @@ static HRESULT WINAPI media_object_SetInputType(IMediaObject *iface, DWORD index
         return E_INVALIDARG;
 
     if (!IsEqualGUID(&type->majortype, &MEDIATYPE_Audio))
+        return DMO_E_TYPE_NOT_ACCEPTED;
+
+    for (i = 0; i < ARRAY_SIZE(wma_decoder_input_types); ++i)
+        if (IsEqualGUID(&type->subtype, wma_decoder_input_types[i]))
+            break;
+    if (i == ARRAY_SIZE(wma_decoder_input_types))
         return DMO_E_TYPE_NOT_ACCEPTED;
 
     if (flags & DMO_SET_TYPEF_TEST_ONLY)
@@ -1057,10 +1054,26 @@ static const IPropertyBagVtbl property_bag_vtbl =
 
 HRESULT wma_decoder_create(IUnknown *outer, IUnknown **out)
 {
+    static const WAVEFORMATEX output_format =
+    {
+        .wFormatTag = WAVE_FORMAT_IEEE_FLOAT, .wBitsPerSample = 32, .nSamplesPerSec = 44100, .nChannels = 1,
+    };
+    static const WMAUDIO2WAVEFORMAT input_format =
+    {
+        .wfx = {.wFormatTag = WAVE_FORMAT_WMAUDIO2, .wBitsPerSample = 16, .nSamplesPerSec = 44100, .nChannels = 1,
+                .nAvgBytesPerSec = 3000, .nBlockAlign = 139, .cbSize = sizeof(input_format) - sizeof(WAVEFORMATEX)},
+        .wEncodeOptions = 1,
+    };
     struct wma_decoder *decoder;
     HRESULT hr;
 
     TRACE("outer %p, out %p.\n", outer, out);
+
+    if (FAILED(hr = check_audio_transform_support(&input_format.wfx, &output_format)))
+    {
+        ERR_(winediag)("GStreamer doesn't support WMA decoding, please install appropriate plugins.\n");
+        return hr;
+    }
 
     if (!(decoder = calloc(1, sizeof(*decoder))))
         return E_OUTOFMEMORY;

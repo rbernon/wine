@@ -163,17 +163,16 @@ static HRESULT wg_media_type_to_mf(const struct wg_media_type *wg_media_type, IM
     return E_NOTIMPL;
 }
 
-wg_parser_t wg_parser_create(enum wg_parser_type type, bool output_compressed, bool use_opengl)
+wg_parser_t wg_parser_create(bool output_compressed)
 {
     struct wg_parser_create_params params =
     {
         .output_compressed = output_compressed,
-        .use_opengl = use_opengl,
         .err_on = ERR_ON(quartz),
         .warn_on = WARN_ON(quartz),
     };
 
-    TRACE("type %#x, use_opengl %u.\n", type, use_opengl);
+    TRACE("output_compressed %d.\n", output_compressed);
 
     if (WINE_UNIX_CALL(unix_wg_parser_create, &params))
         return 0;
