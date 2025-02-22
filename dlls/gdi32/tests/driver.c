@@ -1253,4 +1253,3 @@ START_TEST(driver)
 
     FreeLibrary(dwmapi);
 }
-

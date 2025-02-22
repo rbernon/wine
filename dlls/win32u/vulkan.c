@@ -46,14 +46,6 @@ WINE_DECLARE_DEBUG_CHANNEL(fps);
 
 static const struct vulkan_driver_funcs *driver_funcs;
 
-static void (*p_vkGetPhysicalDeviceProperties2)(VkPhysicalDevice, VkPhysicalDeviceProperties2 *);
-static void (*p_vkGetPhysicalDeviceProperties2KHR)(VkPhysicalDevice, VkPhysicalDeviceProperties2 *);
-
-static const char *debugstr_luid( const LUID *luid )
-{
-    return wine_dbg_sprintf( "%08x:%08x", (UINT)luid->HighPart, (UINT)luid->LowPart );
-}
-
 struct surface
 {
     struct vulkan_surface obj;
@@ -225,74 +217,6 @@ static VkResult win32u_vkGetPhysicalDeviceSurfaceCapabilities2KHR( VkPhysicalDev
                                                                      &surface_info_host, capabilities );
     if (!res) adjust_surface_capabilities( instance, surface, &capabilities->surfaceCapabilities );
     return res;
-}
-
-/* wait until graphics driver is loaded by explorer */
-static void wait_graphics_driver_ready(void)
-{
-    static BOOL ready = FALSE;
-
-    if (!ready)
-    {
-        send_message( get_desktop_window(), WM_NULL, 0, 0 );
-        ready = TRUE;
-    }
-}
-
-static void *find_vulkan_struct( void *chain, VkStructureType type )
-{
-    VkBaseOutStructure *header;
-    for (header = chain; header; header = header->pNext)
-        if (header->sType == type) return header;
-    return NULL;
-}
-
-static void set_physical_device_luid( VkPhysicalDeviceProperties2 *properties2 )
-{
-    VkPhysicalDeviceVulkan11Properties *vk11;
-    VkPhysicalDeviceIDProperties *id;
-    GUID vulkan_uuid;
-    LUID luid;
-
-    wait_graphics_driver_ready();
-
-    TRACE( "device name %s\n", properties2->properties.deviceName );
-
-    if ((id = find_vulkan_struct( properties2, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES )))
-    {
-        memcpy( &vulkan_uuid, id->deviceUUID, sizeof(vulkan_uuid) );
-        id->deviceLUIDValid = get_luid_from_vulkan_uuid( &vulkan_uuid, &luid );
-        memcpy( id->deviceLUID, &luid, sizeof(luid) );
-        id->deviceNodeMask = !!id->deviceLUIDValid;
-
-        TRACE( "id %p UUID %s LUID %s valid %d mask %u\n", id, debugstr_guid( &vulkan_uuid ),
-               debugstr_luid( &luid ), id->deviceLUIDValid, id->deviceNodeMask );
-    }
-
-    if ((vk11 = find_vulkan_struct( properties2, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_PROPERTIES )))
-    {
-        memcpy( &vulkan_uuid, id->deviceUUID, sizeof(vulkan_uuid) );
-        vk11->deviceLUIDValid = get_luid_from_vulkan_uuid( &vulkan_uuid, &luid );
-        memcpy( vk11->deviceLUID, &luid, sizeof(luid) );
-        vk11->deviceNodeMask = !!vk11->deviceLUIDValid;
-
-        TRACE( "vk11 %p UUID %s LUID %s valid %d mask %u\n", vk11, debugstr_guid( &vulkan_uuid ),
-               debugstr_luid( &luid ), vk11->deviceLUIDValid, vk11->deviceNodeMask );
-    }
-}
-
-void win32u_vkGetPhysicalDeviceProperties2( VkPhysicalDevice phys_dev, VkPhysicalDeviceProperties2 *properties2 )
-{
-    TRACE( "%p, %p\n", phys_dev, properties2 );
-    p_vkGetPhysicalDeviceProperties2( phys_dev, properties2 );
-    set_physical_device_luid( properties2 );
-}
-
-void win32u_vkGetPhysicalDeviceProperties2KHR( VkPhysicalDevice phys_dev, VkPhysicalDeviceProperties2 *properties2 )
-{
-    TRACE( "%p, %p\n", phys_dev, properties2 );
-    p_vkGetPhysicalDeviceProperties2KHR( phys_dev, properties2 );
-    set_physical_device_luid( properties2 );
 }
 
 static VkResult win32u_vkGetPhysicalDevicePresentRectanglesKHR( VkPhysicalDevice client_physical_device, VkSurfaceKHR client_surface,
@@ -577,8 +501,6 @@ static struct vulkan_funcs vulkan_funcs =
     .p_vkGetPhysicalDeviceSurfaceFormatsKHR = win32u_vkGetPhysicalDeviceSurfaceFormatsKHR,
     .p_vkGetPhysicalDeviceSurfaceFormats2KHR = win32u_vkGetPhysicalDeviceSurfaceFormats2KHR,
     .p_vkGetPhysicalDeviceWin32PresentationSupportKHR = win32u_vkGetPhysicalDeviceWin32PresentationSupportKHR,
-    .p_vkGetPhysicalDeviceProperties2 = win32u_vkGetPhysicalDeviceProperties2,
-    .p_vkGetPhysicalDeviceProperties2KHR = win32u_vkGetPhysicalDeviceProperties2KHR,
     .p_vkCreateSwapchainKHR = win32u_vkCreateSwapchainKHR,
     .p_vkDestroySwapchainKHR = win32u_vkDestroySwapchainKHR,
     .p_vkAcquireNextImage2KHR = win32u_vkAcquireNextImage2KHR,
@@ -725,14 +647,6 @@ static void vulkan_init_once(void)
     LOAD_FUNCPTR( vkGetInstanceProcAddr );
 #undef LOAD_FUNCPTR
 
-#define LOAD_FUNCPTR_OPT( f ) \
-    if (!(p_##f = dlsym( vulkan_handle, #f ))) WARN( "Failed to find " #f "\n" );
-    LOAD_FUNCPTR_OPT( vkGetPhysicalDeviceProperties2 );
-    LOAD_FUNCPTR_OPT( vkGetPhysicalDeviceProperties2KHR );
-    if (!p_vkGetPhysicalDeviceProperties2) p_vkGetPhysicalDeviceProperties2 = p_vkGetPhysicalDeviceProperties2KHR;
-    if (!p_vkGetPhysicalDeviceProperties2KHR) p_vkGetPhysicalDeviceProperties2KHR = p_vkGetPhysicalDeviceProperties2;
-#undef LOAD_FUNCPTR_OPT
-
     driver_funcs = &lazydrv_funcs;
     vulkan_funcs.p_vkGetInstanceProcAddr = p_vkGetInstanceProcAddr;
     vulkan_funcs.p_vkGetDeviceProcAddr = p_vkGetDeviceProcAddr;
@@ -749,68 +663,6 @@ void vulkan_detach_surfaces( struct list *surfaces )
         list_init( &surface->entry );
         surface->hwnd = NULL;
     }
-}
-
-static void append_window_surfaces( HWND toplevel, struct list *surfaces )
-{
-    WND *win;
-
-    if (!(win = get_win_ptr( toplevel )) || win == WND_DESKTOP || win == WND_OTHER_PROCESS)
-    {
-        pthread_mutex_lock( &vulkan_mutex );
-        list_move_tail( &offscreen_surfaces, surfaces );
-        pthread_mutex_unlock( &vulkan_mutex );
-    }
-    else
-    {
-        list_move_tail( &win->vulkan_surfaces, surfaces );
-        release_win_ptr( win );
-    }
-}
-
-static void enum_window_surfaces( HWND toplevel, HWND hwnd, struct list *surfaces )
-{
-    struct list tmp_surfaces = LIST_INIT(tmp_surfaces);
-    struct surface *surface, *next;
-    WND *win;
-
-    if (!(win = get_win_ptr( toplevel )) || win == WND_DESKTOP || win == WND_OTHER_PROCESS)
-    {
-        pthread_mutex_lock( &vulkan_mutex );
-        list_move_tail( &tmp_surfaces, &offscreen_surfaces );
-        pthread_mutex_unlock( &vulkan_mutex );
-    }
-    else
-    {
-        list_move_tail( &tmp_surfaces, &win->vulkan_surfaces );
-        release_win_ptr( win );
-    }
-
-    LIST_FOR_EACH_ENTRY_SAFE( surface, next, &tmp_surfaces, struct surface, entry )
-    {
-        if (surface->hwnd != hwnd && !NtUserIsChild( hwnd, surface->hwnd )) continue;
-        list_remove( &surface->entry );
-        list_add_tail( surfaces, &surface->entry );
-    }
-
-    append_window_surfaces( toplevel, &tmp_surfaces );
-}
-
-void vulkan_set_parent( HWND hwnd, HWND new_parent, HWND old_parent )
-{
-    struct list surfaces = LIST_INIT(surfaces);
-    HWND new_toplevel, old_toplevel;
-
-    TRACE( "hwnd %p new_parent %p old_parent %p\n", hwnd, new_parent, old_parent );
-
-    if (new_parent == NtUserGetDesktopWindow()) new_toplevel = hwnd;
-    else new_toplevel = NtUserGetAncestor( new_parent, GA_ROOT );
-    if (old_parent == NtUserGetDesktopWindow()) old_toplevel = hwnd;
-    else old_toplevel = NtUserGetAncestor( old_parent, GA_ROOT );
-    if (old_toplevel == new_toplevel) return;
-
-    enum_window_surfaces( old_toplevel, hwnd, &surfaces );
-    append_window_surfaces( new_toplevel, &surfaces );
 }
 
 #else /* SONAME_LIBVULKAN */

@@ -7485,24 +7485,3 @@ BOOL get_vulkan_uuid_from_luid( const LUID *luid, GUID *uuid )
     unlock_display_devices();
     return found;
 }
-
-/* Find the GPU LUID corresponding to a Vulkan device UUID */
-BOOL get_luid_from_vulkan_uuid( const GUID *uuid, LUID *luid )
-{
-    BOOL found = FALSE;
-    struct gpu *gpu;
-
-    if (!lock_display_devices()) return FALSE;
-
-    LIST_FOR_EACH_ENTRY( gpu, &gpus, struct gpu, entry )
-    {
-        if ((found = !memcmp( &gpu->vulkan_uuid, uuid, sizeof(*uuid) )))
-        {
-            *luid = gpu->luid;
-            break;
-        }
-    }
-
-    unlock_display_devices();
-    return found;
-}

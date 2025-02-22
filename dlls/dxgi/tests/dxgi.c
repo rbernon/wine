@@ -8116,4 +8116,3 @@ START_TEST(dxgi)
 
     FreeLibrary(d3d12_module);
 }
-

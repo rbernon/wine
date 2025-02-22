@@ -199,7 +199,7 @@ int main( int argc, char *argv[] )
     InflateRect( &geometry, 200, 100 );
     OffsetRect( &geometry, -geometry.left, -geometry.top );
 
-if (1)
+if (0)
 {
     vulkan_parent = vulkan_create_window( L"Vulkan (parent)", &geometry, fullscreen );
     ShowWindow( vulkan_parent, SW_SHOW );
@@ -241,7 +241,7 @@ if (1)
     OffsetRect( &geometry, -geometry.left, geometry.bottom );
 }
 
-if (1)
+if (0)
 {
     vulkan_child = vulkan_create_window( L"Vulkan (child)", &geometry, fullscreen );
     SetWindowLongW( vulkan_child, GWL_STYLE, GetWindowLongW( vulkan_child, GWL_STYLE ) | WS_CHILD );
