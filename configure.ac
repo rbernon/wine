@@ -257,6 +257,8 @@ then
   RSVG=""
   CONVERT=""
   ICOTOOL=""
+
+  enable_werror=${enable_werror:-yes}
 else
   test "$srcdir" = . || AC_MSG_ERROR([Maintainer mode cannot work out of tree.])
   AC_CHECK_PROGS(FONTFORGE, fontforge, false)

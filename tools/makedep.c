@@ -4340,7 +4340,7 @@ static void output_top_makefile( struct makefile *make )
     output( "Makefile: config.status %s\n", makedep );
     output( "\t@./config.status Makefile\n" );
     output( "config.status: %s\n", root_src_dir_path( "configure" ));
-    output( "\t@./config.status --recheck\n" );
+    output( "\t@./config.status --recheck --quiet\n" );
     strarray_add( &make->distclean_files, "config.status" );
     output( "include/config.h: include/stamp-h\n" );
     output( "include/stamp-h: %s config.status\n", root_src_dir_path( "include/config.h.in" ));
