@@ -46,9 +46,6 @@
 # endif
 #endif
 
-#include <cairo/cairo.h>
-#include <cairo/cairo-xlib.h>
-
 #include "x11drv.h"
 #include "winternl.h"
 #include "wine/debug.h"
@@ -955,10 +952,10 @@ static inline int get_dib_stride( int width, int bpp )
     return ((width * bpp + 31) >> 3) & ~3;
 }
 
-static inline int get_dib_image_size( const BITMAPINFOHEADER *info )
+static inline int get_dib_image_size( const BITMAPINFO *info )
 {
-    return get_dib_stride( info->biWidth, info->biBitCount )
-        * abs( info->biHeight );
+    return get_dib_stride( info->bmiHeader.biWidth, info->bmiHeader.biBitCount )
+        * abs( info->bmiHeader.biHeight );
 }
 
 /* store the palette or color mask data in the bitmap info structure */
@@ -2040,49 +2037,6 @@ static struct window_surface *create_scaled_surface( HWND hwnd, Window window, c
 
     return window_surface;
 }
-
-static BOOL x11drv_cairo_surface_flush( cairo_surface_t *window, cairo_surface_t *shape )
-{
-#ifdef HAVE_LIBXSHAPE
-    if (!shape) XShapeCombineMask( gdi_display, cairo_xlib_surface_get_drawable( window ), ShapeBounding, 0, 0, None, ShapeSet );
-    else XShapeCombineMask( gdi_display, cairo_xlib_surface_get_drawable( window ), ShapeBounding, 0, 0,
-                            cairo_xlib_surface_get_drawable( shape ), ShapeSet );
-#endif
-    return TRUE;
-}
-
-static void x11drv_cairo_surface_destroy( cairo_surface_t *window, cairo_surface_t *shape )
-{
-    XFreePixmap( gdi_display, cairo_xlib_surface_get_drawable( shape ) );
-    cairo_surface_destroy( window );
-    cairo_surface_destroy( shape );
-}
-
-static const struct window_surface_cairo_funcs x11drv_cairo_funcs =
-{
-    x11drv_cairo_surface_flush,
-    x11drv_cairo_surface_destroy
-};
-
-struct window_surface *x11drv_cairo_window_surface_create( Window window, const XVisualInfo *vis, const RECT *surface_rect,
-                                                           COLORREF color_key, BOOL use_alpha )
-{
-    cairo_surface_t *shape_surface, *window_surface;
-    RECT rect = *surface_rect;
-    Pixmap shape;
-
-    OffsetRect( &rect, -rect.left, -rect.top );
-    rect.right  = (rect.right + 0x1f) & ~0x1f;
-    rect.bottom = (rect.bottom + 0x1f) & ~0x1f;
-
-    shape = XCreatePixmap( gdi_display, window, rect.right, rect.bottom, 1 );
-    shape_surface = cairo_xlib_surface_create_for_bitmap( gdi_display, shape, DefaultScreenOfDisplay( gdi_display ),
-                                                          rect.right, rect.bottom );
-    window_surface = cairo_xlib_surface_create( gdi_display, window, vis->visual, rect.right, rect.bottom );
-
-    return window_surface_create_cairo( &x11drv_cairo_funcs, &rect, color_key, use_alpha, window_surface, shape_surface );
-}
-
 
 static BOOL enable_direct_drawing( struct x11drv_win_data *data, BOOL layered )
 {
